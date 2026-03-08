@@ -21,7 +21,7 @@ public class JsonDataService : IDataService
     public JsonDataService()
     {
         var path = "Data";
-        var templatesPath = "Data/Templates";
+        var templatesPath = "Templates";
 
         _dataPath = Path.Combine(Directory.GetCurrentDirectory(), path);
         _templatesPath = Path.Combine(Directory.GetCurrentDirectory(), templatesPath);

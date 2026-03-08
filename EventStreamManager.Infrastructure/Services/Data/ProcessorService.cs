@@ -71,7 +71,7 @@ public class ProcessorService : IProcessorService
     {
         try
         {
-            var templatePath = Path.Combine(Directory.GetCurrentDirectory(), "Data", "Templates", "DefaultProcessor.js");
+            var templatePath = Path.Combine(Directory.GetCurrentDirectory(), "Templates", "DefaultProcessor.js");
             
             if (!System.IO.File.Exists(templatePath))
             {
