@@ -1,0 +1,122 @@
+## 忽略 Visual Studio 临时文件、构建结果等
+## 来自：https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
+
+# 用户特定文件
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# 构建结果
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+build/
+bld/
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+msbuild.log
+msbuild.err
+msbuild.wrn
+
+# Visual Studio 2015/2017 缓存/选项目录
+.vs/
+.idea/
+
+# 配置文件（如果你不想上传本地配置）
+appsettings.Development.json
+appsettings.Production.json
+appsettings.local.json
+
+# 用户特定文件
+*.pfx
+*.p12
+*.key
+
+# 自动生成的 XML 文档文件
+*.xml
+
+# 测试结果
+TestResults/
+*.trx
+*.tmp
+*.tmp
+
+# NuGet 包文件夹
+packages/
+*.nupkg
+
+# Visual Studio 临时文件
+*.tmp
+*.log
+*.tlog
+*.swp
+*.swo
+
+# Entity Framework 迁移/脚手架临时文件
+*.jfm
+*.dbmdl
+
+# 日志文件
+*.log
+logs/
+
+# 用户特定文件
+*.user
+*.user.*
+*.suo
+*.docstates
+
+# Rider
+.idea/
+
+# VS Code
+.vscode/
+
+# 项目特定的排除
+# 如果你有一些敏感配置文件
+**/appsettings.*.json
+!appsettings.json
+
+# 忽略 .env 文件
+.env
+.env.local
+.env.production
+
+# 忽略本地数据库文件
+*.mdf
+*.ldf
+
+# 忽略生成的 NuGet 包
+*.nupkg
+
+# 忽略打包文件
+*.zip
+*.7z
+*.rar
+
+# 忽略 SSL 证书
+*.crt
+*.pfx
+
+# 忽略 Docker 相关临时文件
+docker-compose.override.yml
+*.dcproj.user
+
+# 忽略发布输出
+publish/
+PublishScripts/
+
+# 忽略 Benchmark 结果
+BenchmarkDotNet.Artifacts/
+
+# 忽略 Rider 临时文件夹
+.idea/
+
+# 忽略 Visual Studio 生成的 Launch Profiles
+launchSettings.json
