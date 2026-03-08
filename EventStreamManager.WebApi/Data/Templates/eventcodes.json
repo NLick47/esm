@@ -1,0 +1,11 @@
+[
+  { "code": "Register", "description": "登记", "enabled": true },
+  { "code": "CancelRelease", "description": "取消发布", "enabled": true },
+  { "code": "Examine", "description": "到检", "enabled": true },
+  { "code": "Release", "description": "发布", "enabled": true },
+  { "code": "CancelRegister", "description": "取消登记", "enabled": true },
+  { "code": "Appointment", "description": "预约", "enabled": true },
+  { "code": "CancelExamine", "description": "取消到检", "enabled": true },
+  { "code": "CancelAppointment", "description": "取消预约", "enabled": true },
+  { "code": "CriValuesRelease", "description": "危急值发布", "enabled": true }
+]

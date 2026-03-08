@@ -1,0 +1,37 @@
+[
+  {
+    "id": "status-update",
+    "name": "检查状态更新",
+    "eventCodes": [
+      "Register",
+      "Release",
+      "CancelRegister",
+      "CancelRelease"
+    ],
+    "sqlTemplate": "-- 查询已删除的数据（从日志表）\nSELECT \n    'DELETED' AS data_status,\n    l.strExamineID,\n    l.strExamineNo,\n    l.strExamineStatus,\n    l.strOrderID,\n    l.strExamPatientID,\n    l.strExamPatientName,\n    l.strExamSex,\n    l.datExamBirth,\n    l.strExamPatIDCard,\n    l.strExamPhone,\n    l.strExamTypeName,\n    l.strBodyName,\n    l.strExamineDepartment,\n    l.strEquipmentName,\n    l.strApplyTime,\n    l.strExamineTime,\n    l.strRegisterTime,\n    l.strApplyDoctor,\n    l.strApplyDepartment,\n    l.strRegDoctor,\n    l.strExamDoctor,\n    l.strExamTechnician,\n    l.txtExamClinicDiagnose,\n    l.decExamineCost,\n    l.decExamMedCost,\n    l.intImageNum,\n    l.intPACSImageNum,\n    l.strIfCharged,\n    l.strIfConfirmFee,\n    l.strImageQC,\n    l.decImageQCScore,\n    l.strReportQC,\n    l.decReportQCScore,\n    l.dtmUpdate,\n    l.dtmNew,\n    l.strApplyDoctorNo,\n    l.strApplyDepartmentNo,\n    l.strPatientName,\n    l.strSex,\n    l.datBirth,\n    l.strPatIDCard,\n    l.strPhone\nFROM T_LogDeleteExam l\nWHERE l.strExamineID = ${strEventReferenceId}\n\nUNION ALL\n\n-- 查询未删除的数据（从原表联查）\nSELECT \n    'ACTIVE' AS data_status,\n    e.strExamineID,\n    e.strExamineNo,\n    e.strExamineStatus,\n    e.strOrderID,\n    p.strPatientID AS strExamPatientID,\n    p.strPatientName AS strExamPatientName,\n    p.strSex AS strExamSex,\n    p.datBirth AS datExamBirth,\n    p.strPatIDCard AS strExamPatIDCard,\n    p.strPhone AS strExamPhone,\n    e.strExamTypeName,\n    e.strBodyName,\n    e.strExamineDepartment,\n    e.strEquipmentName,\n    e.strApplyTime,\n    e.strExamineTime,\n    e.strRegisterTime,\n    r.strApplyDoctor,\n    r.strApplyDepartment,\n    e.strRegDoctor,\n    e.strExamDoctor,\n    e.strExamTechnician,\n    r.txtClinicDiagnose AS txtExamClinicDiagnose,\n    e.decExamineCost,\n    e.decExamMedCost,\n    e.intImageNum,\n    e.intPACSImageNum,\n    e.strIfCharged,\n    e.strIfConfirmFee,\n    e.strImageQC,\n    e.decImageQCScore,\n    e.strReportQC,\n    e.decReportQCScore,\n    e.dtmUpdate,\n    e.dtmNew,\n    r.strApplyDoctorNo,\n    r.strApplyDepartmentNo,\n    p.strPatientName,\n    p.strSex,\n    p.datBirth,\n    p.strPatIDCard,\n    p.strPhone\nFROM tblExamine e\nLEFT JOIN tblOrder r ON e.strOrderId = r.strOrderId\nLEFT JOIN tblPatient p ON r.strPatientID = p.strPatientID\nWHERE e.strExamineID = ${strEventReferenceId}\n    AND NOT EXISTS (\n        SELECT 1 FROM T_LogDeleteExam l \n        WHERE l.strExamineID = e.strExamineID\n    );"
+  },
+  {
+    "id": "report-publish",
+    "name": "报告发布",
+    "eventCodes": [
+      "Release"
+    ],
+    "sqlTemplate": "SELECT *\nFROM tblExamine e\nLEFT JOIN tblOrder r ON e.strOrderId = r.strOrderId\nLEFT JOIN tblPatient p ON r.strPatientID = p.strPatientID\nleft join tblReport t on  t.strExamineID = e.strExamineID\nwhere strExamineID = ${strEventReferenceId}"
+  },
+  {
+    "id": "active-registration ",
+    "name": "未取消登记通用",
+    "eventCodes": [
+      "Register"
+    ],
+    "sqlTemplate": "SELECT *\nFROM tblExamine e\nLEFT JOIN tblOrder r ON e.strOrderId = r.strOrderId\nLEFT JOIN tblPatient p ON r.strPatientID = p.strPatientID\nwhere strExamineID = ${strEventReferenceId}"
+  },
+  {
+    "id": "cancel-register",
+    "name": "取消登记",
+    "eventCodes": [
+      "CancelRegister"
+    ],
+    "sqlTemplate": "select * from T_LogDeleteExam\nwhere strExamineID = ${strEventReferenceId}"
+  }
+]

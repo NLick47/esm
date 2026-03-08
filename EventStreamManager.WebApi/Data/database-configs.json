@@ -1,0 +1,22 @@
+[
+  {
+    "Databases": {
+      "ris": [
+        {
+          "Id": "53c6d8b9-7e12-4875-ac0f-ce7424880776",
+          "Name": "\u65B0\u8D85\u58F0\u6570\u636E\u5E93\u914D\u7F6E",
+          "ConnectionString": "Server=.;Database=ccp;User Id=sa;Password=123456;TrustServerCertificate=true;",
+          "Driver": "SqlServer",
+          "IsActive": true,
+          "Timeout": 30
+        }
+      ]
+    },
+    "DatabaseTypes": [
+      {
+        "Value": "ris",
+        "Label": "\u8D85\u58F0\u6570\u636E\u5E93"
+      }
+    ]
+  }
+]

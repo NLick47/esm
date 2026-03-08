@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net6.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+    </PropertyGroup>
+    
+    
+    <ItemGroup>
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\EventStreamManager.EventProcessor\EventStreamManager.EventProcessor.csproj" />
+        <ProjectReference Include="..\EventStreamManager.Infrastructure\EventStreamManager.Infrastructure.csproj" />
+        <ProjectReference Include="..\EventStreamManager.JSFunction.Standard\EventStreamManager.JSFunction.Standard.csproj" />
+        <ProjectReference Include="..\EventStreamManager.JSFunction.Loader\EventStreamManager.JSFunction.Loader.csproj" />
+        <ProjectReference Include="..\EventStreamManager.JSFunction\EventStreamManager.JSFunction.csproj" />
+    </ItemGroup>
+
+</Project>

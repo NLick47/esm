@@ -1,0 +1,46 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EventStreamManager.WebApi", "EventStreamManager.WebApi\EventStreamManager.WebApi.csproj", "{AC62B66C-C078-4BA1-B3AC-6D08D1A739CB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EventStreamManager.JSFunction", "EventStreamManager.JSFunction\EventStreamManager.JSFunction.csproj", "{18607483-3CDA-41B1-BD9D-BA3A931E1429}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EventStreamManager.JSFunction.Standard", "EventStreamManager.JSFunction.Standard\EventStreamManager.JSFunction.Standard.csproj", "{0EDD4C18-715E-439B-9818-B4731CABBB0C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EventStreamManager.JSFunction.Loader", "EventStreamManager.JSFunction.Loader\EventStreamManager.JSFunction.Loader.csproj", "{9E34B55A-25F2-4010-9033-32C9DFB283DC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EventStreamManager.Infrastructure", "EventStreamManager.Infrastructure\EventStreamManager.Infrastructure.csproj", "{82BDDDA4-7E30-4E4D-B226-026EF537FF8E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EventStreamManager.EventProcessor", "EventStreamManager.EventProcessor\EventStreamManager.EventProcessor.csproj", "{FF451BAB-C2DB-454F-AE1B-7AD2D8611032}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{AC62B66C-C078-4BA1-B3AC-6D08D1A739CB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AC62B66C-C078-4BA1-B3AC-6D08D1A739CB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AC62B66C-C078-4BA1-B3AC-6D08D1A739CB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AC62B66C-C078-4BA1-B3AC-6D08D1A739CB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{18607483-3CDA-41B1-BD9D-BA3A931E1429}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{18607483-3CDA-41B1-BD9D-BA3A931E1429}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{18607483-3CDA-41B1-BD9D-BA3A931E1429}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{18607483-3CDA-41B1-BD9D-BA3A931E1429}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0EDD4C18-715E-439B-9818-B4731CABBB0C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0EDD4C18-715E-439B-9818-B4731CABBB0C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0EDD4C18-715E-439B-9818-B4731CABBB0C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0EDD4C18-715E-439B-9818-B4731CABBB0C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9E34B55A-25F2-4010-9033-32C9DFB283DC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9E34B55A-25F2-4010-9033-32C9DFB283DC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9E34B55A-25F2-4010-9033-32C9DFB283DC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9E34B55A-25F2-4010-9033-32C9DFB283DC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{82BDDDA4-7E30-4E4D-B226-026EF537FF8E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{82BDDDA4-7E30-4E4D-B226-026EF537FF8E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{82BDDDA4-7E30-4E4D-B226-026EF537FF8E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{82BDDDA4-7E30-4E4D-B226-026EF537FF8E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FF451BAB-C2DB-454F-AE1B-7AD2D8611032}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FF451BAB-C2DB-454F-AE1B-7AD2D8611032}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FF451BAB-C2DB-454F-AE1B-7AD2D8611032}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FF451BAB-C2DB-454F-AE1B-7AD2D8611032}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

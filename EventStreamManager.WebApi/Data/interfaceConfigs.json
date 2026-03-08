@@ -1,0 +1,26 @@
+[
+  {
+    "Id": "1772920071082",
+    "Name": "111111",
+    "ProcessorIds": [
+      "cc272e56-4d6f-4679-9440-4028666b7c8e"
+    ],
+    "ProcessorNames": [
+      "\u6D4B\u8BD51"
+    ],
+    "Url": "11",
+    "Method": "POST",
+    "Headers": [
+      {
+        "Key": "Content-Type",
+        "Value": "application/json"
+      }
+    ],
+    "Timeout": 30,
+    "RetryCount": 3,
+    "RetryInterval": 5,
+    "Enabled": false,
+    "RequestTemplate": "{\n  \u0022data\u0022: ${data}\n}",
+    "Description": ""
+  }
+]

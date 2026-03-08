@@ -1,0 +1,52 @@
+[
+  {
+    "Databases": {
+      "ultrasound": {
+        "ScanFrequency": 60,
+        "BatchSize": 100,
+        "Enabled": false,
+        "TableName": "tblevent",
+        "PrimaryKey": "Id",
+        "TimestampField": "CreateDatetime",
+        "TotalEventsProcessed": 0,
+        "StartCondition": null
+      },
+      "radiology": {
+        "ScanFrequency": 60,
+        "BatchSize": 100,
+        "Enabled": false,
+        "TableName": "tblevent",
+        "PrimaryKey": "Id",
+        "TimestampField": "CreateDatetime",
+        "TotalEventsProcessed": 0,
+        "StartCondition": null
+      },
+      "endoscopy": {
+        "ScanFrequency": 60,
+        "BatchSize": 100,
+        "Enabled": false,
+        "TableName": "tblevent",
+        "PrimaryKey": "Id",
+        "TimestampField": "CreateDatetime",
+        "TotalEventsProcessed": 0,
+        "StartCondition": null
+      },
+      "ris": {
+        "ScanFrequency": 60,
+        "BatchSize": 100,
+        "Enabled": false,
+        "TableName": "tblevent",
+        "PrimaryKey": "Id",
+        "TimestampField": "CreateDatetime",
+        "TotalEventsProcessed": 0,
+        "StartCondition": {
+          "Type": "id",
+          "TimeValue": "2026-03-06T14:57",
+          "IdValue": "12"
+        }
+      }
+    },
+    "LastUpdated": "2026-03-07T14:57:51.7239374+08:00",
+    "Version": "1.0.0"
+  }
+]
