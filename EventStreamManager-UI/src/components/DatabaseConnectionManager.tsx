@@ -1,10 +1,11 @@
+/**
+ * 数据库连接管理模块
+ */
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { DatabaseConfig, DatabaseType, DriverType } from '@/types/database';
-import { getApiUrl } from '@/config/api.config';
-const API_URL = getApiUrl('/api/DatabaseConfig');
+import * as databaseService from '@/services/database.service';
 
-// 数据库连接管理模块
 export default function DatabaseConnectionManager() {
   const [activeDatabase, setActiveDatabase] = useState<DatabaseType>('');
   const [currentConfigIndex, setCurrentConfigIndex] = useState(0);
@@ -32,8 +33,8 @@ export default function DatabaseConnectionManager() {
 
   // 加载配置数据
   useEffect(() => {
-    fetchConfigs();
-    fetchDatabaseTypes();
+    loadConfigs();
+    loadDatabaseTypes();
   }, []);
 
   // 当切换数据库类型或索引时更新当前配置
@@ -48,22 +49,17 @@ export default function DatabaseConnectionManager() {
         setCurrentConfigIndex(0);
       }
     } else {
-      // 如果没有配置，创建一个默认的空配置
       createNewConfig();
     }
   }, [activeDatabase, currentConfigIndex, databaseConfigs]);
 
   // 获取所有配置
-  const fetchConfigs = async () => {
+  const loadConfigs = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(API_URL);
-      if (!response.ok) throw new Error('获取配置失败');
-
-      const data = await response.json();
+      const data = await databaseService.getAllConfigs();
       setDatabaseConfigs(data || {});
 
-      // 如果有数据库类型，默认选中第一个
       if (databaseTypes.length > 0 && !activeDatabase) {
         setActiveDatabase(databaseTypes[0].value);
       }
@@ -76,18 +72,14 @@ export default function DatabaseConnectionManager() {
   };
 
   // 获取指定类型的配置
-  const fetchConfigsByType = async (type: string) => {
+  const loadConfigsByType = async (type: string) => {
     try {
-      const response = await fetch(`${API_URL}/${type}`);
-      if (!response.ok) throw new Error('获取配置失败');
-
-      const data = await response.json();
+      const data = await databaseService.getConfigsByType(type);
       setDatabaseConfigs(prev => ({
         ...prev,
         [type]: data
       }));
 
-      // 找到该类型的激活配置并自动选中
       if (data && data.length > 0) {
         const activeIndex = data.findIndex((c: DatabaseConfig) => c.isActive === true);
         if (activeIndex !== -1 && type === activeDatabase) {
@@ -102,16 +94,13 @@ export default function DatabaseConnectionManager() {
   };
 
   // 获取数据库类型列表
-  const fetchDatabaseTypes = async () => {
+  const loadDatabaseTypes = async () => {
     try {
-      const response = await fetch(`${API_URL}/types`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data && data.length > 0) {
-          setDatabaseTypes(data);
-          if (!activeDatabase) {
-            setActiveDatabase(data[0].value);
-          }
+      const data = await databaseService.getDatabaseTypes();
+      if (data && data.length > 0) {
+        setDatabaseTypes(data);
+        if (!activeDatabase) {
+          setActiveDatabase(data[0].value);
         }
       }
     } catch (error) {
@@ -126,7 +115,6 @@ export default function DatabaseConnectionManager() {
       return;
     }
 
-    // 检查是否已存在
     if (databaseTypes.some(t => t.value === newTypeName)) {
       toast.error('该类型标识已存在');
       return;
@@ -134,37 +122,17 @@ export default function DatabaseConnectionManager() {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/types`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          value: newTypeName,
-          label: newTypeLabel
-        })
-      });
+      const newType = await databaseService.addDatabaseType(newTypeName, newTypeLabel);
 
-      if (!response.ok) throw new Error('添加失败');
-
-      const newType = await response.json();
-
-      // 更新类型列表
       setDatabaseTypes(prev => [...prev, newType]);
-
-      // 初始化该类型的配置数组
       setDatabaseConfigs(prev => ({
         ...prev,
         [newTypeName]: []
       }));
 
-      // 切换到新类型
       setActiveDatabase(newTypeName);
-
-      // 创建默认配置
       createNewConfig();
 
-      // 重置表单
       setIsAddingType(false);
       setNewTypeName('');
       setNewTypeLabel('');
@@ -186,21 +154,14 @@ export default function DatabaseConnectionManager() {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/types/${type}`, {
-        method: 'DELETE'
-      });
+      await databaseService.deleteDatabaseType(type);
 
-      if (!response.ok) throw new Error('删除失败');
-
-      // 更新类型列表
       setDatabaseTypes(prev => prev.filter(t => t.value !== type));
 
-      // 删除该类型的配置
       const newConfigs = { ...databaseConfigs };
       delete newConfigs[type];
       setDatabaseConfigs(newConfigs);
 
-      // 如果删除的是当前选中的类型，切换到第一个
       if (activeDatabase === type) {
         const remainingTypes = databaseTypes.filter(t => t.value !== type);
         if (remainingTypes.length > 0) {
@@ -232,7 +193,7 @@ export default function DatabaseConnectionManager() {
     setActiveDatabase(type);
     setCurrentConfigIndex(0);
     setConnectionStatus('disconnected');
-    fetchConfigsByType(type);
+    loadConfigsByType(type);
   };
 
   // 处理配置更改
@@ -252,39 +213,23 @@ export default function DatabaseConnectionManager() {
 
     setIsLoading(true);
     try {
-      const url = currentConfig.id
-        ? `${API_URL}/${activeDatabase}/${currentConfig.id}`
-        : `${API_URL}/${activeDatabase}`;
-
-      const method = currentConfig.id ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(currentConfig)
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || '保存失败');
+      let savedConfig: DatabaseConfig;
+      
+      if (currentConfig.id) {
+        savedConfig = await databaseService.updateConfig(activeDatabase, currentConfig.id, currentConfig);
+      } else {
+        savedConfig = await databaseService.createConfig(activeDatabase, currentConfig);
       }
 
-      const savedConfig = await response.json();
-
-      // 更新本地状态
       setDatabaseConfigs(prev => {
         const currentTypeConfigs = prev[activeDatabase] || [];
         const newConfigs = { ...prev };
 
         if (currentConfig.id) {
-          // 更新现有配置
           newConfigs[activeDatabase] = currentTypeConfigs.map(c =>
             c.id === savedConfig.id ? savedConfig : c
           );
         } else {
-          // 添加新配置
           newConfigs[activeDatabase] = [...currentTypeConfigs, savedConfig];
           setCurrentConfigIndex(newConfigs[activeDatabase].length - 1);
         }
@@ -310,23 +255,11 @@ export default function DatabaseConnectionManager() {
     setConnectionStatus('connecting');
 
     try {
-      const response = await fetch(`${API_URL}/test-connection`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          connectionString: currentConfig.connectionString,
-          driver: currentConfig.driver
-        })
-      });
-
-      const result = await response.json();
-
+      const result = await databaseService.testConnection(activeDatabase, currentConfig);
       setConnectionStatus(result.success ? 'connected' : 'disconnected');
 
       if (result.success) {
-        toast.success(`数据库连接测试成功 (响应时间: ${result.responseTime}ms)`);
+        toast.success(`数据库连接测试成功`);
       } else {
         toast.error(`无法连接到数据库: ${result.message}`);
       }
@@ -372,26 +305,16 @@ export default function DatabaseConnectionManager() {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/${activeDatabase}/${currentConfig.id}`, {
-        method: 'DELETE'
-      });
+      await databaseService.deleteConfig(activeDatabase, currentConfig.id);
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || '删除失败');
-      }
-
-      // 获取删除前的激活配置ID
       const wasActive = currentConfig.isActive;
 
-      // 更新本地状态
       setDatabaseConfigs(prev => {
         const newConfigs = { ...prev };
         newConfigs[activeDatabase] = (prev[activeDatabase] || []).filter(c => c.id !== currentConfig.id);
         return newConfigs;
       });
 
-      // 如果删除的是激活配置，并且还有其他配置，需要设置新的激活配置
       if (wasActive && currentTypeConfigs.length > 1) {
         const remainingConfigs = currentTypeConfigs.filter(c => c.id !== currentConfig.id);
         if (remainingConfigs.length > 0) {
@@ -420,19 +343,8 @@ export default function DatabaseConnectionManager() {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/${activeDatabase}/${targetId}/set-active`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
+      await databaseService.setActiveConfig(activeDatabase, targetId);
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || '设置失败');
-      }
-
-      // 更新所有配置的isActive状态
       setDatabaseConfigs(prev => {
         const currentTypeConfigs = prev[activeDatabase] || [];
         const newConfigs = { ...prev };
@@ -443,14 +355,12 @@ export default function DatabaseConnectionManager() {
         return newConfigs;
       });
 
-      // 如果设置的是当前选中的配置，更新currentConfig的isActive
       if (currentConfig.id === targetId) {
         setCurrentConfig(prev => ({
           ...prev,
           isActive: true
         }));
       } else {
-        // 如果设置的不是当前选中的配置，找到目标配置的索引并切换
         const configs = databaseConfigs[activeDatabase] || [];
         const targetIndex = configs.findIndex(c => c.id === targetId);
         if (targetIndex !== -1) {
@@ -530,7 +440,6 @@ export default function DatabaseConnectionManager() {
                     </span>
                   )}
                 </button>
-                {/* 删除类型按钮 - 只在非活动状态且类型数大于1时显示 */}
                 {!isActive && databaseTypes.length > 1 && (
                   <button
                     onClick={() => deleteDatabaseType(type.value)}
@@ -545,7 +454,6 @@ export default function DatabaseConnectionManager() {
           })}
         </div>
 
-        {/* 添加新类型按钮 */}
         <button
           onClick={() => setIsAddingType(true)}
           className="rounded-lg bg-green-600 text-white px-4 py-3 font-medium hover:bg-green-700 transition-colors flex items-center gap-2"
@@ -611,7 +519,7 @@ export default function DatabaseConnectionManager() {
         </div>
       )}
 
-      {/* 配置列表和操作 - 只在有选中的数据库类型时显示 */}
+      {/* 配置列表和操作 */}
       {activeDatabase && (
         <>
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -633,7 +541,6 @@ export default function DatabaseConnectionManager() {
                   ))}
                 </select>
 
-                {/* 激活标识 */}
                 {currentConfig.isActive && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">
                     <i className="fa-solid fa-check-circle"></i>
@@ -668,7 +575,6 @@ export default function DatabaseConnectionManager() {
                 <i className="fa-solid fa-plus mr-1"></i> 新建配置
               </button>
 
-              {/* 设为当前使用按钮 - 只在配置不是激活状态时显示 */}
               {currentConfig.id && !currentConfig.isActive && (
                 <button
                   onClick={() => setAsActiveConfig()}
@@ -727,8 +633,6 @@ export default function DatabaseConnectionManager() {
                   <option value={DriverType.Oracle}>Oracle</option>
                   <option value={DriverType.SqLite}>SQLite</option>
                 </select>
-
-
               </div>
 
               <div>
@@ -761,7 +665,6 @@ export default function DatabaseConnectionManager() {
                 />
               </div>
 
-              {/* 显示当前配置的激活状态 */}
               {currentConfig.id && (
                 <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -803,73 +706,13 @@ export default function DatabaseConnectionManager() {
                     : 'bg-blue-600 text-white hover:bg-blue-700'
                   }`}
               >
-                {connectionStatus === 'connecting' ? (
-                  <i className="fa-solid fa-spinner fa-spin"></i>
-                ) : (
-                  <i className="fa-solid fa-plug"></i>
-                )}
-                {connectionStatus === 'connecting' ? '测试连接中...' : '测试连接'}
+                <i className="fa-solid fa-plug"></i>
+                测试连接
               </button>
             </div>
           </div>
         </>
       )}
-
-      {/* 连接帮助信息 */}
-      <div className="rounded-xl bg-blue-50 p-4 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-        <h4 className="mb-2 text-sm font-medium text-blue-800 dark:text-blue-300 flex items-center gap-2">
-          <i className="fa-solid fa-circle-info"></i>
-          连接字符串格式说明
-        </h4>
-        <div className="text-xs text-blue-700 dark:text-blue-400 space-y-1">
-          <p><span className="font-semibold">SQL Server:</span> Server=服务器地址,端口;Database=数据库名;User Id=用户名;Password=密码;TrustServerCertificate=true;</p>
-          <p><span className="font-semibold">MySQL:</span> Server=服务器地址;Port=端口;Database=数据库名;Uid=用户名;Pwd=密码;</p>
-          <p><span className="font-semibold">PostgreSQL:</span> Host=服务器地址;Port=端口;Database=数据库名;Username=用户名;Password=密码;</p>
-          <p><span className="font-semibold">Oracle:</span> Data Source=服务器地址:端口/服务名;User Id=用户名;Password=密码;</p>
-        </div>
-      </div>
-
-      {/* 连接历史和状态信息 */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-4">
-        <div className="rounded-xl bg-white p-4 shadow-md dark:bg-gray-800 dark:shadow-lg">
-          <h4 className="mb-2 text-sm font-medium text-gray-500 dark:text-gray-400">总配置数</h4>
-          <p className="text-2xl font-bold">
-            {Object.values(databaseConfigs).reduce((sum, configs) => sum + configs.length, 0)}
-          </p>
-        </div>
-
-        <div className="rounded-xl bg-white p-4 shadow-md dark:bg-gray-800 dark:shadow-lg">
-          <h4 className="mb-2 text-sm font-medium text-gray-500 dark:text-gray-400">已连接数据库</h4>
-          <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-            {connectionStatus === 'connected' ? 1 : 0}
-          </p>
-        </div>
-
-        <div className="rounded-xl bg-white p-4 shadow-md dark:bg-gray-800 dark:shadow-lg">
-          <h4 className="mb-2 text-sm font-medium text-gray-500 dark:text-gray-400">数据库类型数</h4>
-          <p className="text-2xl font-bold">{databaseTypes.length}</p>
-        </div>
-
-        {/* 当前使用配置 */}
-        <div className="rounded-xl bg-white p-4 shadow-md dark:bg-gray-800 dark:shadow-lg">
-          <h4 className="mb-2 text-sm font-medium text-gray-500 dark:text-gray-400">当前使用配置</h4>
-          <p className="text-lg font-bold truncate" title={currentConfig.name}>
-            {(() => {
-              if (!activeDatabase) return '未选择';
-              const activeConfig = getActiveConfig(activeDatabase);
-              return activeConfig ? activeConfig.name : '未设置';
-            })()}
-          </p>
-          {activeDatabase && (() => {
-            const activeConfig = getActiveConfig(activeDatabase);
-            return activeConfig && (
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                {activeConfig.driver}
-              </p>
-            );
-          })()}
-        </div>
-      </div>
     </div>
   );
 }

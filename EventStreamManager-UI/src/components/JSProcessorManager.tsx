@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { DatabaseType } from '@/types/database';
 import CodeMirror from '@uiw/react-codemirror';
 import { javascript } from '@codemirror/lang-javascript';
 import { sql } from '@codemirror/lang-sql';
@@ -10,6 +9,26 @@ import parserBabel from 'prettier/plugins/babel';
 import prettierPluginEstree from 'prettier/plugins/estree';
 import { createPortal } from 'react-dom';
 import { getApiUrl } from '@/config/api.config';
+import {
+  getProcessors,
+  getEventCodes,
+  getSystemTemplates,
+  getCustomTemplates,
+  getDefaultTemplate,
+  toggleProcessor as toggleProcessorService,
+  deleteProcessor as deleteProcessorService,
+  createProcessor as createProcessorService,
+  updateProcessor as updateProcessorService,
+  createCustomTemplate as createCustomTemplateService,
+  updateCustomTemplate as updateCustomTemplateService,
+  deleteCustomTemplate as deleteCustomTemplateService,
+  executeDebug,
+  executeExamineDebug,
+
+} from '@/services/processor.service';
+
+import{getDatabaseTypesWithActiveConfig}
+from '@/services/database.service'
 
 // 类型定义（与后端模型一致）
 interface JSProcessor {
@@ -64,7 +83,6 @@ export default function JSProcessorManager() {
     name: string;
     sql: string;
   } | null>(null);
-  const [debugProcessorId, setDebugProcessorId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'list' | 'editor' | 'debug'>('list');
   const [selectedProcessor, setSelectedProcessor] = useState<string | null>(null);
   const [isNewProcessor, setIsNewProcessor] = useState(false);
@@ -89,7 +107,7 @@ export default function JSProcessorManager() {
   // 编辑器布局和字体大小状态
   const [editorLayout, setEditorLayout] = useState<'horizontal' | 'vertical'>('horizontal');
   const [editorFontSize, setEditorFontSize] = useState<number>(15);
-  const [isEditorFocused, setIsEditorFocused] = useState(false);
+
 
   interface ValidationResult {
     isValid: boolean;
@@ -122,28 +140,14 @@ export default function JSProcessorManager() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [procRes, eventRes, sysRes, custRes, templateRes, typesRes] = await Promise.all([
-          fetch(getApiUrl('/api/processors')),
-          fetch(getApiUrl('/api/eventcodes')),
-          fetch(getApiUrl('/api/sqltemplates/system')),
-          fetch(getApiUrl('/api/sqltemplates/custom')),
-          fetch(getApiUrl('/api/processors/default-template')),
-          fetch(getApiUrl('/api/DatabaseConfig/types-with-active-config'))
+        const [procData, eventData, sysData, custData, templateData, typesData] = await Promise.all([
+          getProcessors(),
+          getEventCodes(),
+          getSystemTemplates(),
+          getCustomTemplates(),
+          getDefaultTemplate(),
+          getDatabaseTypesWithActiveConfig()
         ]);
-
-        if (!procRes.ok) throw new Error('加载处理器列表失败');
-        if (!eventRes.ok) throw new Error('加载事件码失败');
-        if (!sysRes.ok) throw new Error('加载系统模板失败');
-        if (!custRes.ok) throw new Error('加载自定义模板失败');
-        if (!templateRes.ok) throw new Error('加载默认模板失败');
-        if (!typesRes.ok) throw new Error('加载数据库类型失败');
-
-        const procData = await procRes.json();
-        const eventData = await eventRes.json();
-        const sysData = await sysRes.json();
-        const custData = await custRes.json();
-        const templateData = await templateRes.json();
-        const typesData = await typesRes.json();
 
         setProcessors(procData);
         setEventCodes(eventData);
@@ -190,11 +194,7 @@ export default function JSProcessorManager() {
   // 处理器操作
   const toggleProcessorStatus = async (id: string) => {
     try {
-      const res = await fetch(getApiUrl(`/api/processors/${id}/toggle`), {
-        method: 'PATCH'
-      });
-      if (!res.ok) throw new Error('切换状态失败');
-      const updated = await res.json();
+      const updated = await toggleProcessorService(id);
       setProcessors(prev => prev.map(p => p.id === id ? updated : p));
       toast.success('处理器状态已更新');
     } catch (error) {
@@ -205,10 +205,7 @@ export default function JSProcessorManager() {
   const deleteProcessor = async (id: string) => {
     if (!window.confirm('确定要删除这个处理器吗？')) return;
     try {
-      const res = await fetch(getApiUrl(`/api/processors/${id}`), {
-        method: 'DELETE'
-      });
-      if (!res.ok) throw new Error('删除失败');
+      await deleteProcessorService(id);
       setProcessors(prev => prev.filter(p => p.id !== id));
       if (selectedProcessor === id) {
         setSelectedProcessor(null);
@@ -267,25 +264,14 @@ export default function JSProcessorManager() {
     try {
       if (isNewProcessor || !editingProcessor.id || editingProcessor.id.trim() === '') {
         // 创建
-        const res = await fetch(getApiUrl('/api/processors'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(editingProcessor)
-        });
-        if (!res.ok) throw new Error('创建失败');
-        const newProcessor = await res.json();
+        const newProcessor = await createProcessorService(editingProcessor);
         setProcessors(prev => [...prev, newProcessor]);
         setSelectedProcessor(newProcessor.id);
         setIsNewProcessor(false);
         toast.success('处理器已创建');
       } else {
         // 更新
-        const res = await fetch(getApiUrl(`/api/processors/${editingProcessor.id}`), {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(editingProcessor)
-        });
-        if (!res.ok) throw new Error('更新失败');
+        await updateProcessorService(editingProcessor.id, editingProcessor);
         setProcessors(prev => prev.map(p =>
           p.id === selectedProcessor ? editingProcessor : p
         ));
@@ -354,13 +340,7 @@ export default function JSProcessorManager() {
       sqlTemplate: 'SELECT * FROM tblexamine where strexamineId = ${strEventReferenceId}'
     };
     try {
-      const res = await fetch(getApiUrl('/api/sqltemplates/custom'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newTemplate)
-      });
-      if (!res.ok) throw new Error('创建模板失败');
-      const saved = await res.json();
+      const saved = await createCustomTemplateService(newTemplate);
       setCustomTemplates(prev => [...prev, saved]);
       toast.success('模板已创建');
     } catch (error) {
@@ -380,27 +360,18 @@ export default function JSProcessorManager() {
 
     const updated = { ...template, ...updates };
     try {
-      const res = await fetch(getApiUrl(`/api/sqltemplates/custom/${id}`), {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updated)
-      });
-      if (!res.ok) throw new Error('更新模板失败');
+      await updateCustomTemplateService(id, updated);
       setCustomTemplates(prev => prev.map(t => t.id === id ? updated : t));
       toast.success('模板已更新');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '操作失败');
-
     }
   };
 
   const deleteCustomTemplate = async (id: string) => {
     if (!window.confirm('确定要删除这个自定义模板吗？')) return;
     try {
-      const res = await fetch(getApiUrl(`/api/sqltemplates/custom/${id}`), {
-        method: 'DELETE'
-      });
-      if (!res.ok) throw new Error('删除模板失败');
+      await deleteCustomTemplateService(id);
       setCustomTemplates(prev => prev.filter(t => t.id !== id));
       if (selectedCustomTemplateId === id) {
         setSelectedCustomTemplateId(null);
@@ -428,24 +399,12 @@ export default function JSProcessorManager() {
       addDebugLog('info', `事件码: ${debugEventType}`);
       addDebugLog('info', `事件ID: ${debugEventId || '随机生成'}`);
 
-      const response = await fetch(getApiUrl('/api/debug/execute'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          processorId: selectedProcessor,
-          databaseType: debugDatabaseType,
-          eventCode: debugEventType,
-          eventId: debugEventId || undefined
-        }),
+      const result = await executeDebug({
+        processorId: selectedProcessor,
+        databaseType: debugDatabaseType,
+        eventCode: debugEventType,
+        eventId: debugEventId || undefined
       });
-
-      if (!response.ok) {
-        throw new Error(`调试请求失败: ${response.status}`);
-      }
-
-      const result = await response.json();
 
       if (result.rawData) {
         addDebugLog('info', '原始数据:');
@@ -501,26 +460,14 @@ export default function JSProcessorManager() {
       addEditorDebugLog('info', `开始编辑器调试...`);
       addEditorDebugLog('info', `检查ID: ${editorDebugExamineId}`);
 
-      const response = await fetch(getApiUrl('/api/Debug/execute-examine'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          processorId: selectedProcessor,
-          javascriptCode: editingProcessor.code,
-          examineId: editorDebugExamineId,
-          databaseType: editingProcessor.databaseTypes[0] || (databaseTypes.length > 0 ? databaseTypes[0].value : ''),
-          sqlTemplate: editingProcessor.sqlTemplate,
-          validateCode: true
-        }),
+      const result = await executeExamineDebug({
+        processorId: selectedProcessor,
+        javascriptCode: editingProcessor.code,
+        examineId: editorDebugExamineId,
+        databaseType: editingProcessor.databaseTypes[0] || (databaseTypes.length > 0 ? databaseTypes[0].value : ''),
+        sqlTemplate: editingProcessor.sqlTemplate,
+        validateCode: true
       });
-
-      if (!response.ok) {
-        throw new Error(`调试请求失败: ${response.status}`);
-      }
-
-      const result = await response.json();
 
       // 显示代码验证结果
       if (result.codeValidation) {
@@ -1242,8 +1189,6 @@ export default function JSProcessorManager() {
                           extensions={[javascript()]}
                           theme={oneDark}
                           onChange={(value) => handleProcessorChange('code', value)}
-                          onFocus={() => setIsEditorFocused(true)}
-                          onBlur={() => setIsEditorFocused(false)}
                           basicSetup={{
                             lineNumbers: true,
                             highlightActiveLineGutter: true,
@@ -1526,8 +1471,7 @@ export default function JSProcessorManager() {
                       extensions={[javascript()]}
                       theme={oneDark}
                       onChange={(value) => handleProcessorChange('code', value)}
-                      onFocus={() => setIsEditorFocused(true)}
-                      onBlur={() => setIsEditorFocused(false)}
+               
                       basicSetup={{
                         lineNumbers: true,
                         highlightActiveLineGutter: true,

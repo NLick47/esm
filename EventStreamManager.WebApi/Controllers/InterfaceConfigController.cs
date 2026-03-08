@@ -2,152 +2,217 @@ using EventStreamManager.Infrastructure.Models.Interface;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
-
 namespace EventStreamManager.WebApi.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class InterfaceConfigController : ControllerBase
+    public class InterfaceConfigController : BaseController
     {
         private readonly IInterfaceConfigService _configService;
+        private readonly ILogger<InterfaceConfigController> _logger;
 
-        public InterfaceConfigController(IInterfaceConfigService configService)
+        public InterfaceConfigController(
+            IInterfaceConfigService configService,
+            ILogger<InterfaceConfigController> logger)
         {
             _configService = configService;
+            _logger = logger;
         }
 
-       
         [HttpGet]
-        public async Task<ActionResult<List<InterfaceConfig>>> GetConfigs()
+        public async Task<IActionResult> GetConfigs()
         {
-            var configs = await _configService.GetAllConfigsAsync();
-            return Ok(configs);
+            try
+            {
+                var configs = await _configService.GetAllConfigsAsync();
+                return Ok(configs, "获取接口配置列表成功");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "获取接口配置列表失败");
+                return Error("获取接口配置列表失败", data: new { error = ex.Message });
+            }
         }
 
         [HttpGet("{id}")]
-        public async Task<ActionResult<InterfaceConfig>> GetConfig(string id)
+        public async Task<IActionResult> GetConfig(string id)
         {
-            var config = await _configService.GetConfigByIdAsync(id);
-            
-            if (config == null)
+            try
             {
-                return NotFound($"未找到ID为 {id} 的接口配置");
+                var config = await _configService.GetConfigByIdAsync(id);
+                
+                if (config == null)
+                {
+                    return Fail($"未找到ID为 {id} 的接口配置", 404);
+                }
+                
+                return Ok(config, "获取接口配置成功");
             }
-            
-            return Ok(config);
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "获取接口配置失败 - Id: {Id}", id);
+                return Error("获取接口配置失败", data: new { error = ex.Message });
+            }
         }
 
-
         [HttpPost]
-        public async Task<ActionResult<InterfaceConfig>> CreateConfig(InterfaceConfig config)
+        public async Task<IActionResult> CreateConfig(InterfaceConfig config)
         {
-            // 验证必填字段
-            if (string.IsNullOrWhiteSpace(config.Name))
+            try
             {
-                return BadRequest("配置名称不能为空");
-            }
-            
-            if (string.IsNullOrWhiteSpace(config.Url))
-            {
-                return BadRequest("接口URL不能为空");
-            }
-            
-            if (config.ProcessorIds == null || config.ProcessorIds.Count == 0)
-            {
-                return BadRequest("请至少选择一个关联的处理器");
-            }
+                // 验证必填字段
+                if (string.IsNullOrWhiteSpace(config.Name))
+                {
+                    return Fail("配置名称不能为空");
+                }
+                
+                if (string.IsNullOrWhiteSpace(config.Url))
+                {
+                    return Fail("接口URL不能为空");
+                }
+                
+                if (config.ProcessorIds.Count == 0)
+                {
+                    return Fail("请至少选择一个关联的处理器");
+                }
 
-            // 验证处理器是否存在
-            var isValid = await _configService.ValidateProcessorIdsAsync(config.ProcessorIds);
-            if (!isValid)
-            {
-                return BadRequest("部分选择的处理器不存在");
-            }
+                // 验证处理器是否存在
+                var isValid = await _configService.ValidateProcessorIdsAsync(config.ProcessorIds);
+                if (!isValid)
+                {
+                    return Fail("部分选择的处理器不存在");
+                }
 
-            var createdConfig = await _configService.CreateConfigAsync(config);
-            return CreatedAtAction(nameof(GetConfig), new { id = createdConfig.Id }, createdConfig);
+                var createdConfig = await _configService.CreateConfigAsync(config);
+                return Ok(createdConfig, "创建接口配置成功");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "创建接口配置失败");
+                return Error("创建接口配置失败", data: new { error = ex.Message });
+            }
         }
         
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateConfig(string id, InterfaceConfig config)
         {
-            // 验证必填字段
-            if (string.IsNullOrWhiteSpace(config.Name))
+            try
             {
-                return BadRequest("配置名称不能为空");
-            }
-            
-            if (string.IsNullOrWhiteSpace(config.Url))
-            {
-                return BadRequest("接口URL不能为空");
-            }
-            
-            if (config.ProcessorIds == null || config.ProcessorIds.Count == 0)
-            {
-                return BadRequest("请至少选择一个关联的处理器");
-            }
+                // 验证必填字段
+                if (string.IsNullOrWhiteSpace(config.Name))
+                {
+                    return Fail("配置名称不能为空");
+                }
+                
+                if (string.IsNullOrWhiteSpace(config.Url))
+                {
+                    return Fail("接口URL不能为空");
+                }
+                
+                if (config.ProcessorIds.Count == 0)
+                {
+                    return Fail("请至少选择一个关联的处理器");
+                }
 
-            // 验证处理器是否存在
-            var isValid = await _configService.ValidateProcessorIdsAsync(config.ProcessorIds);
-            if (!isValid)
-            {
-                return BadRequest("部分选择的处理器不存在");
-            }
+                // 验证处理器是否存在
+                var isValid = await _configService.ValidateProcessorIdsAsync(config.ProcessorIds);
+                if (!isValid)
+                {
+                    return Fail("部分选择的处理器不存在");
+                }
 
-            var updatedConfig = await _configService.UpdateConfigAsync(id, config);
-            
-            if (updatedConfig == null)
-            {
-                return NotFound($"未找到ID为 {id} 的接口配置");
+                var updatedConfig = await _configService.UpdateConfigAsync(id, config);
+                
+                if (updatedConfig == null)
+                {
+                    return Fail($"未找到ID为 {id} 的接口配置", 404);
+                }
+                
+                return Ok(updatedConfig, "更新接口配置成功");
             }
-            
-            return Ok(updatedConfig);
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "更新接口配置失败 - Id: {Id}", id);
+                return Error("更新接口配置失败", data: new { error = ex.Message });
+            }
         }
         
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteConfig(string id)
         {
-            var deleted = await _configService.DeleteConfigAsync(id);
-            
-            if (!deleted)
+            try
             {
-                return NotFound($"未找到ID为 {id} 的接口配置");
+                var deleted = await _configService.DeleteConfigAsync(id);
+                
+                if (!deleted)
+                {
+                    return Fail($"未找到ID为 {id} 的接口配置", 404);
+                }
+                
+                return OkMessage("删除接口配置成功");
             }
-            
-            return NoContent();
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "删除接口配置失败 - Id: {Id}", id);
+                return Error("删除接口配置失败", data: new { error = ex.Message });
+            }
         }
         
         [HttpPatch("{id}/toggle")]
         public async Task<IActionResult> ToggleConfigStatus(string id)
         {
-            var config = await _configService.ToggleConfigStatusAsync(id);
-            
-            if (config == null)
+            try
             {
-                return NotFound($"未找到ID为 {id} 的接口配置");
+                var config = await _configService.ToggleConfigStatusAsync(id);
+                
+                if (config == null)
+                {
+                    return Fail($"未找到ID为 {id} 的接口配置", 404);
+                }
+                
+                return Ok(config, "切换接口配置状态成功");
             }
-            
-            return Ok(config);
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "切换接口配置状态失败 - Id: {Id}", id);
+                return Error("切换接口配置状态失败", data: new { error = ex.Message });
+            }
         }
         
         [HttpPost("{id}/duplicate")]
-        public async Task<ActionResult<InterfaceConfig>> DuplicateConfig(string id)
+        public async Task<IActionResult> DuplicateConfig(string id)
         {
-            var newConfig = await _configService.DuplicateConfigAsync(id);
-            
-            if (newConfig == null)
+            try
             {
-                return NotFound($"未找到ID为 {id} 的接口配置");
+                var newConfig = await _configService.DuplicateConfigAsync(id);
+                
+                if (newConfig == null)
+                {
+                    return Fail($"未找到ID为 {id} 的接口配置", 404);
+                }
+                
+                return Ok(newConfig, "复制接口配置成功");
             }
-            
-            return CreatedAtAction(nameof(GetConfig), new { id = newConfig.Id }, newConfig);
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "复制接口配置失败 - Id: {Id}", id);
+                return Error("复制接口配置失败", data: new { error = ex.Message });
+            }
         }
         
         [HttpGet("processors/available")]
-        public async Task<ActionResult<List<AvailableProcessor>>> GetAvailableProcessors()
+        public async Task<IActionResult> GetAvailableProcessors()
         {
-            var processors = await _configService.GetAvailableProcessorsAsync();
-            return Ok(processors);
+            try
+            {
+                var processors = await _configService.GetAvailableProcessorsAsync();
+                return Ok(processors, "获取可用处理器列表成功");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "获取可用处理器列表失败");
+                return Error("获取可用处理器列表失败", data: new { error = ex.Message });
+            }
         }
     }
 }

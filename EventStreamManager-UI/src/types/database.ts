@@ -1,4 +1,3 @@
-// types/database.ts
 export type DatabaseType = string;
 
 export enum DriverType {
@@ -21,4 +20,19 @@ export interface DatabaseConfig {
 export interface DatabaseDriver {
   value: string;
   label: string;
+}
+
+export interface DatabaseTypeInfo {
+  value: string;
+  label: string;
+  description?: string;
+  icon?: string;
+  isActive?: boolean;
+}
+
+
+export interface DatabaseTypeWithActiveConfig {
+  value: string;
+  label: string;
+  activeConfig: DatabaseConfig | null;
 }

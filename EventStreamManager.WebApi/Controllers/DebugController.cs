@@ -9,7 +9,7 @@ namespace EventStreamManager.WebApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class DebugController : ControllerBase
+public class DebugController : BaseController
 {
     private readonly IJavaScriptExecutionService _jsService;
     private readonly ILogger<DebugController> _logger;
@@ -51,6 +51,18 @@ public class DebugController : ControllerBase
                 Message = $"开始编辑器调试 - ExamineID: {request.ExamineId}",
                 Timestamp = DateTime.Now
             });
+
+            // 验证请求
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState
+                    .Where(e => e.Value?.Errors.Count > 0)
+                    .ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value?.Errors.Select(e => e.ErrorMessage).ToArray()
+                    );
+                return Fail("请求参数验证失败", 400, errors);
+            }
 
             JSProcessor? processor = null;
             if (!string.IsNullOrEmpty(request.ProcessorId))
@@ -218,7 +230,7 @@ public class DebugController : ControllerBase
                 response.ErrorMessage = executionResult.ErrorMessage;
             }
 
-            return Ok(response);
+            return Ok(response, "编辑器调试执行完成");
         }
         catch (Exception ex)
         {
@@ -231,13 +243,15 @@ public class DebugController : ControllerBase
                 Timestamp = DateTime.Now
             });
 
-            return Ok(new EditorDebugResponse
+            var response = new EditorDebugResponse
             {
                 Success = false,
                 ErrorMessage = $"调试执行失败: {ex.Message}",
                 Logs = logEntries,
                 ExecutionTimeMs = (DateTime.Now - startTime).TotalMilliseconds
-            });
+            };
+
+            return Ok(response, "编辑器调试执行异常");
         }
     }
 
@@ -255,36 +269,39 @@ public class DebugController : ControllerBase
             _logger.LogInformation("开始调试处理器: {ProcessorId}, 数据库: {DatabaseType}, 事件ID: {EventId}",
                 request.ProcessorId, request.DatabaseType, request.EventId);
 
-           
+            // 验证请求
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState
+                    .Where(e => e.Value?.Errors.Count > 0)
+                    .ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value?.Errors.Select(e => e.ErrorMessage).ToArray()
+                    );
+                return Fail("请求参数验证失败", 400, errors);
+            }
+
+            if (string.IsNullOrEmpty(request.ProcessorId))
+            {
+                return Fail("处理器ID不能为空");
+            }
+
+            if (string.IsNullOrEmpty(request.EventId))
+            {
+                return Fail("事件ID不能为空");
+            }
+
             var processor = await _processorService.GetByIdAsync(request.ProcessorId);
             if (processor == null)
             {
-                return Ok(new DebugResponse
-                {
-                    Success = false,
-                    ErrorMessage = $"未找到处理器: {request.ProcessorId}"
-                });
+                return Fail($"未找到处理器: {request.ProcessorId}", 404);
             }
 
             // 获取数据库配置
             var activeConfig = await _databaseSchemeService.GetActiveConfigAsync(request.DatabaseType);
             if (activeConfig == null)
             {
-                return Ok(new DebugResponse
-                {
-                    Success = false,
-                    ErrorMessage = $"未找到数据库类型 {request.DatabaseType} 的激活配置"
-                });
-            }
-
-            // 查询事件数据
-            if (string.IsNullOrEmpty(request.EventId))
-            {
-                return Ok(new DebugResponse
-                {
-                    Success = false,
-                    ErrorMessage = "事件ID不能为空"
-                });
+                return Fail($"未找到数据库类型 {request.DatabaseType} 的激活配置", 404);
             }
 
             logEntries.Add(new DebugLogEntry
@@ -301,11 +318,7 @@ public class DebugController : ControllerBase
 
             if (eventData == null)
             {
-                return Ok(new DebugResponse
-                {
-                    Success = false,
-                    ErrorMessage = $"未找到事件: {request.EventId}"
-                });
+                return Fail($"未找到事件: {request.EventId}", 404);
             }
 
             logEntries.Add(new DebugLogEntry
@@ -354,7 +367,6 @@ public class DebugController : ControllerBase
                 }
             }
 
-           
             var enhancedData = new EnhancedQueryData
             {
                 Rows = rows,
@@ -382,7 +394,6 @@ public class DebugController : ControllerBase
                 }
             };
 
-           
             logEntries.Add(new DebugLogEntry
             {
                 Type = "info",
@@ -433,7 +444,7 @@ public class DebugController : ControllerBase
                 response.ErrorMessage = executionResult.ErrorMessage;
             }
 
-            return Ok(response);
+            return Ok(response, "调试执行完成");
         }
         catch (Exception ex)
         {
@@ -446,13 +457,15 @@ public class DebugController : ControllerBase
                 Timestamp = DateTime.Now
             });
 
-            return Ok(new DebugResponse
+            var response = new DebugResponse
             {
                 Success = false,
                 ErrorMessage = $"调试执行失败: {ex.Message}",
                 Logs = logEntries,
                 ExecutionTimeMs = (long)(DateTime.Now - startTime).TotalMilliseconds
-            });
+            };
+
+            return Ok(response, "调试执行异常");
         }
     }
 }

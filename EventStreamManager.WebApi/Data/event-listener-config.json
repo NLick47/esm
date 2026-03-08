@@ -34,7 +34,7 @@
       "ris": {
         "ScanFrequency": 60,
         "BatchSize": 100,
-        "Enabled": false,
+        "Enabled": true,
         "TableName": "tblevent",
         "PrimaryKey": "Id",
         "TimestampField": "CreateDatetime",
@@ -46,7 +46,7 @@
         }
       }
     },
-    "LastUpdated": "2026-03-07T14:57:51.7239374+08:00",
+    "LastUpdated": "2026-03-08T16:00:27.004282+08:00",
     "Version": "1.0.0"
   }
 ]

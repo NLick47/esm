@@ -19,7 +19,7 @@
     "Timeout": 30,
     "RetryCount": 3,
     "RetryInterval": 5,
-    "Enabled": false,
+    "Enabled": true,
     "RequestTemplate": "{\n  \u0022data\u0022: ${data}\n}",
     "Description": ""
   }

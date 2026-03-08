@@ -1,3 +1,18 @@
+/**
+ * 主页面
+ */
+import { useState, useEffect, useRef } from 'react';
+import { useTheme } from '@/hooks/useTheme';
+import DatabaseConnectionManager from '@/components/DatabaseConnectionManager';
+import EventListenerConfig from '@/components/EventListenerConfig';
+import JSProcessorManager from '@/components/JSProcessorManager';
+import InterfaceSendConfig from '@/components/InterfaceSendConfig';
+import DebugLogModule from '@/components/DebugLogModule';
+import TaskMonitoringModule from '@/components/TaskMonitoringModule';
+import { toast } from 'sonner';
+import * as systemService from '@/services/system.service';
+import { SystemStatus } from '@/types';
+
 // 导航菜单项组件
 interface ModuleNavItemProps {
   icon: string;
@@ -22,42 +37,6 @@ function ModuleNavItem({ icon, label, active, onClick }: ModuleNavItemProps) {
   );
 }
 
-import { useState, useEffect, useRef } from 'react';
-import { useTheme } from '@/hooks/useTheme';
-import DatabaseConnectionManager from '@/components/DatabaseConnectionManager';
-import EventListenerConfig from '@/components/EventListenerConfig';
-import JSProcessorManager from '@/components/JSProcessorManager';
-import InterfaceSendConfig from '@/components/InterfaceSendConfig';
-import DebugLogModule from '@/components/DebugLogModule';
-import TaskMonitoringModule from '@/components/TaskMonitoringModule';
-import { toast } from 'sonner';
-import { getApiUrl } from '@/config/api.config';
-
-// API基础URL配置
-const API_URL = getApiUrl('/api/EventProcessor');
-
-// 系统状态接口
-interface SystemStatus {
-  isEnabled: boolean;
-  startTime: string;
-  runningDuration: string;
-  processorCount: number;
-  activeProcessorCount: number;
-}
-
-// 运行时长接口
-interface UptimeResponse {
-  startTime: string;
-  currentTime: string;
-  totalUptime: string;
-  totalUptimeStr: string;
-  effectiveRunningDuration: string;
-  effectiveRunningDurationStr: string;
-  isEnabled: boolean;
-  processorCount: number;
-  activeProcessorCount: number;
-}
-
 export default function Home() {
   const { theme, toggleTheme } = useTheme();
   const [activeModule, setActiveModule] = useState<string>('database');
@@ -65,7 +44,6 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const mountedRef = useRef(true);
   const timerRef = useRef<ReturnType<typeof setTimeout>>();
-
 
   const formatDuration = (durationStr: string): string => {
     if (!durationStr) return '';
@@ -82,35 +60,24 @@ export default function Home() {
       return '1分钟内';
     }
     
-    // 转换为天/小时/分钟
     const days = Math.floor(totalMinutes / (24 * 60));
     const remainingAfterDays = totalMinutes % (24 * 60);
     const hours = Math.floor(remainingAfterDays / 60);
     const mins = remainingAfterDays % 60;
     
     const parts = [];
-    if (days > 0) {
-      parts.push(`${days}天`);
-    }
-    if (hours > 0) {
-      parts.push(`${hours}小时`);
-    }
-    if (mins > 0 || (days === 0 && hours === 0)) {
-      parts.push(`${mins}分钟`);
-    }
+    if (days > 0) parts.push(`${days}天`);
+    if (hours > 0) parts.push(`${hours}小时`);
+    if (mins > 0 || (days === 0 && hours === 0)) parts.push(`${mins}分钟`);
     
     return parts.join('');
   };
 
-  // 获取系统状态
   const fetchSystemStatus = async () => {
     try {
-      const response = await fetch(`${API_URL}/service/status`);
-      if (response.ok && mountedRef.current) {
-        const data = await response.json();
+      const data = await systemService.getSystemStatus();
+      if (mountedRef.current) {
         setSystemStatus(data);
-        
-        // 如果系统已启用，立即获取运行时长
         if (data.isEnabled) {
           await fetchUptime();
         }
@@ -120,16 +87,11 @@ export default function Home() {
     }
   };
 
-  // 获取运行时长
   const fetchUptime = async () => {
     try {
-      const response = await fetch(`${API_URL}/service/uptime`);
-      if (response.ok && mountedRef.current) {
-        const data: UptimeResponse = await response.json();
-        
-        // 格式化运行时长
+      const data = await systemService.getUptime();
+      if (mountedRef.current) {
         const formattedDuration = formatDuration(data.effectiveRunningDurationStr);
-        
         setSystemStatus(prev => {
           if (!prev) {
             return {
@@ -140,7 +102,6 @@ export default function Home() {
               activeProcessorCount: data.activeProcessorCount
             };
           }
-          
           return {
             ...prev,
             runningDuration: formattedDuration,
@@ -154,12 +115,8 @@ export default function Home() {
     }
   };
 
-  // 启动状态轮询
   const startStatusPolling = () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-    
+    if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       if (systemStatus?.isEnabled && mountedRef.current) {
         fetchUptime();
@@ -167,7 +124,6 @@ export default function Home() {
     }, 5000);
   };
 
-  // 停止状态轮询
   const stopStatusPolling = () => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -175,78 +131,45 @@ export default function Home() {
     }
   };
 
-  // 启用系统
   const enableSystem = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/service/enable`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok && mountedRef.current) {
-        const data = await response.json();
-        
+      const data = await systemService.enableSystem();
+      if (mountedRef.current) {
         setSystemStatus(prev => ({
           ...prev!,
           isEnabled: data.isEnabled,
         }));
-        
-        // 立即获取运行时长
         await fetchUptime();
-        
         toast.success('系统已启动');
-      } else {
-        const error = await response.json();
-        toast.error(error.message || '启动失败，请重试');
       }
-    } catch (error) {
-      console.error('启动系统失败:', error);
-      toast.error('网络错误，请检查连接');
+    } catch (error: any) {
+      toast.error(error.message || '启动失败，请重试');
     } finally {
       setLoading(false);
     }
   };
 
-  // 禁用系统
   const disableSystem = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/service/disable`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok && mountedRef.current) {
-        const data = await response.json();
-        
+      const data = await systemService.disableSystem();
+      if (mountedRef.current) {
         setSystemStatus(prev => ({
           ...prev!,
           isEnabled: data.isEnabled,
-          runningDuration: '', // 系统停止时清空运行时间
+          runningDuration: '',
         }));
-        
         toast.success('系统已停止');
-        
-        // 停止轮询
         stopStatusPolling();
-      } else {
-        const error = await response.json();
-        toast.error(error.message || '停止失败，请重试');
       }
-    } catch (error) {
-      console.error('停止系统失败:', error);
-      toast.error('网络错误，请检查连接');
+    } catch (error: any) {
+      toast.error(error.message || '停止失败，请重试');
     } finally {
       setLoading(false);
     }
   };
 
-  // 刷新状态
   const handleRefresh = async () => {
     setLoading(true);
     await fetchSystemStatus();
@@ -254,33 +177,24 @@ export default function Home() {
     toast.success('状态已刷新');
   };
 
-  // 初始化状态
   useEffect(() => {
     mountedRef.current = true;
-    
-    // 初始加载
     fetchSystemStatus();
-    
     return () => {
       mountedRef.current = false;
       stopStatusPolling();
     };
   }, []);
 
-  // 根据系统状态控制轮询
   useEffect(() => {
     if (systemStatus?.isEnabled) {
       startStatusPolling();
     } else {
       stopStatusPolling();
     }
-    
-    return () => {
-      stopStatusPolling();
-    };
+    return () => stopStatusPolling();
   }, [systemStatus?.isEnabled]);
 
-  // 渲染当前激活的模块
   const renderActiveModule = () => {
     switch (activeModule) {
       case 'database':

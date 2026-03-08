@@ -16,14 +16,14 @@ public class EventHandle
     public int EventId { get; set; }
 
     /// <summary>
-    /// 处理类型
+    /// 处理器ID
     /// </summary>
-    public string HandleType { get; set; } = string.Empty;
+    public string ProcessorId { get; set; } = string.Empty;
 
     /// <summary>
-    /// 处理类型说明
+    /// 处理器名称
     /// </summary>
-    public string? HandleTypeDes { get; set; }
+    public string ProcessorName { get; set; } = string.Empty;
 
     /// <summary>
     /// 处理次数
@@ -36,7 +36,7 @@ public class EventHandle
     public bool IsFinished { get; set; }
 
     /// <summary>
-    /// 最后处理状态
+    /// 最后处理状态：Success/Fail/Exception
     /// </summary>
     public string? LastHandleStatus { get; set; }
 
@@ -49,4 +49,9 @@ public class EventHandle
     /// 最后处理日志ID
     /// </summary>
     public int? LastHandleLogId { get; set; }
+
+    /// <summary>
+    /// 创建时间
+    /// </summary>
+    public DateTime CreateDatetime { get; set; } = DateTime.Now;
 }

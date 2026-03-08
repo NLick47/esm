@@ -6,28 +6,51 @@ namespace EventStreamManager.WebApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class ProcessorsController : ControllerBase
+public class ProcessorsController : BaseController
 {
     private readonly IProcessorService _processorService;
+    private readonly ILogger<ProcessorsController> _logger;
 
-    public ProcessorsController(IProcessorService processorService)
+    public ProcessorsController(
+        IProcessorService processorService,
+        ILogger<ProcessorsController> logger)
     {
         _processorService = processorService;
+        _logger = logger;
     }
     
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        var list = await _processorService.GetAllAsync();
-        return Ok(list);
+        try
+        {
+            var list = await _processorService.GetAllAsync();
+            return Ok(list, "获取处理器列表成功");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取处理器列表失败");
+            return Error("获取处理器列表失败", data: new { error = ex.Message });
+        }
     }
     
     [HttpGet("{id}")]
     public async Task<IActionResult> Get(string id)
     {
-        var item = await _processorService.GetByIdAsync(id);
-        if (item == null) return NotFound();
-        return Ok(item);
+        try
+        {
+            var item = await _processorService.GetByIdAsync(id);
+            if (item == null)
+            {
+                return Fail($"未找到ID为 {id} 的处理器", 404);
+            }
+            return Ok(item, "获取处理器成功");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取处理器失败 - Id: {Id}", id);
+            return Error("获取处理器失败", data: new { error = ex.Message });
+        }
     }
     
     /// <summary>
@@ -39,42 +62,84 @@ public class ProcessorsController : ControllerBase
         try
         {
             var code = await _processorService.GetDefaultTemplateAsync();
-            return Ok(new { code });
+            return Ok(new { code }, "获取默认模板成功");
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { error = $"读取模板失败: {ex.Message}" });
+            _logger.LogError(ex, "获取默认模板失败");
+            return Error("获取默认模板失败", data: new { error = ex.Message });
         }
     }
     
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] JSProcessor processor)
     {
-        var created = await _processorService.CreateAsync(processor);
-        return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
+        try
+        {
+            var created = await _processorService.CreateAsync(processor);
+            return Ok(created, "创建处理器成功");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "创建处理器失败");
+            return Error("创建处理器失败", data: new { error = ex.Message });
+        }
     }
     
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(string id, [FromBody] JSProcessor processor)
     {
-        var updated = await _processorService.UpdateAsync(id, processor);
-        if (!updated) return NotFound();
-        return NoContent();
+        try
+        {
+            var updated = await _processorService.UpdateAsync(id, processor);
+            if (!updated)
+            {
+                return Fail($"未找到ID为 {id} 的处理器", 404);
+            }
+            return OkMessage("更新处理器成功");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "更新处理器失败 - Id: {Id}", id);
+            return Error("更新处理器失败", data: new { error = ex.Message });
+        }
     }
     
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(string id)
     {
-        var deleted = await _processorService.DeleteAsync(id);
-        if (!deleted) return NotFound();
-        return NoContent();
+        try
+        {
+            var deleted = await _processorService.DeleteAsync(id);
+            if (!deleted)
+            {
+                return Fail($"未找到ID为 {id} 的处理器", 404);
+            }
+            return OkMessage("删除处理器成功");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "删除处理器失败 - Id: {Id}", id);
+            return Error("删除处理器失败", data: new { error = ex.Message });
+        }
     }
     
     [HttpPatch("{id}/toggle")]
     public async Task<IActionResult> Toggle(string id)
     {
-        var item = await _processorService.ToggleAsync(id);
-        if (item == null) return NotFound();
-        return Ok(item);
+        try
+        {
+            var item = await _processorService.ToggleAsync(id);
+            if (item == null)
+            {
+                return Fail($"未找到ID为 {id} 的处理器", 404);
+            }
+            return Ok(item, "切换处理器状态成功");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "切换处理器状态失败 - Id: {Id}", id);
+            return Error("切换处理器状态失败", data: new { error = ex.Message });
+        }
     }
 }

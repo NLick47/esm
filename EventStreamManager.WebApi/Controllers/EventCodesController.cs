@@ -3,24 +3,40 @@ using EventStreamManager.Infrastructure.Services.Data.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventStreamManager.WebApi.Controllers;
+
 [ApiController]
 [Route("api/[controller]")]
-public class EventCodesController : ControllerBase
+public class EventCodesController : BaseController
 {
     private readonly IDataService _dataService;
+    private readonly ILogger<EventCodesController> _logger;
     private const string FileName = "eventcodes.json";
 
-    public EventCodesController(IDataService dataService)
+    public EventCodesController(
+        IDataService dataService,
+        ILogger<EventCodesController> logger)
     {
         _dataService = dataService;
+        _logger = logger;
     }
     
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        var list = await _dataService.ReadTemplateAsync<EventCode>(FileName);
-        return Ok(list);
+        try
+        {
+            _logger.LogInformation("开始获取所有事件代码");
+            
+            var list = await _dataService.ReadTemplateAsync<EventCode>(FileName);
+            
+            _logger.LogInformation("成功获取事件代码，数量: {Count}", list?.Count() ?? 0);
+            
+            return Ok(list, "获取事件代码成功");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取事件代码失败");
+            return Error("获取事件代码失败", data: new { error = ex.Message });
+        }
     }
-    
-    
 }

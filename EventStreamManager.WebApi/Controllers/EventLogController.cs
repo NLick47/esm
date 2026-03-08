@@ -9,22 +9,28 @@ namespace EventStreamManager.WebApi.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-public class EventLogController : ControllerBase
+public class EventLogController : BaseController
 {
     private readonly ISqlSugarContext _db;
+    private readonly ILogger<EventLogController> _logger;
 
-    public EventLogController(ISqlSugarContext db)
+    public EventLogController(
+        ISqlSugarContext db,
+        ILogger<EventLogController> logger)
     {
         _db = db;
+        _logger = logger;
     }
 
     /// <summary>
     /// 查询处理记录列表
     /// </summary>
     [HttpGet("handles")]
-    public async Task<ActionResult> GetHandles(
+    public async Task<IActionResult> GetHandles(
         [FromQuery] string databaseType,
         [FromQuery] int? eventId = null,
+        [FromQuery] string? processorId = null,
+        [FromQuery] string? processorName = null,
         [FromQuery] string? status = null,
         [FromQuery] bool? isFinished = null,
         [FromQuery] int page = 1,
@@ -36,6 +42,8 @@ public class EventLogController : ControllerBase
             
             var query = client.Queryable<EventHandle>()
                 .WhereIF(eventId.HasValue, h => h.EventId == eventId)
+                .WhereIF(!string.IsNullOrEmpty(processorId), h => h.ProcessorId == processorId)
+                .WhereIF(!string.IsNullOrEmpty(processorName), h => h.ProcessorName.Contains(processorName!))
                 .WhereIF(!string.IsNullOrEmpty(status), h => h.LastHandleStatus == status)
                 .WhereIF(isFinished.HasValue, h => h.IsFinished == isFinished)
                 .OrderByDescending(h => h.LastHandleDatetime)
@@ -45,15 +53,18 @@ public class EventLogController : ControllerBase
             var list = await query.ToListAsync();
             var total = await client.Queryable<EventHandle>()
                 .WhereIF(eventId.HasValue, h => h.EventId == eventId)
+                .WhereIF(!string.IsNullOrEmpty(processorId), h => h.ProcessorId == processorId)
+                .WhereIF(!string.IsNullOrEmpty(processorName), h => h.ProcessorName.Contains(processorName!))
                 .WhereIF(!string.IsNullOrEmpty(status), h => h.LastHandleStatus == status)
                 .WhereIF(isFinished.HasValue, h => h.IsFinished == isFinished)
                 .CountAsync();
 
-            return Ok(new { list, total, page, pageSize });
+            return Ok(new { list, total, page, pageSize }, "获取处理记录列表成功");
         }
         catch (Exception ex)
         {
-            return BadRequest(new { message = ex.Message });
+            _logger.LogError(ex, "获取处理记录列表失败");
+            return Error("获取处理记录列表失败", data: new { error = ex.Message });
         }
     }
 
@@ -61,7 +72,7 @@ public class EventLogController : ControllerBase
     /// 查询单条处理记录
     /// </summary>
     [HttpGet("handles/{databaseType}/{id}")]
-    public async Task<ActionResult> GetHandle(string databaseType, int id)
+    public async Task<IActionResult> GetHandle(string databaseType, int id)
     {
         try
         {
@@ -71,13 +82,14 @@ public class EventLogController : ControllerBase
                 .FirstAsync();
 
             if (handle == null)
-                return NotFound(new { message = "记录不存在" });
+                return Fail("记录不存在", 404);
 
-            return Ok(handle);
+            return Ok(handle, "获取处理记录成功");
         }
         catch (Exception ex)
         {
-            return BadRequest(new { message = ex.Message });
+            _logger.LogError(ex, "获取处理记录失败");
+            return Error("获取处理记录失败", data: new { error = ex.Message });
         }
     }
 
@@ -85,9 +97,11 @@ public class EventLogController : ControllerBase
     /// 查询处理日志列表
     /// </summary>
     [HttpGet("logs")]
-    public async Task<ActionResult> GetLogs(
+    public async Task<IActionResult> GetLogs(
         [FromQuery] string databaseType,
+        [FromQuery] int? eventId = null,
         [FromQuery] int? eventHandleId = null,
+        [FromQuery] string? processorId = null,
         [FromQuery] string? status = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20)
@@ -97,7 +111,9 @@ public class EventLogController : ControllerBase
             var client = await _db.GetClientAsync(databaseType);
 
             var query = client.Queryable<EventHandleLog>()
+                .WhereIF(eventId.HasValue, l => l.EventId == eventId)
                 .WhereIF(eventHandleId.HasValue, l => l.EventHandleId == eventHandleId)
+                .WhereIF(!string.IsNullOrEmpty(processorId), l => l.ProcessorId == processorId)
                 .WhereIF(!string.IsNullOrEmpty(status), l => l.Status == status)
                 .OrderByDescending(l => l.HandleDatetime)
                 .Skip((page - 1) * pageSize)
@@ -105,15 +121,18 @@ public class EventLogController : ControllerBase
 
             var list = await query.ToListAsync();
             var total = await client.Queryable<EventHandleLog>()
+                .WhereIF(eventId.HasValue, l => l.EventId == eventId)
                 .WhereIF(eventHandleId.HasValue, l => l.EventHandleId == eventHandleId)
+                .WhereIF(!string.IsNullOrEmpty(processorId), l => l.ProcessorId == processorId)
                 .WhereIF(!string.IsNullOrEmpty(status), l => l.Status == status)
                 .CountAsync();
 
-            return Ok(new { list, total, page, pageSize });
+            return Ok(new { list, total, page, pageSize }, "获取处理日志列表成功");
         }
         catch (Exception ex)
         {
-            return BadRequest(new { message = ex.Message });
+            _logger.LogError(ex, "获取处理日志列表失败");
+            return Error("获取处理日志列表失败", data: new { error = ex.Message });
         }
     }
 
@@ -121,7 +140,7 @@ public class EventLogController : ControllerBase
     /// 查询单条日志详情
     /// </summary>
     [HttpGet("logs/{databaseType}/{id}")]
-    public async Task<ActionResult> GetLog(string databaseType, int id)
+    public async Task<IActionResult> GetLog(string databaseType, int id)
     {
         try
         {
@@ -131,13 +150,14 @@ public class EventLogController : ControllerBase
                 .FirstAsync();
 
             if (log == null)
-                return NotFound(new { message = "日志不存在" });
+                return Fail("日志不存在", 404);
 
-            return Ok(log);
+            return Ok(log, "获取日志详情成功");
         }
         catch (Exception ex)
         {
-            return BadRequest(new { message = ex.Message });
+            _logger.LogError(ex, "获取日志详情失败");
+            return Error("获取日志详情失败", data: new { error = ex.Message });
         }
     }
 
@@ -145,7 +165,7 @@ public class EventLogController : ControllerBase
     /// 查询事件及处理记录（联合查询）
     /// </summary>
     [HttpGet("event-with-handles/{databaseType}/{eventId}")]
-    public async Task<ActionResult> GetEventWithHandles(string databaseType, int eventId)
+    public async Task<IActionResult> GetEventWithHandles(string databaseType, int eventId)
     {
         try
         {
@@ -157,7 +177,7 @@ public class EventLogController : ControllerBase
                 .FirstAsync();
 
             if (evt == null)
-                return NotFound(new { message = "事件不存在" });
+                return Fail("事件不存在", 404);
 
             // 查询处理记录
             var handles = await client.Queryable<EventHandle>()
@@ -177,11 +197,12 @@ public class EventLogController : ControllerBase
                 @event = evt,
                 handles,
                 logs
-            });
+            }, "获取事件及处理记录成功");
         }
         catch (Exception ex)
         {
-            return BadRequest(new { message = ex.Message });
+            _logger.LogError(ex, "获取事件及处理记录失败");
+            return Error("获取事件及处理记录失败", data: new { error = ex.Message });
         }
     }
 
@@ -189,7 +210,7 @@ public class EventLogController : ControllerBase
     /// 统计处理状态
     /// </summary>
     [HttpGet("stats/{databaseType}")]
-    public async Task<ActionResult> GetStats(string databaseType)
+    public async Task<IActionResult> GetStats(string databaseType)
     {
         try
         {
@@ -213,11 +234,86 @@ public class EventLogController : ControllerBase
                 pending,
                 success,
                 failed
-            });
+            }, "获取统计状态成功");
         }
         catch (Exception ex)
         {
-            return BadRequest(new { message = ex.Message });
+            _logger.LogError(ex, "获取统计状态失败");
+            return Error("获取统计状态失败", data: new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// 按处理器统计处理状态
+    /// </summary>
+    [HttpGet("stats/{databaseType}/by-processor")]
+    public async Task<IActionResult> GetStatsByProcessor(string databaseType)
+    {
+        try
+        {
+            var client = await _db.GetClientAsync(databaseType);
+
+            // 按处理器分组统计
+            var handles = await client.Queryable<EventHandle>().ToListAsync();
+            
+            var stats = handles
+                .GroupBy(h => new { h.ProcessorId, h.ProcessorName })
+                .Select(g => new
+                {
+                    processorId = g.Key.ProcessorId,
+                    processorName = g.Key.ProcessorName,
+                    totalCount = g.Count(),
+                    successCount = g.Count(h => h.IsFinished && h.LastHandleStatus == "Success"),
+                    failedCount = g.Count(h => h.IsFinished && h.LastHandleStatus != "Success"),
+                    pendingCount = g.Count(h => !h.IsFinished),
+                    avgHandleTimes = g.Average(h => h.HandleTimes)
+                })
+                .OrderByDescending(s => s.totalCount)
+                .ToList();
+
+            return Ok(stats, "按处理器统计成功");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "按处理器统计失败");
+            return Error("按处理器统计失败", data: new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// 查询失败的处理记录
+    /// </summary>
+    [HttpGet("failed-handles/{databaseType}")]
+    public async Task<IActionResult> GetFailedHandles(
+        string databaseType,
+        [FromQuery] string? processorId = null,
+        [FromQuery] int maxRetryTimes = 3,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        try
+        {
+            var client = await _db.GetClientAsync(databaseType);
+
+            var query = client.Queryable<EventHandle>()
+                .Where(h => !h.IsFinished && h.HandleTimes < maxRetryTimes)
+                .WhereIF(!string.IsNullOrEmpty(processorId), h => h.ProcessorId == processorId)
+                .OrderBy(h => h.HandleTimes)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize);
+
+            var list = await query.ToListAsync();
+            var total = await client.Queryable<EventHandle>()
+                .Where(h => !h.IsFinished && h.HandleTimes < maxRetryTimes)
+                .WhereIF(!string.IsNullOrEmpty(processorId), h => h.ProcessorId == processorId)
+                .CountAsync();
+
+            return Ok(new { list, total, page, pageSize }, "获取失败处理记录成功");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取失败处理记录失败");
+            return Error("获取失败处理记录失败", data: new { error = ex.Message });
         }
     }
 }

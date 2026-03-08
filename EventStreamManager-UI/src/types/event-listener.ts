@@ -1,3 +1,5 @@
+import { DatabaseConfig, DatabaseTypeWithActiveConfig } from './database';
+
 export interface StartCondition {
   type: 'time' | 'id';
   timeValue: string;
@@ -17,27 +19,11 @@ export interface EventConfig {
   totalEventsProcessed?: number;
 }
 
-export interface DatabaseConfig {
-  id: string;
-  name: string;
-  connectionString: string;
-  driver: string;
-  timeout: number;
-  isActive: boolean;
-}
-
-export interface DatabaseTypeWithActiveConfig {
-  value: string;
-  label: string;
-  activeConfig: DatabaseConfig | null;
-}
-
-export interface DatabaseTypeInfo {
-  value: string;
-  label: string;
-  description?: string;
-  icon?: string;
-  isActive?: boolean;
+export interface DatabaseStatistics {
+  eventsProcessed: number;
+  isEnabled: boolean;
+  lastRunTime?: string;
+  lastEventId?: number;
 }
 
 export interface StatisticsResponse {
@@ -49,9 +35,5 @@ export interface StatisticsResponse {
   databaseStats?: Record<string, DatabaseStatistics>;
 }
 
-export interface DatabaseStatistics {
-  eventsProcessed: number;
-  isEnabled: boolean;
-  lastRunTime?: string;
-  lastEventId?: number;
-}
+
+export type { DatabaseConfig, DatabaseTypeWithActiveConfig };

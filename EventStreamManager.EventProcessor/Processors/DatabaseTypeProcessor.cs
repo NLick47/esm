@@ -12,7 +12,6 @@ namespace EventStreamManager.EventProcessor.Processors;
 
 /// <summary>
 /// 数据库类型处理器
-/// 使用 IServiceScopeFactory 在每次处理循环中创建 scope，解决 Singleton/Scoped 生命周期问题
 /// </summary>
 public class DatabaseTypeProcessor
 {
@@ -89,7 +88,7 @@ public class DatabaseTypeProcessor
                 var jsService = services.GetRequiredService<Infrastructure.Services.IJavaScriptExecutionService>();
                 var httpFactory = services.GetRequiredService<IHttpClientFactory>();
 
-                
+                // 创建本次循环使用的组件实例
                 var scanner = CreateScanner(db);
                 var executor = CreateExecutor(jsService, db);
                 var recorder = CreateRecorder(db);
@@ -105,14 +104,10 @@ public class DatabaseTypeProcessor
                 foreach (var eventData in events)
                 {
                     if (_cancellationToken.IsCancellationRequested) break;
-                    await ProcessEventAsync(eventData, processorService, interfaceService, scanner, executor, recorder, sender);
+                    await ProcessEventAsync(eventData, processorService, interfaceService, executor, recorder, sender);
                     _status.LastProcessedEventId = eventData.Id;
                 }
-
-                if (events.Count > 0)
-                {
-                    await scanner.UpdatePositionAsync(_databaseType, events.Max(e => e.Id));
-                }
+                
 
                 await Task.Delay(TimeSpan.FromSeconds(config.ScanFrequency), _cancellationToken);
             }
@@ -129,7 +124,7 @@ public class DatabaseTypeProcessor
 
     private EventScanner CreateScanner(ISqlSugarContext db)
     {
-        return new EventScanner(db, _configService, _loggerFactory.CreateLogger<EventScanner>());
+        return new EventScanner(db, _loggerFactory.CreateLogger<EventScanner>());
     }
 
     private ScriptExecutor CreateExecutor(Infrastructure.Services.IJavaScriptExecutionService jsService, ISqlSugarContext db)
@@ -150,7 +145,7 @@ public class DatabaseTypeProcessor
     /// <summary>
     /// 获取当前数据库类型所有处理器的事件码集合
     /// </summary>
-    private async Task<List<string>> GetEventCodesAsync(IProcessorService processorService)
+    private async Task<List<string>?> GetEventCodesAsync(IProcessorService processorService)
     {
         var all = await processorService.GetAllAsync();
         return all
@@ -161,13 +156,12 @@ public class DatabaseTypeProcessor
     }
 
     /// <summary>
-    /// 处理单个事件
+    /// 处理单个事件 - 每个处理器单独创建处理记录
     /// </summary>
     private async Task ProcessEventAsync(
         Event eventData,
         IProcessorService processorService,
         IInterfaceConfigService interfaceService,
-        EventScanner scanner,
         ScriptExecutor executor,
         HandleRecorder recorder,
         InterfaceSender sender)
@@ -177,38 +171,13 @@ public class DatabaseTypeProcessor
             var processors = await GetMatchingProcessorsAsync(eventData, processorService);
             if (processors.Count == 0) return;
 
-            var handleType = string.Join(",", processors.Select(p => p.Name));
-            var handle = await recorder.GetOrCreateAsync(_databaseType, eventData.Id, handleType);
-
-            if (handle.IsFinished) return;
-
-            var results = new List<ExecutionResult>();
+            // 遍历每个处理器，单独处理并记录
             foreach (var processor in processors)
             {
-                var result = await ExecuteProcessorAsync(eventData, processor, executor);
-                results.Add(result);
-
-                if (result.NeedToSend)
-                {
-                    await SendResultAsync(processor.Id, result, interfaceService, sender);
-                }
+                await ProcessSingleProcessorAsync(eventData, processor, interfaceService, executor, recorder, sender);
             }
 
-            var log = await recorder.LogAsync(_databaseType, handle, results);
-            var allSuccess = results.All(r => r.Success && (r.SendResult?.Success ?? true));
-
-            if (allSuccess)
-            {
-                await recorder.MarkFinishedAsync(_databaseType, handle.Id, HandleStatus.Success, log.Id);
-            }
-            else
-            {
-                await recorder.MarkFailedAsync(_databaseType, handle, HandleStatus.Fail, log.Id);
-            }
-
-            _status.TotalProcessedCount++;
-            _status.SuccessCount += results.Count(r => r.Success);
-            _status.FailedCount += results.Count(r => !r.Success);
+            _status.TotalProcessedCount += processors.Count;
         }
         catch (Exception ex)
         {
@@ -217,6 +186,64 @@ public class DatabaseTypeProcessor
             _status.LastError = ex.Message;
             _status.LastErrorTime = DateTime.Now;
         }
+    }
+
+    /// <summary>
+    /// 处理单个处理器 - 创建独立的处理记录
+    /// </summary>
+    private async Task ProcessSingleProcessorAsync(
+        Event eventData,
+        JSProcessor processor,
+        IInterfaceConfigService interfaceService,
+        ScriptExecutor executor,
+        HandleRecorder recorder,
+        InterfaceSender sender)
+    {
+        //获取或创建该处理器的处理记录
+        var handle = await recorder.GetOrCreateAsync(
+            _databaseType, 
+            eventData.Id, 
+            processor.Id, 
+            processor.Name);
+
+        //如果已完成，跳过
+        if (handle.IsFinished)
+        {
+            _logger.LogDebug("[{DatabaseType}] 处理器 {ProcessorName} 已完成事件 {EventId}，跳过",
+                _databaseType, processor.Name, eventData.Id);
+            return;
+        }
+
+        //执行脚本
+        var result = await ExecuteProcessorAsync(eventData, processor, executor);
+
+        //如果需要发送，调用接口
+        if (result.NeedToSend)
+        {
+            await SendResultAsync(processor.Id, result, interfaceService, sender);
+        }
+
+        //记录日志
+        var log = await recorder.LogAsync(_databaseType, handle, result);
+
+        //更新处理记录状态
+        var isSuccess = result.Success && (result.SendResult?.Success ?? true);
+        if (isSuccess)
+        {
+            await recorder.MarkFinishedAsync(_databaseType, handle.Id, HandleStatus.Success, log.Id);
+            _status.SuccessCount++;
+        }
+        else
+        {
+            await recorder.MarkFailedAsync(_databaseType, handle, HandleStatus.Fail, log.Id);
+            _status.FailedCount++;
+        }
+
+        _logger.LogInformation(
+            "[{DatabaseType}] 处理器 {ProcessorName} 处理事件 {EventId}: {Status}, 耗时 {Time}ms",
+            _databaseType, processor.Name, eventData.Id,
+            isSuccess ? "成功" : "失败",
+            result.ExecutionTimeMs);
     }
 
     private async Task<List<JSProcessor>> GetMatchingProcessorsAsync(Event eventData, IProcessorService processorService)

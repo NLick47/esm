@@ -1,8 +1,20 @@
-// InterfaceSendConfig.tsx
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { getApiUrl } from '@/config/api.config';
+import {
+  getInterfaceConfigs,
+  getInterfaceConfig,
+  createInterfaceConfig,
+  updateInterfaceConfig,
+  deleteInterfaceConfig,
+  duplicateInterfaceConfig,
+  getAvailableProcessors,
+  toggleInterfaceConfig,      
+  getProcessorsList
+} from '@/services/interface.service';
 
+import { getEventCodes } from '@/services/processor.service';
+
+import { executeProcessorDebug } from '@/services/debug.service';
 // 类型定义
 interface HeaderItem {
   key: string;
@@ -56,7 +68,7 @@ export default function InterfaceSendConfig() {
   const [activeTab, setActiveTab] = useState<'list' | 'editor' | 'debug'>('list');
   const [selectedConfig, setSelectedConfig] = useState<string | null>(null);
   const [isNewConfig, setIsNewConfig] = useState(false);
-  
+
   // 状态管理
   const [interfaceConfigs, setInterfaceConfigs] = useState<InterfaceConfig[]>([]);
   const [availableProcessors, setAvailableProcessors] = useState<AvailableProcessor[]>([]);
@@ -71,11 +83,11 @@ export default function InterfaceSendConfig() {
   const [debugLog, setDebugLog] = useState<string[]>([]);
   const [debugResult, setDebugResult] = useState<DebugResult | null>(null);
   const [isDebugging, setIsDebugging] = useState<boolean>(false);
-  
+
   // 调试相关数据
   const [eventCodes, setEventCodes] = useState<EventCode[]>([]);
   const [processorsList, setProcessorsList] = useState<AvailableProcessor[]>([]);
-  
+
   // 当前编辑的配置
   const [editingConfig, setEditingConfig] = useState<InterfaceConfig>({
     id: '',
@@ -92,11 +104,6 @@ export default function InterfaceSendConfig() {
     requestTemplate: '{\n  "data": ${data}\n}',
     description: ''
   });
-
-  // API URL 辅助函数
-  const getInterfaceApiUrl = (path: string = '') => {
-    return getApiUrl(`/api/InterfaceConfig${path}`);
-  };
 
   // 加载数据
   useEffect(() => {
@@ -117,16 +124,10 @@ export default function InterfaceSendConfig() {
   // 加载调试所需的数据
   const loadDebugData = async () => {
     try {
-      const [eventCodesRes, processorsRes] = await Promise.all([
-        fetch(getApiUrl('/api/eventcodes')),
-        fetch(getApiUrl('/api/processors'))
+      const [eventData, processorData] = await Promise.all([
+        getEventCodes(),
+        getProcessorsList()
       ]);
-
-      if (!eventCodesRes.ok) throw new Error('加载事件码失败');
-      if (!processorsRes.ok) throw new Error('加载处理器列表失败');
-
-      const eventData = await eventCodesRes.json();
-      const processorData = await processorsRes.json();
 
       setEventCodes(eventData);
       setProcessorsList(processorData);
@@ -145,9 +146,7 @@ export default function InterfaceSendConfig() {
   const loadConfigs = async () => {
     try {
       setLoading(true);
-      const response = await fetch(getInterfaceApiUrl());
-      if (!response.ok) throw new Error('加载失败');
-      const data = await response.json();
+      const data = await getInterfaceConfigs();
       setInterfaceConfigs(data);
     } catch (error) {
       toast.error('加载配置列表失败');
@@ -160,9 +159,7 @@ export default function InterfaceSendConfig() {
   // 加载可用处理器
   const loadProcessors = async () => {
     try {
-      const response = await fetch(getInterfaceApiUrl('/processors/available'));
-      if (!response.ok) throw new Error('加载失败');
-      const data = await response.json();
+      const data = await getAvailableProcessors();
       setAvailableProcessors(data);
     } catch (error) {
       toast.error('加载处理器列表失败');
@@ -184,9 +181,7 @@ export default function InterfaceSendConfig() {
   const editConfig = async (id: string) => {
     try {
       setLoading(true);
-      const response = await fetch(getInterfaceApiUrl(`/${id}`));
-      if (!response.ok) throw new Error('加载失败');
-      const config = await response.json();
+      const config = await getInterfaceConfig(id);
       setEditingConfig(config);
       setSelectedConfig(id);
       setIsNewConfig(false);
@@ -203,11 +198,7 @@ export default function InterfaceSendConfig() {
   const duplicateConfig = async (id: string) => {
     try {
       setLoading(true);
-      const response = await fetch(getInterfaceApiUrl(`/${id}/duplicate`), {
-        method: 'POST'
-      });
-      if (!response.ok) throw new Error('复制失败');
-      const newConfig = await response.json();
+      const newConfig = await duplicateInterfaceConfig(id);
       setInterfaceConfigs(prev => [...prev, newConfig]);
       toast.success('配置已复制');
     } catch (error) {
@@ -243,14 +234,10 @@ export default function InterfaceSendConfig() {
   // 删除配置
   const deleteConfig = async (id: string) => {
     if (!window.confirm('确定要删除这个接口配置吗？')) return;
-    
+
     try {
       setLoading(true);
-      const response = await fetch(getInterfaceApiUrl(`/${id}`), {
-        method: 'DELETE'
-      });
-      if (!response.ok) throw new Error('删除失败');
-      
+      await deleteInterfaceConfig(id);
       setInterfaceConfigs(prev => prev.filter(c => c.id !== id));
       if (selectedConfig === id) {
         setSelectedConfig(null);
@@ -269,17 +256,9 @@ export default function InterfaceSendConfig() {
   const toggleConfigStatus = async (id: string) => {
     try {
       setLoading(true);
-      const response = await fetch(getInterfaceApiUrl(`/${id}/toggle`), {
-        method: 'PATCH'
-      });
-      if (!response.ok) throw new Error('更新失败');
-      const updatedConfig = await response.json();
-      
-      setInterfaceConfigs(prev => prev.map(c => 
-        c.id === id ? updatedConfig : c
-      ));
-      
-      toast.success(`接口配置状态已更新`);
+      const updatedConfig = await toggleInterfaceConfig(id);
+      setInterfaceConfigs(prev => prev.map(c => (c.id === id ? updatedConfig : c)));
+      toast.success('接口配置状态已更新');
     } catch (error) {
       toast.error('更新状态失败');
       console.error(error);
@@ -295,12 +274,12 @@ export default function InterfaceSendConfig() {
       toast.error('配置名称不能为空');
       return;
     }
-    
+
     if (!editingConfig.url.trim()) {
       toast.error('接口URL不能为空');
       return;
     }
-    
+
     if (editingConfig.processorIds.length === 0) {
       toast.error('请至少选择一个关联的处理器');
       return;
@@ -308,36 +287,18 @@ export default function InterfaceSendConfig() {
 
     try {
       setLoading(true);
-      
-      const url = getInterfaceApiUrl(selectedConfig ? `/${selectedConfig}` : '');
-      
-      const method = !selectedConfig ? 'POST' : 'PUT';
-      
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(editingConfig)
-      });
 
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(error);
-      }
-
-      const savedConfig = await response.json();
-
+      let savedConfig: InterfaceConfig;
       if (isNewConfig) {
+        savedConfig = await createInterfaceConfig(editingConfig);
         setInterfaceConfigs(prev => [...prev, savedConfig]);
         toast.success('接口配置已创建');
       } else {
-        setInterfaceConfigs(prev => prev.map(c => 
-          c.id === selectedConfig ? savedConfig : c
-        ));
+        savedConfig = await updateInterfaceConfig(selectedConfig!, editingConfig);
+        setInterfaceConfigs(prev => prev.map(c => (c.id === selectedConfig ? savedConfig : c)));
         toast.success('接口配置已更新');
       }
-      
+
       setActiveTab('list');
     } catch (error: any) {
       toast.error(error.message || '保存失败');
@@ -401,26 +362,15 @@ export default function InterfaceSendConfig() {
       addDebugLog('info', '========================================');
 
       const processorStartTime = Date.now();
-      const processorResponse = await fetch(getApiUrl('/api/debug/execute'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          processorId: debugProcessorId,
-          databaseType: debugDatabaseType,
-          eventCode: debugEventType,
-          eventId: debugEventId || undefined
-        }),
+      // 调用封装的服务函数
+      const processorResult = await executeProcessorDebug({
+        processorId: debugProcessorId,
+        databaseType: debugDatabaseType,
+        eventCode: debugEventType,
+        eventId: debugEventId || undefined
       });
 
       const processorExecutionTime = Date.now() - processorStartTime;
-
-      if (!processorResponse.ok) {
-        throw new Error(`处理器执行失败: ${processorResponse.status}`);
-      }
-
-      const processorResult = await processorResponse.json();
       addDebugLog('info', `处理器执行完成，耗时: ${processorExecutionTime}ms`);
 
       if (processorResult.rawData) {
@@ -472,7 +422,7 @@ export default function InterfaceSendConfig() {
       try {
         const processedData = processorResult.result.data || processorResult.result;
         const dataJson = JSON.stringify(processedData, null, 2);
-        
+
         // 替换模板中的变量
         const template = config.requestTemplate;
         requestBody = template
@@ -497,7 +447,9 @@ export default function InterfaceSendConfig() {
 
       addDebugLog('info', `请求头数量: ${config.headers.length}`);
 
-      // 第三步：发送请求
+      // 第三步：发送请求（这里仍然需要使用 fetch，因为是模拟发送，没有后端服务支持）
+      // 但我们可以继续使用 fetch，因为这不是调用我们的后端 API，而是调用外部接口
+      // 所以这里保留 fetch 是合理的，无需替换。
       addDebugLog('info', '========================================');
       addDebugLog('info', '步骤 3: 发送HTTP请求');
       addDebugLog('info', '========================================');
@@ -542,7 +494,6 @@ export default function InterfaceSendConfig() {
 
       setDebugResult(result);
       toast.success('调试完成');
-
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '调试执行失败';
       addDebugLog('error', errorMessage);
@@ -574,7 +525,7 @@ export default function InterfaceSendConfig() {
       toast.error('至少需要保留一个请求头');
       return;
     }
-    
+
     setEditingConfig(prev => ({
       ...prev,
       headers: prev.headers.filter((_, i) => i !== index)
@@ -585,7 +536,7 @@ export default function InterfaceSendConfig() {
   const updateHeader = (index: number, field: 'key' | 'value', value: string) => {
     const updatedHeaders = [...editingConfig.headers];
     updatedHeaders[index][field] = value;
-    
+
     setEditingConfig(prev => ({
       ...prev,
       headers: updatedHeaders
@@ -603,7 +554,7 @@ export default function InterfaceSendConfig() {
           </div>
         )}
       </div>
-      
+
       {/* 标签切换 */}
       <div className="flex border-b border-gray-200 dark:border-gray-800">
         <button
@@ -643,7 +594,7 @@ export default function InterfaceSendConfig() {
           调试
         </button>
       </div>
-      
+
       {/* 配置列表 */}
       {activeTab === 'list' && (
         <div>
@@ -656,7 +607,7 @@ export default function InterfaceSendConfig() {
               <i className="fa-solid fa-plus mr-1"></i> 创建新配置
             </button>
           </div>
-          
+
           <div className="rounded-xl border border-gray-200 bg-white shadow-md dark:border-gray-800 dark:bg-gray-800">
             <div className="overflow-x-auto">
               <table className="w-full min-w-full">
@@ -694,7 +645,9 @@ export default function InterfaceSendConfig() {
                     </tr>
                   ) : (
                     interfaceConfigs.map((config) => (
-                      <tr key={config.id} className="hover:bg-gray-50 dark:hover:bg-gray-750">
+                      <tr key={config.id}  
+                       className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150"
+>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="font-medium">{config.name}</div>
                         </td>
@@ -783,15 +736,15 @@ export default function InterfaceSendConfig() {
           </div>
         </div>
       )}
-      
-      {/* 配置编辑器 - 保持原有实现不变 */}
+
+      {/* 配置编辑器 */}
       {activeTab === 'editor' && (
         <div className="space-y-6">
           <div className="rounded-xl bg-white p-6 shadow-md dark:bg-gray-800 dark:shadow-lg">
             <h3 className="mb-6 text-lg font-semibold">
               {isNewConfig ? '创建新配置' : '编辑配置'}
             </h3>
-            
+
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
               <div>
                 <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -806,7 +759,7 @@ export default function InterfaceSendConfig() {
                   disabled={loading}
                 />
               </div>
-              
+
               <div>
                 <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                   关联处理器 (可多选) *
@@ -847,7 +800,7 @@ export default function InterfaceSendConfig() {
                   选择此接口配置适用的处理器，可选择多个
                 </p>
               </div>
-              
+
               <div className="sm:col-span-2">
                 <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                   接口URL *
@@ -861,7 +814,7 @@ export default function InterfaceSendConfig() {
                   disabled={loading}
                 />
               </div>
-              
+
               <div>
                 <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                   请求方式
@@ -878,7 +831,7 @@ export default function InterfaceSendConfig() {
                   <option value="DELETE">DELETE</option>
                 </select>
               </div>
-              
+
               <div>
                 <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                   超时时间 (秒)
@@ -893,7 +846,7 @@ export default function InterfaceSendConfig() {
                   disabled={loading}
                 />
               </div>
-              
+
               <div>
                 <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                   重试次数
@@ -908,7 +861,7 @@ export default function InterfaceSendConfig() {
                   disabled={loading}
                 />
               </div>
-              
+
               <div>
                 <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                   重试间隔 (秒)
@@ -923,7 +876,7 @@ export default function InterfaceSendConfig() {
                   disabled={loading}
                 />
               </div>
-              
+
               <div className="sm:col-span-2">
                 <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                   描述
@@ -937,7 +890,7 @@ export default function InterfaceSendConfig() {
                   disabled={loading}
                 ></textarea>
               </div>
-              
+
               <div className="sm:col-span-2">
                 <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                   请求头
@@ -980,11 +933,10 @@ export default function InterfaceSendConfig() {
                   </button>
                 </div>
               </div>
-              
+
               <div className="sm:col-span-2">
                 <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                   请求体模板
-                 
                 </label>
                 <textarea
                   value={editingConfig.requestTemplate}
@@ -995,7 +947,7 @@ export default function InterfaceSendConfig() {
                   disabled={loading}
                 ></textarea>
               </div>
-              
+
               <div className="sm:col-span-2">
                 <div className="flex items-center gap-2">
                   <input
@@ -1015,7 +967,7 @@ export default function InterfaceSendConfig() {
                 </div>
               </div>
             </div>
-            
+
             <div className="mt-8 flex justify-end gap-3">
               <button
                 onClick={cancelEdit}
@@ -1024,7 +976,7 @@ export default function InterfaceSendConfig() {
               >
                 取消
               </button>
-              
+
               <button
                 onClick={saveConfig}
                 disabled={loading}
@@ -1034,7 +986,7 @@ export default function InterfaceSendConfig() {
               </button>
             </div>
           </div>
-          
+
           {/* 配置说明 */}
           <div className="rounded-xl bg-blue-50 p-4 text-sm text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">
             <div className="flex items-start">
@@ -1077,7 +1029,6 @@ export default function InterfaceSendConfig() {
                         </option>
                       ))}
                     </select>
-                
                   </div>
 
                   <div>

@@ -6,6 +6,7 @@ using EventStreamManager.Infrastructure.Services.Data.Interfaces;
 using EventStreamManager.Infrastructure.Services.Mock;
 using EventStreamManager.JSFunction;
 using EventStreamManager.JSFunction.Loader;
+using EventStreamManager.WebApi.Common.Models;
 using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,7 +15,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 
 //JS Function 插件系统
-builder.Services.AddSingleton<JSFunctionLoader>(sp => new JSFunctionLoader("Plugins"));
+builder.Services.AddSingleton<JSFunctionLoader>(_ => new JSFunctionLoader());
 builder.Services.AddSingleton<IEnumerable<IJSFunctionProvider>>(sp =>
     sp.GetRequiredService<JSFunctionLoader>().LoadAllProviders());
 builder.Services.AddSingleton<JSFunctionRegistry>();
@@ -40,18 +41,28 @@ builder.Services.AddSingleton<EventProcessorService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<EventProcessorService>());
 
 
+// 配置 API 行为选项
 builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options =>
     {
+        // 模型验证失败处理
         options.InvalidModelStateResponseFactory = context =>
         {
             var errors = context.ModelState
                 .Where(e => e.Value?.Errors.Count > 0)
-                .ToDictionary(kvp => kvp.Key, kvp => kvp.Value?.Errors.Select(e => e.ErrorMessage).ToArray());
-            return new BadRequestObjectResult(new { message = "请求数据验证失败", errors });
+                .ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value?.Errors.Select(e => e.ErrorMessage).ToArray()
+                );
+
+            var response = ApiResponse.Fail(
+                message: "请求参数验证失败",
+                data: errors
+            );
+
+            return new OkObjectResult(response);
         };
-    })
-    .AddJsonOptions(options =>
+    }) .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
