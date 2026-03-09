@@ -199,51 +199,110 @@ public class DatabaseTypeProcessor
         HandleRecorder recorder,
         InterfaceSender sender)
     {
-        //获取或创建该处理器的处理记录
-        var handle = await recorder.GetOrCreateAsync(
-            _databaseType, 
-            eventData.Id, 
-            processor.Id, 
-            processor.Name);
-
-        //如果已完成，跳过
-        if (handle.IsFinished)
+        EventHandle? handle = null;
+        
+        try
         {
-            _logger.LogDebug("[{DatabaseType}] 处理器 {ProcessorName} 已完成事件 {EventId}，跳过",
+            // 获取或创建该处理器的处理记录
+            handle = await recorder.GetOrCreateAsync(
+                _databaseType,
+                eventData.Id,
+                processor.Id,
+                processor.Name);
+
+            // 如果已完成，跳过
+            if (handle.IsFinished)
+            {
+                _logger.LogDebug("[{DatabaseType}] 处理器 {ProcessorName} 已完成事件 {EventId}，跳过",
+                    _databaseType, processor.Name, eventData.Id);
+                return;
+            }
+
+            // 执行脚本
+            var result = await ExecuteProcessorAsync(eventData, processor, executor);
+
+            // 如果需要发送，调用接口
+            if (result.NeedToSend)
+            {
+                await SendResultAsync(processor.Id, result, interfaceService, sender);
+            }
+
+            // 记录日志
+            var log = await recorder.LogAsync(_databaseType, handle, result);
+
+            // 判断整体处理是否成功
+            bool isSuccess = DetermineOverallSuccess(result);
+            
+            // 根据整体成功状态更新处理记录
+            if (isSuccess)
+            {
+                await recorder.MarkFinishedAsync(_databaseType, handle.Id, HandleStatus.Success, log.Id);
+                _status.SuccessCount++;
+                _logger.LogInformation(
+                    "[{DatabaseType}] 处理器 {ProcessorName} 处理事件 {EventId}: 成功, 耗时 {Time}ms",
+                    _databaseType, processor.Name, eventData.Id, result.ExecutionTimeMs);
+            }
+            else
+            {
+                await recorder.MarkFailedAsync(_databaseType, handle, HandleStatus.Fail, log.Id);
+                _status.FailedCount++;
+                _logger.LogWarning(
+                    "[{DatabaseType}] 处理器 {ProcessorName} 处理事件 {EventId}: 失败, 错误: {Error}, 耗时 {Time}ms",
+                    _databaseType, processor.Name, eventData.Id, result.ErrorMessage ?? "未知错误", result.ExecutionTimeMs);
+            }
+        }
+        catch (Exception ex)
+        {
+            // 处理过程中的未捕获异常
+            _logger.LogError(ex, "[{DatabaseType}] 处理器 {ProcessorName} 处理事件 {EventId} 时发生未处理异常",
                 _databaseType, processor.Name, eventData.Id);
-            return;
-        }
 
-        //执行脚本
-        var result = await ExecuteProcessorAsync(eventData, processor, executor);
-
-        //如果需要发送，调用接口
-        if (result.NeedToSend)
-        {
-            await SendResultAsync(processor.Id, result, interfaceService, sender);
-        }
-
-        //记录日志
-        var log = await recorder.LogAsync(_databaseType, handle, result);
-
-        //更新处理记录状态
-        var isSuccess = result.Success && (result.SendResult?.Success ?? true);
-        if (isSuccess)
-        {
-            await recorder.MarkFinishedAsync(_databaseType, handle.Id, HandleStatus.Success, log.Id);
-            _status.SuccessCount++;
-        }
-        else
-        {
-            await recorder.MarkFailedAsync(_databaseType, handle, HandleStatus.Fail, log.Id);
+            // 如果有处理记录，标记为失败
+            if (handle != null)
+            {
+                try
+                {
+                    var errorResult = new ExecutionResult
+                    {
+                        Success = false,
+                        ErrorMessage = $"未处理异常: {ex.Message}",
+                        ExecutionTimeMs = 0
+                    };
+                    
+                    var log = await recorder.LogAsync(_databaseType, handle, errorResult);
+                    await recorder.MarkFailedAsync(_databaseType, handle, HandleStatus.Fail, log.Id);
+                }
+                catch (Exception recordEx)
+                {
+                    _logger.LogError(recordEx, "[{DatabaseType}] 记录处理失败状态时发生异常", _databaseType);
+                }
+            }
+            
             _status.FailedCount++;
+            _status.LastError = ex.Message;
+            _status.LastErrorTime = DateTime.Now;
+        }
+    }
+
+    /// <summary>
+    /// 判断整体处理是否成功
+    /// </summary>
+    private bool DetermineOverallSuccess(ExecutionResult result)
+    {
+        // 脚本执行失败
+        if (!result.Success)
+        {
+            return false;
         }
 
-        _logger.LogInformation(
-            "[{DatabaseType}] 处理器 {ProcessorName} 处理事件 {EventId}: {Status}, 耗时 {Time}ms",
-            _databaseType, processor.Name, eventData.Id,
-            isSuccess ? "成功" : "失败",
-            result.ExecutionTimeMs);
+        // 需要发送但发送失败
+        if (result.NeedToSend && (result.SendResult == null || !result.SendResult.Success))
+        {
+            return false;
+        }
+
+        // 脚本执行成功，且如果发送则发送成功
+        return true;
     }
 
     private async Task<List<JSProcessor>> GetMatchingProcessorsAsync(Event eventData, IProcessorService processorService)
@@ -258,23 +317,39 @@ public class DatabaseTypeProcessor
     private async Task<ExecutionResult> ExecuteProcessorAsync(
         Event eventData, JSProcessor processor, ScriptExecutor executor)
     {
-        Dictionary<string, object>? extendedData = null;
-        if (!string.IsNullOrWhiteSpace(processor.SqlTemplate))
+        try
         {
-            extendedData = await executor.QueryDataAsync(_databaseType, processor.SqlTemplate, eventData);
+            Dictionary<string, object>? extendedData = null;
+            if (!string.IsNullOrWhiteSpace(processor.SqlTemplate))
+            {
+                extendedData = await executor.QueryDataAsync(_databaseType, processor.SqlTemplate, eventData);
+            }
+
+            var context = new ScriptContext
+            {
+                ProcessorId = processor.Id,
+                ProcessorName = processor.Name,
+                DatabaseType = _databaseType,
+                Event = eventData,
+                QueryResult = extendedData,
+                ProcessorConfig = processor
+            };
+
+            return await executor.ExecuteAsync(context);
         }
-
-        var context = new ScriptContext
+        catch (Exception ex)
         {
-            ProcessorId = processor.Id,
-            ProcessorName = processor.Name,
-            DatabaseType = _databaseType,
-            Event = eventData,
-            QueryResult = extendedData,
-            ProcessorConfig = processor
-        };
-
-        return await executor.ExecuteAsync(context);
+            // 执行脚本时的异常
+            _logger.LogError(ex, "[{DatabaseType}] 执行处理器 {ProcessorName} 脚本时发生异常",
+                _databaseType, processor.Name);
+            
+            return new ExecutionResult
+            {
+                Success = false,
+                ErrorMessage = $"脚本执行异常: {ex.Message}",
+                ExecutionTimeMs = 0
+            };
+        }
     }
 
     private async Task SendResultAsync(
@@ -283,20 +358,48 @@ public class DatabaseTypeProcessor
         IInterfaceConfigService interfaceService,
         InterfaceSender sender)
     {
-        var interfaces = await interfaceService.GetAllConfigsAsync();
-        var config = interfaces.FirstOrDefault(i => i.Enabled && i.ProcessorIds.Contains(processorId));
-
-        if (config == null)
+        try
         {
-            result.ErrorMessage = "未找到匹配的接口配置";
-            return;
+            var config = await interfaceService.GetConfigByProcessorIdAsync(processorId);
+
+            if (config == null)
+            {
+                result.ErrorMessage = "未找到匹配的接口配置";
+                result.SendResult = new SendResult { Success = false, ErrorMessage = result.ErrorMessage };
+                return;
+            }
+            
+            if (!config.Enabled)
+            {
+                result.ErrorMessage = "接口配置未启用";
+                result.SendResult = new SendResult { Success = false, ErrorMessage = result.ErrorMessage };
+                return;
+            }
+
+            var data = string.IsNullOrWhiteSpace(config.RequestTemplate)
+                ? result.RequestInfo ?? "{}"
+                : config.RequestTemplate.Replace("${data}", result.RequestInfo ?? "{}");
+
+            result.SendResult = await sender.SendWithRetryAsync(
+                _databaseType, config, data, config.RetryCount, config.RetryInterval * 1000);
+            
+            // 如果发送失败，更新整体结果状态
+            if (result.SendResult is { Success: false })
+            {
+                result.ErrorMessage = result.SendResult.ErrorMessage ?? "接口发送失败";
+            }
         }
-
-        var data = string.IsNullOrWhiteSpace(config.RequestTemplate)
-            ? result.RequestInfo ?? "{}"
-            : config.RequestTemplate.Replace("${data}", result.RequestInfo ?? "{}");
-
-        result.SendResult = await sender.SendWithRetryAsync(
-            _databaseType, config, data, config.RetryCount, config.RetryInterval * 1000);
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[{DatabaseType}] 发送接口请求时发生异常, ProcessorId={ProcessorId}", 
+                _databaseType, processorId);
+            
+            result.ErrorMessage = $"接口发送异常: {ex.Message}";
+            result.SendResult = new SendResult 
+            { 
+                Success = false, 
+                ErrorMessage = result.ErrorMessage 
+            };
+        }
     }
 }

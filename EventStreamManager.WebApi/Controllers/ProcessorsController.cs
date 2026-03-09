@@ -9,13 +9,16 @@ namespace EventStreamManager.WebApi.Controllers;
 public class ProcessorsController : BaseController
 {
     private readonly IProcessorService _processorService;
+    private readonly IInterfaceConfigService _interfaceConfigService;
     private readonly ILogger<ProcessorsController> _logger;
 
     public ProcessorsController(
         IProcessorService processorService,
+        IInterfaceConfigService interfaceConfigService,
         ILogger<ProcessorsController> logger)
     {
         _processorService = processorService;
+        _interfaceConfigService = interfaceConfigService;
         _logger = logger;
     }
     
@@ -110,11 +113,28 @@ public class ProcessorsController : BaseController
     {
         try
         {
-            var deleted = await _processorService.DeleteAsync(id);
-            if (!deleted)
+            
+            var processor = await _processorService.GetByIdAsync(id);
+            if (processor == null)
             {
                 return Fail($"未找到ID为 {id} 的处理器", 404);
             }
+            
+            var referencingConfig = await _interfaceConfigService.GetConfigByProcessorIdAsync(id);
+            if (referencingConfig != null)
+            {
+                _logger.LogWarning("尝试删除被引用的处理器 - Id: {Id}, Name: {Name}, 引用配置: {ConfigName}", 
+                    id, processor.Name, referencingConfig.Name);
+                
+                return Fail($"处理器 \"{processor.Name}\" 正在被接口配置 \"{referencingConfig.Name}\" 引用，无法删除");
+            }
+            var deleted = await _processorService.DeleteAsync(id);
+            if (!deleted)
+            {
+                return Fail($"删除处理器失败", 500);
+            }
+            
+            _logger.LogInformation("处理器删除成功 - Id: {Id}, Name: {Name}", id, processor.Name);
             return OkMessage("删除处理器成功");
         }
         catch (Exception ex)

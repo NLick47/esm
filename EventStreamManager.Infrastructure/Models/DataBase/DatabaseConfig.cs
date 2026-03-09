@@ -8,6 +8,8 @@ public class DatabaseConfig
     public string Id { get; set; } = string.Empty;
     [Required(ErrorMessage = "配置名称不能为空")]
     public string Name { get; set; } = string.Empty;
+    
+    [Required(ErrorMessage = "连接字符串不能为空")]
     public string ConnectionString { get; set; } = string.Empty;
     
     [JsonConverter(typeof(JsonStringEnumConverter))]

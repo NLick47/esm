@@ -1,13 +1,17 @@
+using SqlSugar;
+
 namespace EventStreamManager.EventProcessor.Entities;
 
 /// <summary>
 /// 事件处理记录
 /// </summary>
+[SugarTable("tblEventHandle")]
 public class EventHandle
 {
     /// <summary>
     /// 主键
     /// </summary>
+    [SugarColumn(IsPrimaryKey = true, IsIdentity = true)]
     public int Id { get; set; }
 
     /// <summary>

@@ -50,14 +50,18 @@ builder.Services.AddControllers()
         {
             var errors = context.ModelState
                 .Where(e => e.Value?.Errors.Count > 0)
-                .ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => kvp.Value?.Errors.Select(e => e.ErrorMessage).ToArray()
-                );
+                .SelectMany(e => e.Value?.Errors.Select(err => $"{e.Key}: {err.ErrorMessage}") ?? Array.Empty<string>())
+                .ToList();
+
+            var errorMessage = "请求参数验证失败";
+            if (errors.Any())
+            {
+                errorMessage += ": " + string.Join(" | ", errors);
+            }
 
             var response = ApiResponse.Fail(
-                message: "请求参数验证失败",
-                data: errors
+                message: errorMessage,
+                data: null
             );
 
             return new OkObjectResult(response);
@@ -72,7 +76,7 @@ builder.Services.AddControllers()
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
-        policy.SetIsOriginAllowed(origin => true).AllowAnyMethod().AllowAnyHeader());
+        policy.SetIsOriginAllowed(_ => true).AllowAnyMethod().AllowAnyHeader());
 });
 
 //Swagger

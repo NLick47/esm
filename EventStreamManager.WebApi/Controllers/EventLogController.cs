@@ -13,13 +13,16 @@ public class EventLogController : BaseController
 {
     private readonly ISqlSugarContext _db;
     private readonly ILogger<EventLogController> _logger;
+    private readonly IEventListenerConfigService _eventListenerConfigService;
 
     public EventLogController(
         ISqlSugarContext db,
+        IEventListenerConfigService eventListenerConfigService,
         ILogger<EventLogController> logger)
     {
         _db = db;
         _logger = logger;
+        _eventListenerConfigService = eventListenerConfigService;
     }
 
     /// <summary>
@@ -170,9 +173,13 @@ public class EventLogController : BaseController
         try
         {
             var client = await _db.GetClientAsync(databaseType);
-
+            var eventConfig = await _eventListenerConfigService.GetConfigByTypeAsync(databaseType);
+            if (eventConfig == null)
+            {
+                return Fail("未找到事件监听配置", 404); 
+            }
             // 查询事件
-            var evt = await client.Queryable<Event>()
+            var evt = await client.Queryable<Event>().AS(eventConfig.TableName)
                 .Where(e => e.Id == eventId)
                 .FirstAsync();
 

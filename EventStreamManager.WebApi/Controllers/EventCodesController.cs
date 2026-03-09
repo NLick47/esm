@@ -25,12 +25,7 @@ public class EventCodesController : BaseController
     {
         try
         {
-            _logger.LogInformation("开始获取所有事件代码");
-            
             var list = await _dataService.ReadTemplateAsync<EventCode>(FileName);
-            
-            _logger.LogInformation("成功获取事件代码，数量: {Count}", list?.Count() ?? 0);
-            
             return Ok(list, "获取事件代码成功");
         }
         catch (Exception ex)

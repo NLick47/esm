@@ -1,3 +1,4 @@
+using EventStreamManager.EventProcessor.Entities;
 using EventStreamManager.Infrastructure.Models.Execution.Debug;
 using EventStreamManager.Infrastructure.Models.Execution.Parameter;
 using EventStreamManager.Infrastructure.Models.JSProcessor;
@@ -16,19 +17,22 @@ public class DebugController : BaseController
     private readonly IProcessorService _processorService;
     private readonly ISqlSugarContext _sqlSugarContext;
     private readonly IDatabaseSchemeService _databaseSchemeService;
+    private readonly IEventListenerConfigService _eventListenerConfigService;
 
     public DebugController(
         IJavaScriptExecutionService jsService,
         ILogger<DebugController> logger,
         IProcessorService processorService,
         IDatabaseSchemeService databaseSchemeService,
-        ISqlSugarContext sqlSugarContext)
+        ISqlSugarContext sqlSugarContext,
+        IEventListenerConfigService eventListenerConfigService)
     {
         _jsService = jsService;
         _logger = logger;
         _processorService = processorService;
         _databaseSchemeService = databaseSchemeService;
         _sqlSugarContext = sqlSugarContext;
+        _eventListenerConfigService = eventListenerConfigService;
     }
 
     /// <summary>
@@ -303,6 +307,12 @@ public class DebugController : BaseController
             {
                 return Fail($"未找到数据库类型 {request.DatabaseType} 的激活配置", 404);
             }
+            
+            var eventConfig = await _eventListenerConfigService.GetConfigByTypeAsync(request.DatabaseType);
+            if (eventConfig == null)
+            {
+                return Fail($"未找到事件监听配置 {request.DatabaseType}", 404);
+            }
 
             logEntries.Add(new DebugLogEntry
             {
@@ -310,9 +320,9 @@ public class DebugController : BaseController
                 Message = $"查询事件数据: EventId={request.EventId}",
                 Timestamp = DateTime.Now
             });
-
+           
             var client = await _sqlSugarContext.GetClientAsync(request.DatabaseType);
-            var eventData = await client.Queryable<EventProcessor.Entities.Event>()
+            var eventData = await client.Queryable<Event>().AS(eventConfig.TableName)
                 .Where(e => e.Id.ToString() == request.EventId)
                 .FirstAsync();
 

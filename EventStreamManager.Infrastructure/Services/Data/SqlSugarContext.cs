@@ -2,6 +2,7 @@ using EventStreamManager.Infrastructure.Models.DataBase;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
 using Microsoft.Extensions.Logging;
 using SqlSugar;
+using System.Text;
 
 namespace EventStreamManager.Infrastructure.Services.Data;
 
@@ -51,17 +52,8 @@ public class SqlSugarContext : ISqlSugarContext
                     IsWithNoLockQuery = true
                 }
             });
-
-            // 可以添加一些全局的 AOP 事件
-            client.Aop.OnLogExecuting = (sql, parameters) =>
-            {
-                _logger.LogDebug("执行SQL: {Sql}", sql);
-            };
-
-            client.Aop.OnError = (ex) =>
-            {
-                _logger.LogError(ex, "SQL执行错误");
-            };
+            
+            SetupAopLogging(client);
 
             return client;
         }
@@ -82,6 +74,12 @@ public class SqlSugarContext : ISqlSugarContext
         {
             client = await GetClientAsync(databaseType);
             
+            // 在 DEBUG 模式下打印 SQL
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                PrintSqlWithParameters("ExecuteQueryAsync", query, parameters);
+            }
+            
             var dataTable = await client.Ado.GetDataTableAsync(query, parameters);
             
             var result = new List<Dictionary<string, object>>();
@@ -90,10 +88,12 @@ public class SqlSugarContext : ISqlSugarContext
                 var dict = new Dictionary<string, object>();
                 foreach (System.Data.DataColumn col in dataTable.Columns)
                 {
-                    dict[col.ColumnName] = row[col] ?? DBNull.Value;
+                    dict[col.ColumnName] = row[col];
                 }
                 result.Add(dict);
             }
+            
+            _logger.LogDebug("查询返回 {RowCount} 行数据", result.Count);
             return result;
         }
         catch (Exception ex)
@@ -107,7 +107,7 @@ public class SqlSugarContext : ISqlSugarContext
             // 确保连接被释放
             if (client != null)
             {
-                 client.Dispose();
+                client.Dispose();
             }
         }
     }
@@ -121,7 +121,17 @@ public class SqlSugarContext : ISqlSugarContext
         try
         {
             client = await GetClientAsync(databaseType);
-            return await client.Ado.SqlQueryAsync<T>(query, parameters);
+            
+            // 在 DEBUG 模式下打印 SQL
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                PrintSqlWithParameters($"ExecuteQueryAsync<{typeof(T).Name}>", query, parameters);
+            }
+            
+            var result = await client.Ado.SqlQueryAsync<T>(query, parameters);
+            
+            _logger.LogDebug("泛型查询返回 {RowCount} 行数据", result?.Count ?? 0);
+            return result ?? new List<T>();
         }
         catch (Exception ex)
         {
@@ -133,7 +143,7 @@ public class SqlSugarContext : ISqlSugarContext
         {
             if (client != null)
             {
-                 client.Dispose();
+                client.Dispose();
             }
         }
     }
@@ -147,7 +157,17 @@ public class SqlSugarContext : ISqlSugarContext
         try
         {
             client = await GetClientAsync(databaseType);
-            return await client.Ado.ExecuteCommandAsync(sql, parameters);
+            
+            // 在 DEBUG 模式下打印 SQL
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                PrintSqlWithParameters("ExecuteCommandAsync", sql, parameters);
+            }
+            
+            var result = await client.Ado.ExecuteCommandAsync(sql, parameters);
+            
+            _logger.LogDebug("命令执行影响行数: {AffectedRows}", result);
+            return result;
         }
         catch (Exception ex)
         {
@@ -173,7 +193,17 @@ public class SqlSugarContext : ISqlSugarContext
         try
         {
             client = await GetClientAsync(databaseType);
-            return await client.Ado.SqlQuerySingleAsync<T>(sql, parameters);
+            
+            // 在 DEBUG 模式下打印 SQL
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                PrintSqlWithParameters($"ExecuteScalarAsync<{typeof(T).Name}>", sql, parameters);
+            }
+            
+            var result = await client.Ado.SqlQuerySingleAsync<T>(sql, parameters);
+            
+            _logger.LogDebug("标量查询返回: {Result}", result);
+            return result;
         }
         catch (Exception ex)
         {
@@ -195,12 +225,139 @@ public class SqlSugarContext : ISqlSugarContext
     {
         return driver switch
         {
-            DriverType.SqlServer => SqlSugar.DbType.SqlServer,
-            DriverType.MySql => SqlSugar.DbType.MySql,
-            DriverType.PostgreSql => SqlSugar.DbType.PostgreSQL,
-            DriverType.Oracle => SqlSugar.DbType.Oracle,
-            DriverType.SQLite => SqlSugar.DbType.Sqlite,
+            DriverType.SqlServer => DbType.SqlServer,
+            DriverType.MySql => DbType.MySql,
+            DriverType.PostgreSql => DbType.PostgreSQL,
+            DriverType.Oracle => DbType.Oracle,
+            DriverType.SQLite => DbType.Sqlite,
             _ => throw new NotSupportedException($"不支持的数据库驱动: {driver}")
+        };
+    }
+
+    // 设置 AOP 日志
+    private void SetupAopLogging(ISqlSugarClient client)
+    {
+        client.Aop.OnLogExecuting = (sql, parameters) =>
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                var formattedSql = FormatSql(sql, parameters);
+                _logger.LogDebug("[AOP] 执行SQL: {Sql}", formattedSql);
+            }
+        };
+        
+        client.Aop.OnLogExecuted = (_, _) =>
+        {
+            
+        };
+        
+        client.Aop.OnError = (ex) =>
+        {
+            _logger.LogError(ex, "[AOP] SQL执行错误");
+        };
+    }
+
+    // 格式化 SQL 和参数
+    private string FormatSql(string sql, SugarParameter[]? parameters)
+    {
+        if (parameters == null || parameters.Length == 0)
+            return sql;
+
+        var formattedSql = sql;
+        
+        // 替换参数为实际值（仅用于日志显示）
+        foreach (var param in parameters)
+        {
+            var paramValue = GetParameterValue(param);
+            formattedSql = formattedSql.Replace(param.ParameterName, paramValue);
+        }
+
+        return formattedSql;
+    }
+
+    // 获取参数值字符串表示
+    private string GetParameterValue(SugarParameter param)
+    {
+        if (param.Value == null || param.Value == DBNull.Value)
+            return "NULL";
+
+        return param.Value switch
+        {
+            string str => $"'{str}'",
+            DateTime dt => $"'{dt:yyyy-MM-dd HH:mm:ss.fff}'",
+            bool b => b ? "1" : "0",
+            byte[] bytes => $"0x{BitConverter.ToString(bytes).Replace("-", "")}",
+            _ => param.Value.ToString() ?? "NULL"
+        };
+    }
+
+    // 打印 SQL 和参数（用于手动执行的方法）
+    private void PrintSqlWithParameters(string methodName, string sql, object? parameters)
+    {
+        try
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"【{methodName}】执行的 SQL:");
+            sb.AppendLine(sql);
+
+            if (parameters != null)
+            {
+                sb.AppendLine("参数:");
+                
+                // 处理不同类型的参数对象
+                if (parameters is IEnumerable<KeyValuePair<string, object>> dictParams)
+                {
+                    foreach (var param in dictParams)
+                    {
+                        sb.AppendLine($"  {param.Key} = {FormatParameterValue(param.Value)}");
+                    }
+                }
+                else if (parameters is IEnumerable<SugarParameter> sugarParams)
+                {
+                    foreach (var param in sugarParams)
+                    {
+                        sb.AppendLine($"  {param.ParameterName} = {GetParameterValue(param)}");
+                    }
+                }
+                else
+                {
+                    // 如果是匿名对象，使用反射获取属性
+                    var properties = parameters.GetType().GetProperties();
+                    foreach (var prop in properties)
+                    {
+                        var value = prop.GetValue(parameters);
+                        sb.AppendLine($"  {prop.Name} = {FormatParameterValue(value)}");
+                    }
+                }
+            }
+            else
+            {
+                sb.AppendLine("参数: 无");
+            }
+
+            _logger.LogDebug(sb.ToString());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "打印 SQL 参数时出错");
+            // 出错时至少打印原始 SQL
+            _logger.LogDebug("SQL: {Sql}", sql);
+        }
+    }
+
+    // 格式化参数值
+    private string FormatParameterValue(object? value)
+    {
+        if (value == null || value == DBNull.Value)
+            return "NULL";
+
+        return value switch
+        {
+            string str => $"'{str}'",
+            DateTime dt => $"'{dt:yyyy-MM-dd HH:mm:ss.fff}'",
+            bool b => b ? "true" : "false",
+            byte[] bytes => $"byte[{bytes.Length}]",
+            _ => value.ToString() ?? "NULL"
         };
     }
 }

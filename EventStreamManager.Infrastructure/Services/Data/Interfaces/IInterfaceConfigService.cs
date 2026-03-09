@@ -13,4 +13,10 @@ public interface IInterfaceConfigService
     Task<InterfaceConfig?> DuplicateConfigAsync(string id);
     Task<List<AvailableProcessor>> GetAvailableProcessorsAsync();
     Task<bool> ValidateProcessorIdsAsync(List<string> processorIds);
+
+    Task<InterfaceConfig?> GetConfigByProcessorIdAsync(string processorId);
+    
+    Task<bool> IsProcessorReferencedAsync(string processorId);
+    
+   
 }

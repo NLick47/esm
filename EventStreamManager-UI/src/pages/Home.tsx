@@ -1,7 +1,4 @@
-/**
- * 主页面
- */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import DatabaseConnectionManager from '@/components/DatabaseConnectionManager';
 import EventListenerConfig from '@/components/EventListenerConfig';
@@ -11,7 +8,7 @@ import DebugLogModule from '@/components/DebugLogModule';
 import TaskMonitoringModule from '@/components/TaskMonitoringModule';
 import { toast } from 'sonner';
 import * as systemService from '@/services/system.service';
-import { SystemStatus } from '@/types';
+import { ServiceStatus, ProcessorStatus } from '@/types';
 
 // 导航菜单项组件
 interface ModuleNavItemProps {
@@ -40,107 +37,132 @@ function ModuleNavItem({ icon, label, active, onClick }: ModuleNavItemProps) {
 export default function Home() {
   const { theme, toggleTheme } = useTheme();
   const [activeModule, setActiveModule] = useState<string>('database');
-  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
+  const [serviceStatus, setServiceStatus] = useState<ServiceStatus | null>(null);
+  const [processorStatuses, setProcessorStatuses] = useState<ProcessorStatus[]>([]);
   const [loading, setLoading] = useState(false);
+  
   const mountedRef = useRef(true);
   const timerRef = useRef<ReturnType<typeof setTimeout>>();
 
-  const formatDuration = (durationStr: string): string => {
-    if (!durationStr) return '';
-    
-    const minuteMatch = durationStr.match(/(\d+)分钟/);
-    const secondMatch = durationStr.match(/(\d+)秒/);
-    
-    const minutes = minuteMatch ? parseInt(minuteMatch[1]) : 0;
-    const seconds = secondMatch ? parseInt(secondMatch[1]) : 0;
-    
-    const totalMinutes = minutes + (seconds > 0 ? 1 : 0);
-    
-    if (totalMinutes < 1) {
-      return '1分钟内';
+
+/**
+ * 格式化持续时间
+ * @param durationStr TimeSpan字符串，格式如 "00:00:05.0791501"
+ * @returns 格式化后的字符串，如 "1分钟内"、"5分钟"、"2小时3分钟"、"1天2小时"
+ */
+const formatDuration = useCallback((durationStr: string): string => {
+  if (!durationStr) return '0秒';
+  
+  // 解析 TimeSpan 格式 "00:00:05.0791501"
+  const timeMatch = durationStr.match(/(\d+):(\d+):(\d+)(?:\.(\d+))?/);
+  if (!timeMatch) return durationStr;
+  
+  const hours = parseInt(timeMatch[1], 10);
+  const minutes = parseInt(timeMatch[2], 10);
+  const seconds = parseInt(timeMatch[3], 10);
+  
+  // 转换为总分钟数
+  const totalMinutes = hours * 60 + minutes + (seconds > 0 ? 1 : 0);
+  
+  // 不足1分钟显示"1分钟内"
+  if (totalMinutes < 1) {
+    return '1分钟内';
+  }
+  
+  // 计算天、小时、分钟
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const remainingAfterDays = totalMinutes % (24 * 60);
+  const remainingHours = Math.floor(remainingAfterDays / 60);
+  const remainingMinutes = remainingAfterDays % 60;
+  
+  const parts = [];
+  
+  // 按天显示
+  if (days > 0) {
+    parts.push(`${days}天`);
+    // 如果有天，只显示小时，不显示分钟（或根据需要决定）
+    if (remainingHours > 0) {
+      parts.push(`${remainingHours}小时`);
     }
     
-    const days = Math.floor(totalMinutes / (24 * 60));
-    const remainingAfterDays = totalMinutes % (24 * 60);
-    const hours = Math.floor(remainingAfterDays / 60);
-    const mins = remainingAfterDays % 60;
-    
-    const parts = [];
-    if (days > 0) parts.push(`${days}天`);
-    if (hours > 0) parts.push(`${hours}小时`);
-    if (mins > 0 || (days === 0 && hours === 0)) parts.push(`${mins}分钟`);
-    
-    return parts.join('');
-  };
-
-  const fetchSystemStatus = async () => {
-    try {
-      const data = await systemService.getSystemStatus();
-      if (mountedRef.current) {
-        setSystemStatus(data);
-        if (data.isEnabled) {
-          await fetchUptime();
-        }
-      }
-    } catch (error) {
-      console.error('获取系统状态失败:', error);
+  } 
+  
+  else if (remainingHours > 0) {
+    parts.push(`${remainingHours}小时`);
+    if (remainingMinutes > 0) {
+      parts.push(`${remainingMinutes}分钟`);
     }
-  };
+  } 
+  // 按分钟显示
+  else {
+    parts.push(`${remainingMinutes}分钟`);
+  }
+  
+  return parts.join('');
+}, []);
 
-  const fetchUptime = async () => {
+  // 获取服务状态
+  const fetchServiceStatus = useCallback(async () => {
     try {
-      const data = await systemService.getUptime();
+      const data = await systemService.getServiceStatus();
       if (mountedRef.current) {
-        const formattedDuration = formatDuration(data.effectiveRunningDurationStr);
-        setSystemStatus(prev => {
-          if (!prev) {
-            return {
-              isEnabled: data.isEnabled,
-              startTime: data.startTime,
-              runningDuration: formattedDuration || '1分钟内',
-              processorCount: data.processorCount,
-              activeProcessorCount: data.activeProcessorCount
-            };
-          }
-          return {
-            ...prev,
-            runningDuration: formattedDuration,
-            processorCount: data.processorCount,
-            activeProcessorCount: data.activeProcessorCount
-          };
+      
+        const formattedDuration = formatDuration(data.runningDuration);
+        setServiceStatus({
+          ...data,
+          runningDuration: formattedDuration
         });
       }
-    } catch (error) {
-      console.error('获取运行时长失败:', error);
+    } catch (error: any) {
+      console.error('获取服务状态失败:', error);
+      if (mountedRef.current) {
+        toast.error(error.message || '获取服务状态失败');
+      }
     }
-  };
+  }, [formatDuration]);
 
-  const startStatusPolling = () => {
+  // 获取处理器状态（可选，用于更详细的监控）
+  const fetchProcessorStatuses = useCallback(async () => {
+    try {
+      const data = await systemService.getAllProcessorStatus();
+      if (mountedRef.current) {
+        setProcessorStatuses(data);
+      }
+    } catch (error: any) {
+      console.error('获取处理器状态失败:', error);
+    }
+  }, []);
+
+  // 启动轮询 - 只轮询服务状态
+  const startPolling = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
-      if (systemStatus?.isEnabled && mountedRef.current) {
-        fetchUptime();
+      if (mountedRef.current) {
+        fetchServiceStatus();
       }
     }, 5000);
-  };
+  }, [fetchServiceStatus]);
 
-  const stopStatusPolling = () => {
+  // 停止轮询
+  const stopPolling = useCallback(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = undefined;
     }
-  };
+  }, []);
 
+  // 启用系统
   const enableSystem = async () => {
     setLoading(true);
     try {
       const data = await systemService.enableSystem();
       if (mountedRef.current) {
-        setSystemStatus(prev => ({
-          ...prev!,
-          isEnabled: data.isEnabled,
-        }));
-        await fetchUptime();
+        // 格式化运行时长
+        const formattedDuration = formatDuration(data.runningDuration);
+        setServiceStatus({
+          ...data,
+          runningDuration: formattedDuration
+        });
         toast.success('系统已启动');
       }
     } catch (error: any) {
@@ -150,18 +172,18 @@ export default function Home() {
     }
   };
 
+  // 禁用系统
   const disableSystem = async () => {
     setLoading(true);
     try {
       const data = await systemService.disableSystem();
       if (mountedRef.current) {
-        setSystemStatus(prev => ({
-          ...prev!,
-          isEnabled: data.isEnabled,
-          runningDuration: '',
-        }));
+        // 禁用时运行时长应该是0
+        setServiceStatus({
+          ...data,
+          runningDuration: '0秒'
+        });
         toast.success('系统已停止');
-        stopStatusPolling();
       }
     } catch (error: any) {
       toast.error(error.message || '停止失败，请重试');
@@ -170,31 +192,46 @@ export default function Home() {
     }
   };
 
+  // 刷新状态
   const handleRefresh = async () => {
     setLoading(true);
-    await fetchSystemStatus();
+    await fetchServiceStatus();
+    await fetchProcessorStatuses();
     setLoading(false);
     toast.success('状态已刷新');
   };
-
+  // 初始化加载
   useEffect(() => {
     mountedRef.current = true;
-    fetchSystemStatus();
+    
+    // 初始化加载所有数据
+    Promise.all([
+      fetchServiceStatus(),
+      fetchProcessorStatuses()
+    ]);
+    
     return () => {
       mountedRef.current = false;
-      stopStatusPolling();
+      stopPolling();
     };
-  }, []);
+  }, [fetchServiceStatus, fetchProcessorStatuses, stopPolling]);
 
+  // 轮询控制 - 只在系统启用时轮询
   useEffect(() => {
-    if (systemStatus?.isEnabled) {
-      startStatusPolling();
+    if (serviceStatus?.isEnabled) {
+      startPolling();
     } else {
-      stopStatusPolling();
+      stopPolling();
     }
-    return () => stopStatusPolling();
-  }, [systemStatus?.isEnabled]);
+    
+    return stopPolling;
+  }, [serviceStatus?.isEnabled, startPolling, stopPolling]);
 
+  // 计算活跃处理器数量（从处理器状态中获取）
+  const activeProcessorCount = processorStatuses.filter(p => p.isRunning).length;
+  const totalProcessorCount = processorStatuses.length;
+
+  // 渲染活动模块
   const renderActiveModule = () => {
     switch (activeModule) {
       case 'database':
@@ -207,8 +244,7 @@ export default function Home() {
         return <InterfaceSendConfig />;
       case 'debug':
         return <DebugLogModule />;
-      case 'monitor':
-        return <TaskMonitoringModule />;
+    
       default:
         return <DatabaseConnectionManager />;
     }
@@ -226,25 +262,25 @@ export default function Home() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <span className={`inline-block h-3 w-3 rounded-full ${systemStatus?.isEnabled ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+              <span className={`inline-block h-3 w-3 rounded-full ${serviceStatus?.isEnabled ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
               <span className="text-sm font-medium">
-                {systemStatus?.isEnabled ? '系统运行中' : '系统已停止'}
+                {serviceStatus?.isEnabled ? '系统运行中' : '系统已停止'}
               </span>
             </div>
             
-            {systemStatus?.isEnabled && (
+            {serviceStatus?.isEnabled && (
               <>
                 <div className="text-sm text-gray-600 dark:text-gray-400">
                   <span className="mr-2">处理器:</span>
                   <span className="font-medium">
-                    {systemStatus.activeProcessorCount}/{systemStatus.processorCount} 活跃
+                    {activeProcessorCount}/{totalProcessorCount} 活跃
                   </span>
                 </div>
                 
-                {systemStatus.runningDuration && (
+                {serviceStatus.runningDuration && (
                   <div className="text-sm text-gray-500 dark:text-gray-400">
                     <i className="fa-regular fa-clock mr-1"></i>
-                    已运行: {systemStatus.runningDuration}
+                    已运行: {serviceStatus.runningDuration}
                   </div>
                 )}
               </>
@@ -326,16 +362,16 @@ export default function Home() {
           
           <button 
             className={`rounded-md px-6 py-2 text-sm font-medium transition-colors ${
-              systemStatus?.isEnabled 
+              serviceStatus?.isEnabled 
                 ? 'bg-red-600 text-white hover:bg-red-700' 
                 : 'bg-green-600 text-white hover:bg-green-700'
             } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-            onClick={systemStatus?.isEnabled ? disableSystem : enableSystem}
+            onClick={serviceStatus?.isEnabled ? disableSystem : enableSystem}
             disabled={loading}
           >
             {loading ? (
               <><i className="fa-solid fa-spinner fa-spin mr-1"></i> 处理中...</>
-            ) : systemStatus?.isEnabled ? (
+            ) : serviceStatus?.isEnabled ? (
               <><i className="fa-solid fa-stop mr-1"></i> 停止系统</>
             ) : (
               <><i className="fa-solid fa-play mr-1"></i> 启动系统</>

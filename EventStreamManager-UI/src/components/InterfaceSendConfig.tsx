@@ -7,9 +7,10 @@ import {
   updateInterfaceConfig,
   deleteInterfaceConfig,
   duplicateInterfaceConfig,
-  getAvailableProcessors,
+  getUnreferencedProcessors,
   toggleInterfaceConfig,      
-  getProcessorsList
+  getProcessorsList,
+  getAllProcessors
 } from '@/services/interface.service';
 
 import { getEventCodes } from '@/services/processor.service';
@@ -98,17 +99,17 @@ export default function InterfaceSendConfig() {
     method: 'POST',
     headers: [{ key: 'Content-Type', value: 'application/json' }],
     timeout: 30,
-    retryCount: 3,
+    retryCount: 0,
     retryInterval: 5,
     enabled: false,
-    requestTemplate: '{\n  "data": ${data}\n}',
+    requestTemplate: '${data}',
     description: ''
   });
 
   // 加载数据
   useEffect(() => {
     loadConfigs();
-    loadProcessors();
+    loadProcessors('all');
   }, []);
 
   // 加载调试相关数据
@@ -157,9 +158,16 @@ export default function InterfaceSendConfig() {
   };
 
   // 加载可用处理器
-  const loadProcessors = async () => {
+  const loadProcessors = async (mode: 'all' | 'unreferenced' = 'all') => {
     try {
-      const data = await getAvailableProcessors();
+      let data;
+      if (mode === 'all') {
+        // 获取所有处理器（包含引用状态）
+        data = await getAllProcessors();
+      } else {
+        // 只获取未被引用的处理器
+        data = await getUnreferencedProcessors();
+      }
       setAvailableProcessors(data);
     } catch (error) {
       toast.error('加载处理器列表失败');
@@ -220,10 +228,10 @@ export default function InterfaceSendConfig() {
       method: 'POST',
       headers: [{ key: 'Content-Type', value: 'application/json' }],
       timeout: 30,
-      retryCount: 3,
+      retryCount: 0,
       retryInterval: 5,
       enabled: false,
-      requestTemplate: '{\n  "data": ${data}\n}',
+      requestTemplate: '${data}',
       description: ''
     });
     setSelectedConfig(null);
@@ -268,45 +276,75 @@ export default function InterfaceSendConfig() {
   };
 
   // 保存配置
-  const saveConfig = async () => {
-    // 前端验证
-    if (!editingConfig.name.trim()) {
-      toast.error('配置名称不能为空');
-      return;
-    }
+// 在 saveConfig 函数中，添加更详细的验证
+const saveConfig = async () => {
+  // 前端验证
+  if (!editingConfig.name.trim()) {
+    toast.error('配置名称不能为空');
+    return;
+  }
 
-    if (!editingConfig.url.trim()) {
-      toast.error('接口URL不能为空');
-      return;
-    }
+  if (!editingConfig.url.trim()) {
+    toast.error('接口URL不能为空');
+    return;
+  }
 
-    if (editingConfig.processorIds.length === 0) {
-      toast.error('请至少选择一个关联的处理器');
-      return;
-    }
+  if (editingConfig.processorIds.length === 0) {
+    toast.error('请至少选择一个关联的处理器');
+    return;
+  }
 
-    try {
-      setLoading(true);
+  try {
+    setLoading(true);
 
-      let savedConfig: InterfaceConfig;
-      if (isNewConfig) {
-        savedConfig = await createInterfaceConfig(editingConfig);
-        setInterfaceConfigs(prev => [...prev, savedConfig]);
-        toast.success('接口配置已创建');
-      } else {
-        savedConfig = await updateInterfaceConfig(selectedConfig!, editingConfig);
-        setInterfaceConfigs(prev => prev.map(c => (c.id === selectedConfig ? savedConfig : c)));
-        toast.success('接口配置已更新');
+    // 如果是创建新配置，需要检查处理器是否真的未被引用
+    if (isNewConfig) {
+      const unreferencedProcessors = await getUnreferencedProcessors();
+      const unreferencedIds = unreferencedProcessors.map(p => p.id);
+      
+      // 检查所有选择的处理器是否都在未引用列表中
+      const invalidProcessors = editingConfig.processorIds.filter(id => !unreferencedIds.includes(id));
+      
+      if (invalidProcessors.length > 0) {
+        // 获取处理器名称
+        const invalidNames = editingConfig.processorNames.filter((_, index) => 
+          invalidProcessors.includes(editingConfig.processorIds[index])
+        );
+        
+        toast.error(`以下处理器已被其他配置引用，无法选择：${invalidNames.join('、')}`);
+        
+        // 刷新处理器列表
+        loadProcessors('unreferenced');
+        return;
       }
-
-      setActiveTab('list');
-    } catch (error: any) {
-      toast.error(error.message || '保存失败');
-      console.error(error);
-    } finally {
-      setLoading(false);
     }
-  };
+
+    let savedConfig: InterfaceConfig;
+    if (isNewConfig) {
+      savedConfig = await createInterfaceConfig(editingConfig);
+      setInterfaceConfigs(prev => [...prev, savedConfig]);
+      toast.success('接口配置已创建');
+    } else {
+      savedConfig = await updateInterfaceConfig(selectedConfig!, editingConfig);
+      setInterfaceConfigs(prev => prev.map(c => (c.id === selectedConfig ? savedConfig : c)));
+      toast.success('接口配置已更新');
+    }
+
+    setActiveTab('list');
+  } catch (error: any) {
+    // 如果后端返回了详细的错误信息，显示出来
+    if (error.message && error.message.includes('已被接口配置引用')) {
+      toast.error(error.message);
+      // 刷新处理器列表
+      loadProcessors(isNewConfig ? 'unreferenced' : 'all');
+    } else {
+      toast.error(error.message || '保存失败');
+    }
+    console.error(error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // 取消编辑
   const cancelEdit = () => {

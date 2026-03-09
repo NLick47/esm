@@ -1,5 +1,6 @@
 using EventStreamManager.EventProcessor.Entities;
 using EventStreamManager.EventProcessor.Processors;
+using EventStreamManager.Infrastructure.Models.EventProcessor;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -13,10 +14,12 @@ public class EventProcessorService : BackgroundService
 {
     private readonly ProcessorFactory _factory;
     private readonly IEventListenerConfigService _configService;
+    private readonly IDataService _dataService; 
     private readonly ILogger<EventProcessorService> _logger;
 
     private readonly Dictionary<string, DatabaseTypeProcessor> _processors = new();
     private Timer? _refreshTimer;
+    private Timer? _stateSaveTimer; 
 
     // 总开关状态
     private bool _isEnabled;
@@ -27,14 +30,33 @@ public class EventProcessorService : BackgroundService
     private DateTime? _pauseTime;
     private TimeSpan _totalPausedDuration = TimeSpan.Zero;
 
+    private const string StateFile = "service-state.json";
+    private const int StateSaveIntervalMinutes = 1; // 每分钟保存一次状态
+
     public EventProcessorService(
         ProcessorFactory factory,
         IEventListenerConfigService configService,
+        IDataService dataService, // 注入数据服务
         ILogger<EventProcessorService> logger)
     {
         _factory = factory;
         _configService = configService;
+        _dataService = dataService;
         _logger = logger;
+    }
+
+    public override async Task StartAsync(CancellationToken cancellationToken)
+    {
+        await LoadStateAsync();
+        _logger.LogInformation("EventProcessorService 正在启动...");
+        
+       
+        if (_isEnabled)
+        {
+            _logger.LogInformation("根据持久化状态，服务将自动启用");
+        }
+        
+        await base.StartAsync(cancellationToken);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -44,11 +66,27 @@ public class EventProcessorService : BackgroundService
 
         try
         {
-            await InitializeProcessorsAsync(stoppingToken);
+            // 只有在启用状态下才初始化处理器
+            if (_isEnabled)
+            {
+                await InitializeProcessorsAsync(stoppingToken);
+            }
+            else
+            {
+                _logger.LogInformation("服务处于禁用状态，跳过处理器初始化");
+            }
 
+            // 启动定时刷新
             _refreshTimer = new Timer(
                 _ => _ = RefreshProcessorsAsync(stoppingToken),
                 null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+
+            // 启动状态保存定时器
+            _stateSaveTimer = new Timer(
+                async _ => await SaveStateAsync(),
+                null,
+                TimeSpan.FromMinutes(StateSaveIntervalMinutes),
+                TimeSpan.FromMinutes(StateSaveIntervalMinutes));
 
             await Task.Delay(Timeout.Infinite, stoppingToken);
         }
@@ -60,6 +98,11 @@ public class EventProcessorService : BackgroundService
         {
             await StopAllProcessorsAsync();
             _refreshTimer?.Dispose();
+            _stateSaveTimer?.Dispose();
+            
+            // 服务停止前保存最终状态
+            await SaveStateAsync();
+            
             _logger.LogInformation("========== 事件处理器服务停止 ==========");
         }
     }
@@ -111,11 +154,14 @@ public class EventProcessorService : BackgroundService
     /// </summary>
     public async Task EnableAsync()
     {
+        List<Task> startTasks = new();
+        
         lock (_stateLock)
         {
             if (_isEnabled)
             {
-                return; // 已经是启用状态
+                _logger.LogWarning("服务已经处于启用状态");
+                return;
             }
 
             _isEnabled = true;
@@ -126,13 +172,24 @@ public class EventProcessorService : BackgroundService
                 _totalPausedDuration += DateTime.Now - _pauseTime.Value;
                 _pauseTime = null;
             }
+
+            // 收集需要启动的处理器
+            foreach (var processor in _processors.Values.Where(p => !p.IsRunning))
+            {
+                startTasks.Add(processor.StartAsync(CancellationToken.None));
+            }
         }
 
         _logger.LogInformation("事件处理服务已启用");
 
         // 启动所有处理器
-        var tasks = _processors.Values.Select(p => p.StartAsync(CancellationToken.None));
-        await Task.WhenAll(tasks);
+        if (startTasks.Any())
+        {
+            await Task.WhenAll(startTasks);
+        }
+
+        // 立即保存状态
+        await SaveStateAsync();
     }
 
     /// <summary>
@@ -144,7 +201,8 @@ public class EventProcessorService : BackgroundService
         {
             if (!_isEnabled)
             {
-                return; // 已经是禁用状态
+                _logger.LogWarning("服务已经处于禁用状态");
+                return;
             }
 
             _isEnabled = false;
@@ -155,6 +213,9 @@ public class EventProcessorService : BackgroundService
 
         // 停止所有处理器
         await StopAllProcessorsAsync();
+
+        // 立即保存状态
+        await SaveStateAsync();
     }
 
     /// <summary>
@@ -296,6 +357,111 @@ public class EventProcessorService : BackgroundService
         {
             await processor.StopAsync();
             await processor.StartAsync(CancellationToken.None);
+            
+            _logger.LogInformation("手动触发扫描完成: {DatabaseType}", databaseType);
         }
     }
+
+    /// <summary>
+    /// 立即保存服务状态
+    /// </summary>
+    public async Task SaveStateImmediatelyAsync()
+    {
+        await SaveStateAsync();
+    }
+
+    #region 状态持久化
+
+    /// <summary>
+    /// 加载服务状态
+    /// </summary>
+    private async Task LoadStateAsync()
+    {
+        try
+        {
+            var states = await _dataService.ReadAsync<ServiceState>(StateFile);
+            var state = states.FirstOrDefault();
+
+            lock (_stateLock)
+            {
+                if (state != null)
+                {
+                    _isEnabled = state.IsEnabled;
+                    if (!state.IsEnabled)
+                    {
+                        // 如果之前是禁用状态，设置暂停时间
+                        _pauseTime = DateTime.Now;
+                        _totalPausedDuration = TimeSpan.Zero;
+                    }
+                    
+                    _logger.LogInformation("已加载服务状态: IsEnabled={IsEnabled}, LastUpdated={LastUpdated}", 
+                        _isEnabled, state.LastUpdated);
+                }
+                else
+                {
+                    // 默认状态：禁用
+                    _isEnabled = false;
+                    _pauseTime = DateTime.Now;
+                    _totalPausedDuration = TimeSpan.Zero;
+                    
+                    _logger.LogInformation("未找到历史状态，使用默认禁用状态");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "加载服务状态失败，使用默认状态");
+            
+            lock (_stateLock)
+            {
+                _isEnabled = false;
+                _pauseTime = DateTime.Now;
+                _totalPausedDuration = TimeSpan.Zero;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 保存服务状态
+    /// </summary>
+    private async Task SaveStateAsync()
+    {
+        try
+        {
+            ServiceState state;
+            
+            lock (_stateLock)
+            {
+                state = new ServiceState
+                {
+                    IsEnabled = _isEnabled,
+                    StartTime = _startTime,
+                    LastUpdated = DateTime.Now,
+                    Version = "1.0"
+                };
+            }
+
+            await _dataService.WriteAsync(StateFile, new List<ServiceState> { state });
+
+            _logger.LogDebug("服务状态已保存: IsEnabled={IsEnabled}, LastUpdated={LastUpdated}", 
+                state.IsEnabled, state.LastUpdated);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "保存服务状态失败");
+        }
+    }
+
+    #endregion
+
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("EventProcessorService 正在停止...");
+        
+        // 停止前保存状态
+        await SaveStateAsync();
+        
+        await base.StopAsync(cancellationToken);
+    }
 }
+

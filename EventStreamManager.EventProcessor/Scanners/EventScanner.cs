@@ -52,6 +52,7 @@ public class EventScanner
             // 使用 SqlSugar 查询，自动适配多数据库
             // NOT EXISTS: 筛选没有处理记录的新事件
             var query = client.Queryable<Event>()
+                .AS(config.TableName)
                 .Where(e => !SqlFunc.Subqueryable<EventHandle>()
                     .Where(h => h.EventId == e.Id)
                     .Any())

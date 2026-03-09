@@ -32,7 +32,7 @@
         "StartCondition": null
       },
       "ris": {
-        "ScanFrequency": 60,
+        "ScanFrequency": 10,
         "BatchSize": 100,
         "Enabled": true,
         "TableName": "tblevent",
@@ -40,13 +40,13 @@
         "TimestampField": "CreateDatetime",
         "TotalEventsProcessed": 0,
         "StartCondition": {
-          "Type": "id",
+          "Type": "time",
           "TimeValue": "2026-03-06T14:57",
           "IdValue": "12"
         }
       }
     },
-    "LastUpdated": "2026-03-08T16:00:27.004282+08:00",
+    "LastUpdated": "2026-03-08T23:38:00.8608863+08:00",
     "Version": "1.0.0"
   }
 ]

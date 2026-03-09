@@ -162,7 +162,7 @@ public class InterfaceConfigService : IInterfaceConfigService
             
         return validProcessorIds.Count == processorIds.Count;
     }
-    
+
     
     private async Task<bool> SetProcessorNamesAsync(InterfaceConfig config)
     {
@@ -181,5 +181,24 @@ public class InterfaceConfigService : IInterfaceConfigService
             .ToList();
             
         return true;
+    }
+    
+    public async Task<InterfaceConfig?> GetConfigByProcessorIdAsync(string processorId)
+    {
+        var configs = await _dataService.ReadAsync<InterfaceConfig>(ConfigFileName);
+        return configs.FirstOrDefault(c => c.ProcessorIds.Contains(processorId));
+    }
+    
+    public async Task<List<InterfaceConfig>> GetConfigsByProcessorIdAsync(string processorId)
+    {
+        var configs = await _dataService.ReadAsync<InterfaceConfig>(ConfigFileName);
+        return configs.Where(c => c.ProcessorIds.Contains(processorId)).ToList();
+    }
+    
+    
+    public async Task<bool> IsProcessorReferencedAsync(string processorId)
+    {
+        var configs = await _dataService.ReadAsync<InterfaceConfig>(ConfigFileName);
+        return configs.Any(c => c.ProcessorIds.Contains(processorId));
     }
 }

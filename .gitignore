@@ -120,3 +120,6 @@ BenchmarkDotNet.Artifacts/
 
 # 忽略 Visual Studio 生成的 Launch Profiles
 launchSettings.json
+
+
+EventStreamManager.WebApi/Data/

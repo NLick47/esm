@@ -1,6 +1,3 @@
-/**
- * 数据库连接管理模块
- */
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { DatabaseConfig, DatabaseType, DriverType } from '@/types/database';
