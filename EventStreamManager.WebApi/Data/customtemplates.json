@@ -1,8 +1,0 @@
-[
-  {
-    "Id": "718786f8-35af-4cbf-94ab-82ed2f20cbe3",
-    "Name": "\u65B0\u81EA\u5B9A\u4E49\u6A21\u677F",
-    "EventCodes": [],
-    "SqlTemplate": "SELECT * FROM tblexamine where strexamineId = ${strEventReferenceId}"
-  }
-]
