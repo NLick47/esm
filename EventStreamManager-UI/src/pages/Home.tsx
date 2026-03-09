@@ -5,7 +5,6 @@ import EventListenerConfig from '@/components/EventListenerConfig';
 import JSProcessorManager from '@/components/JSProcessorManager';
 import InterfaceSendConfig from '@/components/InterfaceSendConfig';
 import DebugLogModule from '@/components/DebugLogModule';
-import TaskMonitoringModule from '@/components/TaskMonitoringModule';
 import { toast } from 'sonner';
 import * as systemService from '@/services/system.service';
 import { ServiceStatus, ProcessorStatus } from '@/types';
@@ -331,12 +330,6 @@ const formatDuration = useCallback((durationStr: string): string => {
               label="调试与日志" 
               active={activeModule === 'debug'} 
               onClick={() => setActiveModule('debug')} 
-            />
-            <ModuleNavItem 
-              icon="fa-chart-line" 
-              label="任务监控" 
-              active={activeModule === 'monitor'} 
-              onClick={() => setActiveModule('monitor')} 
             />
           </nav>
         </aside>
