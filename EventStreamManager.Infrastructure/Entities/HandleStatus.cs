@@ -1,4 +1,4 @@
-namespace EventStreamManager.EventProcessor.Entities;
+namespace EventStreamManager.Infrastructure.Entities;
 
 /// <summary>
 /// 处理状态常量

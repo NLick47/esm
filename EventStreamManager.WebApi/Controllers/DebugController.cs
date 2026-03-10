@@ -1,5 +1,5 @@
 using EventStreamManager.Infrastructure.Models.Execution.Debug;
-using EventStreamManager.WebApi.Service;
+using EventStreamManager.Infrastructure.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventStreamManager.WebApi.Controllers;

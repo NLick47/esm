@@ -7,7 +7,6 @@ using EventStreamManager.Infrastructure.Services.Mock;
 using EventStreamManager.JSFunction;
 using EventStreamManager.JSFunction.Loader;
 using EventStreamManager.WebApi.Common.Models;
-using EventStreamManager.WebApi.Service;
 using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -34,7 +33,7 @@ builder.Services.AddSingleton<IInterfaceConfigService, InterfaceConfigService>()
 builder.Services.AddSingleton<IDataService, JsonDataService>();
 builder.Services.AddSingleton<IProcessorService, ProcessorService>();
 builder.Services.AddSingleton<ISqlTemplateService, SqlTemplateService>();
-
+builder.Services.AddScoped<ITableInitializationService, TableInitializationService>();
 //调试服务
 builder.Services.AddScoped<IDebugService, DebugService>();
 //事件处理器

@@ -1,4 +1,4 @@
-namespace EventStreamManager.WebApi.Service;
+namespace EventStreamManager.Infrastructure.Services;
 
 public enum DebugType
 {

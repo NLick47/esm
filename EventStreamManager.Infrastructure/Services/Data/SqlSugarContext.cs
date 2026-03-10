@@ -36,32 +36,50 @@ public class SqlSugarContext : ISqlSugarContext
 
             _logger.LogDebug("创建数据库连接 - 类型: {DatabaseType}, 配置: {ConfigName}, 驱动: {Driver}", 
                 databaseType, activeConfig.Name, activeConfig.Driver);
-
-            var dbType = GetDbType(activeConfig.Driver);
             
-            // 创建新的客户端连接
-            var client = new SqlSugarClient(new ConnectionConfig
-            {
-                ConnectionString = activeConfig.ConnectionString,
-                DbType = dbType,
-                IsAutoCloseConnection = true,
-                InitKeyType = InitKeyType.Attribute,
-                MoreSettings = new ConnMoreSettings
-                {
-                    IsAutoRemoveDataCache = true,
-                    IsWithNoLockQuery = true
-                }
-            });
-            
-            SetupAopLogging(client);
-
-            return client;
+            return CreateSqlSugarClient(activeConfig.Driver,activeConfig.ConnectionString,activeConfig.Timeout);;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "创建数据库客户端失败 - 数据库类型: {DatabaseType}", databaseType);
             throw;
         }
+    }
+    
+    
+    public async Task<ISqlSugarClient> GetClientAsync(DatabaseConfig config)
+    {
+        if (config == null)
+            throw new ArgumentNullException(nameof(config));
+    
+        return CreateSqlSugarClient(config.Driver, config.ConnectionString, config.Timeout);
+    }
+    
+    
+    private ISqlSugarClient CreateSqlSugarClient(DriverType driver, string connectionString, int timeout)
+    {
+        var client = new SqlSugarClient(new ConnectionConfig
+        {
+            ConnectionString = connectionString,
+            DbType = GetDbType(driver),
+            IsAutoCloseConnection = true,
+            InitKeyType = InitKeyType.Attribute,
+            MoreSettings = new ConnMoreSettings
+            {
+                IsAutoRemoveDataCache = true,
+                IsWithNoLockQuery = true
+            }
+        });
+    
+       
+        if (timeout > 0)
+        {
+            client.Ado.CommandTimeOut = timeout;
+        }
+    
+        SetupAopLogging(client);
+    
+        return client;
     }
 
     public async Task<List<Dictionary<string, object>>> ExecuteQueryAsync(

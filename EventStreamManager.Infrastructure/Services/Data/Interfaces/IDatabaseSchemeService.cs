@@ -20,5 +20,5 @@ public interface IDatabaseSchemeService
     Task<bool> DeleteDatabaseTypeAsync(string typeValue);
     
     Task<List<DatabaseTypeWithActiveConfigDto>> GetAllDatabaseTypesWithActiveConfigAsync();
-   
+    
 }

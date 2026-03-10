@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using EventStreamManager.EventProcessor.Entities;
+using EventStreamManager.Infrastructure.Entities;
 using EventStreamManager.Infrastructure.Models.Execution.Parameter;
 using EventStreamManager.Infrastructure.Models.JSProcessor;
 using EventStreamManager.Infrastructure.Services;

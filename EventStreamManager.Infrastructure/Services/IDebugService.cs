@@ -1,6 +1,6 @@
 using EventStreamManager.Infrastructure.Models.Execution.Debug;
 
-namespace EventStreamManager.WebApi.Service;
+namespace EventStreamManager.Infrastructure.Services;
 
 public interface IDebugService
 {

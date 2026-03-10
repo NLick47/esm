@@ -1,3 +1,4 @@
+using EventStreamManager.Infrastructure.Models.DataBase;
 using SqlSugar;
 
 namespace EventStreamManager.Infrastructure.Services.Data.Interfaces;
@@ -9,6 +10,11 @@ public interface ISqlSugarContext
     /// 获取指定数据库类型的 SqlSugar 客户端（每次调用都创建新连接）
     /// </summary>
     Task<ISqlSugarClient> GetClientAsync(string databaseType);
+    
+    /// <summary>
+    /// 使用 DatabaseConfig 获取 SqlSugar 客户端
+    /// </summary>
+    Task<ISqlSugarClient> GetClientAsync(DatabaseConfig config);
     
     /// <summary>
     /// 执行查询并返回字典列表

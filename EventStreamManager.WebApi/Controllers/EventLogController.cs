@@ -1,4 +1,5 @@
 using EventStreamManager.EventProcessor.Entities;
+using EventStreamManager.Infrastructure.Entities;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 

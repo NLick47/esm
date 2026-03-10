@@ -3,6 +3,7 @@ using EventStreamManager.EventProcessor.Executors;
 using EventStreamManager.EventProcessor.Recorders;
 using EventStreamManager.EventProcessor.Scanners;
 using EventStreamManager.EventProcessor.Senders;
+using EventStreamManager.Infrastructure.Entities;
 using EventStreamManager.Infrastructure.Models.JSProcessor;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
 using Microsoft.Extensions.DependencyInjection;

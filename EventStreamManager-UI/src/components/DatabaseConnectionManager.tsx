@@ -8,6 +8,7 @@ export default function DatabaseConnectionManager() {
   const [currentConfigIndex, setCurrentConfigIndex] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
   const [isAddingType, setIsAddingType] = useState(false);
   const [newTypeName, setNewTypeName] = useState('');
   const [newTypeLabel, setNewTypeLabel] = useState('');
@@ -264,6 +265,38 @@ export default function DatabaseConnectionManager() {
       console.error('连接测试失败:', error);
       setConnectionStatus('disconnected');
       toast.error('连接测试失败，请检查网络或API服务');
+    }
+  };
+
+  // 初始化表结构
+  const initializeTables = async () => {
+    if (connectionStatus !== 'connected') {
+      toast.error('请先测试连接成功后再初始化表结构');
+      return;
+    }
+
+    if (!currentConfig.id) {
+      toast.error('请先保存配置');
+      return;
+    }
+
+    setIsInitializing(true);
+    try {
+      const result = await databaseService.initializeTables(activeDatabase, currentConfig.id);
+
+      if (result.success) {
+        const tablesInfo = result.createdTables && result.createdTables.length > 0
+          ? `\n已创建表: ${result.createdTables.join(', ')}`
+          : '';
+        toast.success(`表结构初始化成功！${tablesInfo}`, { duration: 5000 });
+      } else {
+        toast.error(`初始化失败: ${result.message}`);
+      }
+    } catch (error) {
+      console.error('初始化表结构失败:', error);
+      toast.error('初始化表结构失败');
+    } finally {
+      setIsInitializing(false);
     }
   };
 
@@ -706,6 +739,30 @@ export default function DatabaseConnectionManager() {
                 <i className="fa-solid fa-plug"></i>
                 测试连接
               </button>
+
+              {currentConfig.id && (
+                <button
+                  onClick={initializeTables}
+                  disabled={connectionStatus !== 'connected' || isInitializing || isLoading}
+                  className={`flex items-center gap-2 rounded-lg px-6 py-3 font-medium transition-colors ${
+                    connectionStatus !== 'connected' || isInitializing || isLoading
+                      ? 'bg-gray-400 text-white cursor-not-allowed'
+                      : 'bg-orange-600 text-white hover:bg-orange-700'
+                  }`}
+                >
+                  {isInitializing ? (
+                    <>
+                      <i className="fa-solid fa-spinner fa-spin"></i>
+                      初始化中...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa-solid fa-database"></i>
+                      初始化表结构
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
         </>

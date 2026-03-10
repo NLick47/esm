@@ -1,15 +1,15 @@
 using System.Text;
 using System.Text.Json;
-using EventStreamManager.EventProcessor.Entities;
+using EventStreamManager.Infrastructure.Entities;
 using EventStreamManager.Infrastructure.Models.EventListener;
 using EventStreamManager.Infrastructure.Models.Execution.Debug;
 using EventStreamManager.Infrastructure.Models.Execution.Parameter;
 using EventStreamManager.Infrastructure.Models.Interface;
 using EventStreamManager.Infrastructure.Models.JSProcessor;
-using EventStreamManager.Infrastructure.Services;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
+using Microsoft.Extensions.Logging;
 
-namespace EventStreamManager.WebApi.Service
+namespace EventStreamManager.Infrastructure.Services
 {
     /// <summary>
     /// 通用调试服务实现

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using EventStreamManager.EventProcessor.Entities;
+using EventStreamManager.Infrastructure.Entities;
 using EventStreamManager.Infrastructure.Models.Interface;
 using Microsoft.Extensions.Logging;
 

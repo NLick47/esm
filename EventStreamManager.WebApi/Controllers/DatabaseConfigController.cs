@@ -10,16 +10,19 @@ namespace EventStreamManager.WebApi.Controllers
     public class DatabaseConfigController : BaseController
     {
         private readonly IDatabaseSchemeService _databaseSchemeService;
+        private readonly ITableInitializationService _tableInitializationService;
         private readonly IDatabaseConnectionService _connectionService;
         private readonly ILogger<DatabaseConfigController> _logger;
 
         public DatabaseConfigController(
             IDatabaseSchemeService databaseSchemeService,
             IDatabaseConnectionService connectionService,
+            ITableInitializationService tableInitializationService,
             ILogger<DatabaseConfigController> logger)
         {
             _databaseSchemeService = databaseSchemeService;
             _connectionService = connectionService;
+            _tableInitializationService = tableInitializationService;
             _logger = logger;
         }
 
@@ -281,9 +284,9 @@ namespace EventStreamManager.WebApi.Controllers
                 ["Oracle"] = "Data Source=localhost:1521/ORCL;User Id=system;Password=123456;"
             };
 
-            if (examples.ContainsKey(driver))
+            if (examples.TryGetValue(driver, value: out var example))
             {
-                return Ok(new { driver, example = examples[driver] }, "获取连接示例成功");
+                return Ok(new { driver, example }, "获取连接示例成功");
             }
 
             return Ok(new { driver, example = "Server=localhost;Database=mydb;User Id=user;Password=pass;" }, "获取连接示例成功");
@@ -322,6 +325,46 @@ namespace EventStreamManager.WebApi.Controllers
             {
                 _logger.LogError(ex, "设置{DatabaseType}激活配置失败 - Id: {Id}", databaseType, id);
                 return Error("设置激活配置失败", data: new { error = ex.Message });
+            }
+        }
+        
+        
+        
+        [HttpPost("{databaseType}/{id}/initialize-tables")]
+        public async Task<IActionResult> InitializeTables(string databaseType, string id)
+        {
+            try
+            {
+                _logger.LogInformation("开始初始化表结构 - 数据库类型: {DatabaseType}, 配置ID: {Id}", databaseType, id);
+
+                var config = await _databaseSchemeService.GetConfigByIdAsync(databaseType, id);
+                if (config == null)
+                {
+                    _logger.LogWarning("配置不存在 - Type: {DatabaseType}, Id: {Id}", databaseType, id);
+                    return Fail("配置不存在", 404);
+                }
+                
+                var response  = await _tableInitializationService.InitializeTablesAsync(config);
+                
+                if (response.Success)
+                {
+                    return Ok(response, "表结构初始化成功");
+                }
+
+                return Error(response.Message, 500, response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "初始化表结构失败 - Type: {DatabaseType}, Id: {Id}", databaseType, id);
+        
+                var errorResponse = new
+                {
+                    success = false,
+                    message = $"初始化表结构失败: {ex.Message}",
+                    createdTables = new List<string>()
+                };
+        
+                return Error("初始化表结构失败", data: errorResponse);
             }
         }
     }

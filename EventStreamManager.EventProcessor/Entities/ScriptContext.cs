@@ -1,3 +1,4 @@
+using EventStreamManager.Infrastructure.Entities;
 using EventStreamManager.Infrastructure.Models.JSProcessor;
 
 namespace EventStreamManager.EventProcessor.Entities;

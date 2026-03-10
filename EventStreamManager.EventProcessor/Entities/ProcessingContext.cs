@@ -1,3 +1,5 @@
+using EventStreamManager.Infrastructure.Entities;
+
 namespace EventStreamManager.EventProcessor.Entities;
 
 public class ProcessingContext
