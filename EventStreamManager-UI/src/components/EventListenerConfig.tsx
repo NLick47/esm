@@ -237,7 +237,7 @@ export default function EventListenerConfig() {
                         </button>
                     ))
                 ) : (
-                    <div className="text-gray-500 py-3">加载数据库类型中...</div>
+                    <div className="text-gray-500 py-3">暂无连接配置</div>
                 )}
             </div>
             

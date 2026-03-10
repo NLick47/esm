@@ -42,7 +42,7 @@ public class EventListenerConfigController : BaseController
             var config = await _configService.GetConfigByTypeAsync(databaseType);
             if (config == null)
             {
-                return Fail($"未找到 {databaseType} 的配置", 404);
+                config = await _configService.UpdateConfigAsync(databaseType, new EventConfig());
             }
             return Ok(config, "获取配置成功");
         }

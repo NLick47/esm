@@ -7,6 +7,7 @@ using EventStreamManager.Infrastructure.Services.Mock;
 using EventStreamManager.JSFunction;
 using EventStreamManager.JSFunction.Loader;
 using EventStreamManager.WebApi.Common.Models;
+using EventStreamManager.WebApi.Service;
 using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -34,8 +35,11 @@ builder.Services.AddSingleton<IDataService, JsonDataService>();
 builder.Services.AddSingleton<IProcessorService, ProcessorService>();
 builder.Services.AddSingleton<ISqlTemplateService, SqlTemplateService>();
 
+//调试服务
+builder.Services.AddScoped<IDebugService, DebugService>();
 //事件处理器
 builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("DEBUG");
 builder.Services.AddSingleton<ProcessorFactory>();
 builder.Services.AddSingleton<EventProcessorService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<EventProcessorService>());
@@ -94,6 +98,10 @@ if (app.Environment.IsDevelopment())
 app.UseRouting();
 app.UseCors("AllowAll");
 app.UseAuthorization();
+
+
+app.UseDefaultFiles();
+app.UseStaticFiles(); 
 app.MapControllers();
 
 app.Run();

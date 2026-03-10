@@ -36,6 +36,8 @@ public class InterfaceConfig
     [Range(1, 60, ErrorMessage = "重试间隔必须在1-60秒之间")]
     public int RetryInterval { get; set; } = 5;
     public bool Enabled { get; set; }
-    public string RequestTemplate { get; set; }
+    
+    [Required(ErrorMessage = "请求模板不能为空")]
+    public string RequestTemplate { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
 }

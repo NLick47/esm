@@ -84,8 +84,8 @@ export function deleteConfig(type: string, id: string): Promise<void> {
 /**
  * 测试连接
  */
-export function testConnection(type: string, config: Partial<DatabaseConfig>): Promise<{ success: boolean; message: string }> {
-  return post(`${BASE_PATH}/${type}/test`, config);
+export function testConnection(config: Partial<DatabaseConfig>): Promise<{ success: boolean; message: string }> {
+  return post(`${BASE_PATH}/test-connection`, config);
 }
 
 /**

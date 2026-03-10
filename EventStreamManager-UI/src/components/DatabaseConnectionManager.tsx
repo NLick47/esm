@@ -252,7 +252,7 @@ export default function DatabaseConnectionManager() {
     setConnectionStatus('connecting');
 
     try {
-      const result = await databaseService.testConnection(activeDatabase, currentConfig);
+      const result = await databaseService.testConnection(currentConfig);
       setConnectionStatus(result.success ? 'connected' : 'disconnected');
 
       if (result.success) {

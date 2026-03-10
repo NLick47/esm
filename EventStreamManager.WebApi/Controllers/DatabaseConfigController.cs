@@ -164,16 +164,7 @@ namespace EventStreamManager.WebApi.Controllers
         {
             try
             {
-                if (!ModelState.IsValid)
-                {
-                    var errors = ModelState
-                        .Where(e => e.Value?.Errors.Count > 0)
-                        .ToDictionary(
-                            kvp => kvp.Key,
-                            kvp => kvp.Value?.Errors.Select(e => e.ErrorMessage).ToArray()
-                        );
-                    return Fail("请求参数验证失败", 400, errors);
-                }
+               
 
                 if (string.IsNullOrWhiteSpace(request.ConnectionString))
                 {
@@ -315,7 +306,7 @@ namespace EventStreamManager.WebApi.Controllers
         }
 
         // 设置为当前使用的配置
-        [HttpPost("{databaseType}/{id}/set-active")]
+        [HttpPost("{databaseType}/{id}/activate")]
         public async Task<IActionResult> SetActiveConfig(string databaseType, string id)
         {
             try

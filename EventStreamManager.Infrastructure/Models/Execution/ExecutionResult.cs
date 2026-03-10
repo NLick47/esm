@@ -82,11 +82,11 @@ public class ExecutionResult
     /// 标志位：是否需要发送到API
     /// </summary>
     public bool NeedToSend { get; set; }
-    
+
     /// <summary>
     /// 原因：如果不需要发送，说明原因
     /// </summary>
-    public string Reason { get; set; }
+    public string Reason { get; set; } = string.Empty;
     
     /// <summary>
     /// 异常信息：如果try catch捕获到异常
