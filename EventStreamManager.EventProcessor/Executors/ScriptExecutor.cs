@@ -1,12 +1,12 @@
 using System.Diagnostics;
-using System.Text.Json;
 using EventStreamManager.EventProcessor.Entities;
 using EventStreamManager.Infrastructure.Entities;
+using EventStreamManager.Infrastructure.Models.Execution;
 using EventStreamManager.Infrastructure.Models.Execution.Parameter;
-using EventStreamManager.Infrastructure.Models.JSProcessor;
 using EventStreamManager.Infrastructure.Services;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
 using Microsoft.Extensions.Logging;
+using ExecutionResult = EventStreamManager.Infrastructure.Entities.ExecutionResult;
 
 namespace EventStreamManager.EventProcessor.Executors;
 
@@ -52,7 +52,9 @@ public class ScriptExecutor
             }
 
             var jsData = BuildJsData(context);
-            var execResult = await _jsService.ExecuteProcessAsync(context.ProcessorConfig.Code, jsData);
+            var options = new ExecutionOptions();
+            options.CaptureConsoleOutput = false;
+            var execResult = await _jsService.ExecuteProcessAsync(options,context.ProcessorConfig.Code, jsData);
 
             stopwatch.Stop();
             result.ExecutionTimeMs = stopwatch.ElapsedMilliseconds;

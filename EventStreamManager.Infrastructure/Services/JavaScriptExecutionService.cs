@@ -33,6 +33,11 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
         return await ExecuteProcessInternalAsync(script, inputData, new ExecutionOptions());
     }
 
+    public async Task<ExecutionResult> ExecuteProcessAsync(ExecutionOptions options, string script, object? inputData = null)
+    {
+        return await ExecuteProcessInternalAsync(script, inputData, options);
+    }
+
 
     public ValidationResult ValidateScript(string script)
     {
@@ -131,11 +136,10 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
         }
 
         Engine? engine = null;
-        ScriptOutput? output = null;
 
         try
         {
-            output = options.CaptureConsoleOutput ? new ScriptOutput() : null;
+            var output = options.CaptureConsoleOutput ? new ScriptOutput() : null;
 
             // 每次执行都创建全新的引擎
             engine = CreateEngine(options, output);
