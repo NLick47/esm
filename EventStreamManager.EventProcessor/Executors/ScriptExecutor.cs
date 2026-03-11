@@ -52,9 +52,7 @@ public class ScriptExecutor
             }
 
             var jsData = BuildJsData(context);
-            var options = new ExecutionOptions();
-            options.CaptureConsoleOutput = false;
-            var execResult = await _jsService.ExecuteProcessAsync(options,context.ProcessorConfig.Code, jsData);
+            var execResult = await _jsService.ExecuteProcessAsync(context.ProcessorConfig.Code, jsData);
 
             stopwatch.Stop();
             result.ExecutionTimeMs = stopwatch.ElapsedMilliseconds;

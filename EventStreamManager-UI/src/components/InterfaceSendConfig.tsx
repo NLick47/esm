@@ -8,62 +8,23 @@ import {
   deleteInterfaceConfig,
   duplicateInterfaceConfig,
   getUnreferencedProcessors,
-  toggleInterfaceConfig,      
-  getProcessorsList,
-  getAllProcessors
+  toggleInterfaceConfig,
+  getAllProcessors,
+  debugInterfaceConfig
 } from '@/services/interface.service';
 
-import { getEventCodes } from '@/services/processor.service';
+import { getEventCodes,getProcessors } from '@/services/processor.service';
+import { getDatabaseTypesWithActiveConfig } from '@/services/database.service';
 
-import { executeProcessorDebug } from '@/services/debug.service';
 // 类型定义
-interface HeaderItem {
-  key: string;
-  value: string;
-}
-
-interface InterfaceConfig {
-  id: string;
-  name: string;
-  processorIds: string[];
-  processorNames: string[];
-  url: string;
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
-  headers: HeaderItem[];
-  timeout: number;
-  retryCount: number;
-  retryInterval: number;
-  enabled: boolean;
-  requestTemplate: string;
-  description: string;
-}
-
-interface AvailableProcessor {
-  id: string;
-  name: string;
-}
-
-interface EventCode {
-  code: string;
-  description: string;
-  enabled: boolean;
-}
-
-type DatabaseType = 'ultrasound' | 'radiology' | 'endoscopy';
-
-interface DebugResult {
-  success: boolean;
-  requestUrl: string;
-  requestMethod: string;
-  requestHeaders: Record<string, string>;
-  requestBody: string;
-  responseStatus?: number;
-  responseBody?: string;
-  executionTimeMs: number;
-  errorMessage?: string;
-  processorExecutionTime?: number;
-  processorResult?: any;
-}
+import type {
+  InterfaceConfig,
+  AvailableProcessor,
+  DatabaseTypeWithActiveConfig,
+  DebugLogEntry,
+  InterfaceDebugResponse
+} from '@/types/interface-config';
+import type { EventCode } from '@/types/processor';
 
 export default function InterfaceSendConfig() {
   const [activeTab, setActiveTab] = useState<'list' | 'editor' | 'debug'>('list');
@@ -78,16 +39,17 @@ export default function InterfaceSendConfig() {
   // 调试相关状态
   const [debugConfigId, setDebugConfigId] = useState<string>('');
   const [debugProcessorId, setDebugProcessorId] = useState<string>('');
-  const [debugDatabaseType, setDebugDatabaseType] = useState<DatabaseType>('ultrasound');
+  const [debugDatabaseType, setDebugDatabaseType] = useState<string>('');
   const [debugEventType, setDebugEventType] = useState<string>('');
   const [debugEventId, setDebugEventId] = useState<string>('');
-  const [debugLog, setDebugLog] = useState<string[]>([]);
-  const [debugResult, setDebugResult] = useState<DebugResult | null>(null);
+  const [debugLogs, setDebugLogs] = useState<DebugLogEntry[]>([]);
+  const [debugResult, setDebugResult] = useState<InterfaceDebugResponse | null>(null);
   const [isDebugging, setIsDebugging] = useState<boolean>(false);
 
   // 调试相关数据
   const [eventCodes, setEventCodes] = useState<EventCode[]>([]);
   const [processorsList, setProcessorsList] = useState<AvailableProcessor[]>([]);
+  const [databaseTypes, setDatabaseTypes] = useState<DatabaseTypeWithActiveConfig[]>([]);
 
   // 当前编辑的配置
   const [editingConfig, setEditingConfig] = useState<InterfaceConfig>({
@@ -110,6 +72,7 @@ export default function InterfaceSendConfig() {
   useEffect(() => {
     loadConfigs();
     loadProcessors('all');
+    loadDatabaseTypes();
   }, []);
 
   // 加载调试相关数据
@@ -122,12 +85,29 @@ export default function InterfaceSendConfig() {
     }
   }, [activeTab]);
 
+  // 加载数据库类型
+  const loadDatabaseTypes = async () => {
+    try {
+      const data = await getDatabaseTypesWithActiveConfig();
+      setDatabaseTypes(data);
+      // 默认选择第一个有激活配置的数据库类型
+      const firstActive = data.find(dt => dt.activeConfig !== null);
+      if (firstActive) {
+        setDebugDatabaseType(firstActive.value);
+      } else if (data.length > 0) {
+        setDebugDatabaseType(data[0].value);
+      }
+    } catch (error) {
+      console.error('加载数据库类型失败', error);
+    }
+  };
+
   // 加载调试所需的数据
   const loadDebugData = async () => {
     try {
       const [eventData, processorData] = await Promise.all([
         getEventCodes(),
-        getProcessorsList()
+        getProcessors()
       ]);
 
       setEventCodes(eventData);
@@ -162,10 +142,8 @@ export default function InterfaceSendConfig() {
     try {
       let data;
       if (mode === 'all') {
-        // 获取所有处理器（包含引用状态）
         data = await getAllProcessors();
       } else {
-        // 只获取未被引用的处理器
         data = await getUnreferencedProcessors();
       }
       setAvailableProcessors(data);
@@ -175,14 +153,11 @@ export default function InterfaceSendConfig() {
     }
   };
 
-  // 获取数据库类型标签
-  const getDatabaseTypeLabel = (type: DatabaseType): string => {
-    switch (type) {
-      case 'ultrasound': return '超声';
-      case 'radiology': return '放射';
-      case 'endoscopy': return '内镜';
-      default: return type;
-    }
+
+  // 检查数据库类型是否有激活配置
+  const hasActiveConfig = (value: string): boolean => {
+    const type = databaseTypes.find(dt => dt.value === value);
+    return type?.activeConfig !== null;
   };
 
   // 编辑配置
@@ -276,75 +251,66 @@ export default function InterfaceSendConfig() {
   };
 
   // 保存配置
-// 在 saveConfig 函数中，添加更详细的验证
-const saveConfig = async () => {
-  // 前端验证
-  if (!editingConfig.name.trim()) {
-    toast.error('配置名称不能为空');
-    return;
-  }
+  const saveConfig = async () => {
+    if (!editingConfig.name.trim()) {
+      toast.error('配置名称不能为空');
+      return;
+    }
 
-  if (!editingConfig.url.trim()) {
-    toast.error('接口URL不能为空');
-    return;
-  }
+    if (!editingConfig.url.trim()) {
+      toast.error('接口URL不能为空');
+      return;
+    }
 
-  if (editingConfig.processorIds.length === 0) {
-    toast.error('请至少选择一个关联的处理器');
-    return;
-  }
+    if (editingConfig.processorIds.length === 0) {
+      toast.error('请至少选择一个关联的处理器');
+      return;
+    }
 
-  try {
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    // 如果是创建新配置，需要检查处理器是否真的未被引用
-    if (isNewConfig) {
-      const unreferencedProcessors = await getUnreferencedProcessors();
-      const unreferencedIds = unreferencedProcessors.map(p => p.id);
-      
-      // 检查所有选择的处理器是否都在未引用列表中
-      const invalidProcessors = editingConfig.processorIds.filter(id => !unreferencedIds.includes(id));
-      
-      if (invalidProcessors.length > 0) {
-        // 获取处理器名称
-        const invalidNames = editingConfig.processorNames.filter((_, index) => 
-          invalidProcessors.includes(editingConfig.processorIds[index])
-        );
+      if (isNewConfig) {
+        const unreferencedProcessors = await getUnreferencedProcessors();
+        const unreferencedIds = unreferencedProcessors.map(p => p.id);
         
-        toast.error(`以下处理器已被其他配置引用，无法选择：${invalidNames.join('、')}`);
+        const invalidProcessors = editingConfig.processorIds.filter(id => !unreferencedIds.includes(id));
         
-        // 刷新处理器列表
-        loadProcessors('unreferenced');
-        return;
+        if (invalidProcessors.length > 0) {
+          const invalidNames = editingConfig.processorNames.filter((_, index) => 
+            invalidProcessors.includes(editingConfig.processorIds[index])
+          );
+          
+          toast.error(`以下处理器已被其他配置引用，无法选择：${invalidNames.join('、')}`);
+          loadProcessors('unreferenced');
+          return;
+        }
       }
-    }
 
-    let savedConfig: InterfaceConfig;
-    if (isNewConfig) {
-      savedConfig = await createInterfaceConfig(editingConfig);
-      setInterfaceConfigs(prev => [...prev, savedConfig]);
-      toast.success('接口配置已创建');
-    } else {
-      savedConfig = await updateInterfaceConfig(selectedConfig!, editingConfig);
-      setInterfaceConfigs(prev => prev.map(c => (c.id === selectedConfig ? savedConfig : c)));
-      toast.success('接口配置已更新');
-    }
+      let savedConfig: InterfaceConfig;
+      if (isNewConfig) {
+        savedConfig = await createInterfaceConfig(editingConfig);
+        setInterfaceConfigs(prev => [...prev, savedConfig]);
+        toast.success('接口配置已创建');
+      } else {
+        savedConfig = await updateInterfaceConfig(selectedConfig!, editingConfig);
+        setInterfaceConfigs(prev => prev.map(c => (c.id === selectedConfig ? savedConfig : c)));
+        toast.success('接口配置已更新');
+      }
 
-    setActiveTab('list');
-  } catch (error: any) {
-    // 如果后端返回了详细的错误信息，显示出来
-    if (error.message && error.message.includes('已被接口配置引用')) {
-      toast.error(error.message);
-      // 刷新处理器列表
-      loadProcessors(isNewConfig ? 'unreferenced' : 'all');
-    } else {
-      toast.error(error.message || '保存失败');
+      setActiveTab('list');
+    } catch (error: any) {
+      if (error.message && error.message.includes('已被接口配置引用')) {
+        toast.error(error.message);
+        loadProcessors(isNewConfig ? 'unreferenced' : 'all');
+      } else {
+        toast.error(error.message || '保存失败');
+      }
+      console.error(error);
+    } finally {
+      setLoading(false);
     }
-    console.error(error);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   // 取消编辑
   const cancelEdit = () => {
@@ -352,17 +318,8 @@ const saveConfig = async () => {
     setSelectedConfig(null);
   };
 
-  // 调试相关函数
-  const addDebugLog = (type: string, message: string) => {
-    const timestamp = new Date().toLocaleTimeString();
-    const prefix = type === 'error' ? '❌' :
-      type === 'warn' ? '⚠️' :
-        type === 'success' ? '✅' :
-          type === 'output' ? '📤' :
-            'ℹ️';
-    setDebugLog(prev => [...prev, `[${timestamp}] ${prefix} ${message}`]);
-  };
-
+ 
+  // 运行调试
   const runDebug = async () => {
     if (!debugConfigId) {
       toast.error('请选择要调试的接口配置');
@@ -374,167 +331,49 @@ const saveConfig = async () => {
       return;
     }
 
+    if (!debugDatabaseType) {
+      toast.error('请选择数据库类型');
+      return;
+    }
+
+    if (!hasActiveConfig(debugDatabaseType)) {
+      toast.error('所选数据库类型没有激活的配置');
+      return;
+    }
+
     setIsDebugging(true);
-    setDebugLog([]);
+    setDebugLogs([]);
     setDebugResult(null);
 
     try {
-      addDebugLog('info', '开始调试接口配置...');
-      addDebugLog('info', `接口配置ID: ${debugConfigId}`);
-      addDebugLog('info', `处理器ID: ${debugProcessorId}`);
-      addDebugLog('info', `数据库类型: ${getDatabaseTypeLabel(debugDatabaseType)}`);
-      addDebugLog('info', `事件码: ${debugEventType}`);
-      addDebugLog('info', `事件ID: ${debugEventId || '随机生成'}`);
-
-      const config = interfaceConfigs.find(c => c.id === debugConfigId);
-      if (!config) {
-        throw new Error('找不到接口配置');
-      }
-
-      addDebugLog('info', `接口URL: ${config.url}`);
-      addDebugLog('info', `请求方法: ${config.method}`);
-
-      // 第一步：执行处理器
-      addDebugLog('info', '========================================');
-      addDebugLog('info', '步骤 1: 执行JS处理器');
-      addDebugLog('info', '========================================');
-
-      const processorStartTime = Date.now();
-      // 调用封装的服务函数
-      const processorResult = await executeProcessorDebug({
+      const params = {
+        interfaceConfigId: debugConfigId,
         processorId: debugProcessorId,
         databaseType: debugDatabaseType,
-        eventCode: debugEventType,
+        eventCode: debugEventType || undefined,
         eventId: debugEventId || undefined
-      });
-
-      const processorExecutionTime = Date.now() - processorStartTime;
-      addDebugLog('info', `处理器执行完成，耗时: ${processorExecutionTime}ms`);
-
-      if (processorResult.rawData) {
-        addDebugLog('info', '原始数据:');
-        addDebugLog('output', JSON.stringify(processorResult.rawData, null, 2));
-      }
-
-      if (processorResult.logs && processorResult.logs.length > 0) {
-        processorResult.logs.forEach((log: any) => {
-          addDebugLog(log.type, log.message);
-        });
-      }
-
-      if (!processorResult.result) {
-        throw new Error('处理器未返回结果');
-      }
-
-      addDebugLog('info', '处理器处理结果:');
-      addDebugLog('output', JSON.stringify(processorResult.result, null, 2));
-
-      // 检查处理器是否认为需要发送
-      if (!processorResult.result.needToSend) {
-        addDebugLog('warn', `⏭️ 处理器判定不需要发送数据`);
-        addDebugLog('info', `原因: ${processorResult.result.reason || '未指定'}`);
-        setDebugResult({
-          success: true,
-          requestUrl: config.url,
-          requestMethod: config.method,
-          requestHeaders: {},
-          requestBody: '',
-          executionTimeMs: processorExecutionTime,
-          processorExecutionTime: processorExecutionTime,
-          processorResult: processorResult.result
-        });
-        toast.success('调试完成（未发送数据）');
-        setIsDebugging(false);
-        return;
-      }
-
-      addDebugLog('success', `✅ 处理器判定需要发送数据`);
-
-      // 第二步：构建请求
-      addDebugLog('info', '========================================');
-      addDebugLog('info', '步骤 2: 构建接口请求');
-      addDebugLog('info', '========================================');
-
-      // 使用处理器返回的数据构建请求体
-      let requestBody = '';
-      try {
-        const processedData = processorResult.result.data || processorResult.result;
-        const dataJson = JSON.stringify(processedData, null, 2);
-
-        // 替换模板中的变量
-        const template = config.requestTemplate;
-        requestBody = template
-          .replace(/\$\{data\}/g, dataJson)
-          .replace(/\$\{timestamp\}/g, Date.now().toString());
-
-        addDebugLog('info', '处理器返回的数据:');
-        addDebugLog('output', dataJson);
-        addDebugLog('info', '构建的请求体:');
-        addDebugLog('output', requestBody);
-      } catch (error) {
-        throw new Error(`构建请求体失败: ${error instanceof Error ? error.message : '未知错误'}`);
-      }
-
-      // 构建请求头
-      const requestHeaders: Record<string, string> = {};
-      config.headers.forEach(header => {
-        if (header.key && header.value) {
-          requestHeaders[header.key] = header.value;
-        }
-      });
-
-      addDebugLog('info', `请求头数量: ${config.headers.length}`);
-
-      // 第三步：发送请求（这里仍然需要使用 fetch，因为是模拟发送，没有后端服务支持）
-      // 但我们可以继续使用 fetch，因为这不是调用我们的后端 API，而是调用外部接口
-      // 所以这里保留 fetch 是合理的，无需替换。
-      addDebugLog('info', '========================================');
-      addDebugLog('info', '步骤 3: 发送HTTP请求');
-      addDebugLog('info', '========================================');
-
-      addDebugLog('info', '发送请求到接口...');
-
-      const requestStartTime = Date.now();
-      const response = await fetch(config.url, {
-        method: config.method,
-        headers: requestHeaders,
-        body: config.method !== 'GET' ? requestBody : undefined,
-      });
-      const requestExecutionTime = Date.now() - requestStartTime;
-
-      const result: DebugResult = {
-        success: response.ok,
-        requestUrl: config.url,
-        requestMethod: config.method,
-        requestHeaders: requestHeaders,
-        requestBody: requestBody,
-        responseStatus: response.status,
-        responseBody: await response.text(),
-        executionTimeMs: processorExecutionTime + requestExecutionTime,
-        processorExecutionTime: processorExecutionTime,
-        processorResult: processorResult.result,
       };
 
-      addDebugLog('info', `请求耗时: ${requestExecutionTime}ms`);
-      addDebugLog('info', `响应状态: ${response.status} ${response.statusText}`);
-      addDebugLog('info', `总执行时间: ${result.executionTimeMs}ms`);
-
-      if (response.ok) {
-        addDebugLog('success', `✅ 接口请求成功`);
-        addDebugLog('info', '接口响应体:');
-        addDebugLog('output', result.responseBody || '');
-      } else {
-        addDebugLog('error', `❌ 接口请求失败: ${response.status} ${response.statusText}`);
-        addDebugLog('info', '接口响应体:');
-        addDebugLog('output', result.responseBody || '');
-        result.errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-      }
-
+      const result = await debugInterfaceConfig(params);
+      
+      setDebugLogs(result.logs || []);
       setDebugResult(result);
-      toast.success('调试完成');
-    } catch (error) {
+
+      if (result.success) {
+        toast.success('调试完成');
+      } else {
+        toast.error(result.errorMessage || '调试失败');
+      }
+    } catch (error: any) {
       const errorMessage = error instanceof Error ? error.message : '调试执行失败';
-      addDebugLog('error', errorMessage);
+      
+      const errorLog: DebugLogEntry = {
+        type: 'error',
+        message: errorMessage,
+        timestamp: new Date().toLocaleTimeString()
+      };
+      
+      setDebugLogs([errorLog]);
       toast.error(errorMessage);
     } finally {
       setIsDebugging(false);
@@ -579,6 +418,12 @@ const saveConfig = async () => {
       ...prev,
       headers: updatedHeaders
     }));
+  };
+
+  // 清空调试日志
+  const clearDebugLogs = () => {
+    setDebugLogs([]);
+    setDebugResult(null);
   };
 
   return (
@@ -684,8 +529,8 @@ const saveConfig = async () => {
                   ) : (
                     interfaceConfigs.map((config) => (
                       <tr key={config.id}  
-                       className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150"
->
+                        className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150"
+                      >
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="font-medium">{config.name}</div>
                         </td>
@@ -1075,15 +920,26 @@ const saveConfig = async () => {
                     </label>
                     <select
                       value={debugDatabaseType}
-                      onChange={(e) => setDebugDatabaseType(e.target.value as DatabaseType)}
+                      onChange={(e) => setDebugDatabaseType(e.target.value)}
                       className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
                     >
-                      {(['ultrasound', 'radiology', 'endoscopy'] as DatabaseType[]).map((type) => (
-                        <option key={type} value={type}>
-                          {getDatabaseTypeLabel(type)}数据库
+                      <option value="">请选择数据库类型</option>
+                      {databaseTypes.map((type) => (
+                        <option 
+                          key={type.value} 
+                          value={type.value}
+                          disabled={!type.activeConfig}
+                          className={!type.activeConfig ? 'text-gray-400' : ''}
+                        >
+                          {type.label} {type.activeConfig ? '' : '(未激活)'}
                         </option>
                       ))}
                     </select>
+                    {debugDatabaseType && !hasActiveConfig(debugDatabaseType) && (
+                      <p className="mt-1 text-xs text-red-500">
+                        当前数据库类型没有激活的配置，无法调试
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -1095,14 +951,12 @@ const saveConfig = async () => {
                       onChange={(e) => setDebugEventType(e.target.value)}
                       className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
                     >
+                      <option value="">请选择事件码（可选）</option>
                       {eventCodes.filter(ec => ec.enabled).map((ec) => (
                         <option key={ec.code} value={ec.code}>
                           {ec.code} {ec.description ? `(${ec.description})` : ''}
                         </option>
                       ))}
-                      {eventCodes.filter(ec => ec.enabled).length === 0 && (
-                        <option value="">暂无可用事件码</option>
-                      )}
                     </select>
                   </div>
 
@@ -1115,7 +969,7 @@ const saveConfig = async () => {
                       value={debugEventId}
                       onChange={(e) => setDebugEventId(e.target.value)}
                       className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
-                      placeholder="输入事件ID或留空随机获取"
+                      placeholder="输入事件ID或留空（可选）"
                     />
                   </div>
 
@@ -1139,11 +993,12 @@ const saveConfig = async () => {
 
                   <button
                     onClick={runDebug}
-                    disabled={!debugConfigId || !debugProcessorId || isDebugging}
-                    className={`w-full rounded-md px-6 py-2 text-sm font-medium transition-colors ${(!debugConfigId || !debugProcessorId || isDebugging)
-                      ? 'bg-gray-400 text-white cursor-not-allowed'
-                      : 'bg-blue-600 text-white hover:bg-blue-700'
-                      }`}
+                    disabled={!debugConfigId || !debugProcessorId || !debugDatabaseType || !hasActiveConfig(debugDatabaseType) || isDebugging}
+                    className={`w-full rounded-md px-6 py-2 text-sm font-medium transition-colors ${
+                      !debugConfigId || !debugProcessorId || !debugDatabaseType || !hasActiveConfig(debugDatabaseType) || isDebugging
+                        ? 'bg-gray-400 text-white cursor-not-allowed'
+                        : 'bg-blue-600 text-white hover:bg-blue-700'
+                    }`}
                   >
                     {isDebugging ? (
                       <>
@@ -1156,9 +1011,9 @@ const saveConfig = async () => {
                     )}
                   </button>
 
-                  {debugLog.length > 0 && (
+                  {debugLogs.length > 0 && (
                     <button
-                      onClick={() => setDebugLog([])}
+                      onClick={clearDebugLogs}
                       className="w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                     >
                       <i className="fa-solid fa-trash mr-1"></i> 清空日志
@@ -1172,9 +1027,9 @@ const saveConfig = async () => {
                 <div className="rounded-lg border border-gray-300 bg-gray-50 p-4 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 mb-4">
                   <div className="font-medium mb-1">调试说明:</div>
                   <ul className="list-disc pl-5 space-y-1">
-                    <li>选择接口配置、数据库类型、事件码和处理器</li>
-                    <li>可输入事件ID进行精确筛选，留空则根据事件码随机获取</li>
-                    <li>点击"运行调试"：先执行处理器，再用处理后的数据发送接口请求</li>
+                    <li>选择接口配置、数据库类型（需要有激活配置）、事件码和处理器</li>
+                    <li>可输入事件ID进行精确筛选，留空则自动获取</li>
+                    <li>点击"运行调试"执行完整调试流程</li>
                     <li>下方将显示处理器执行日志、请求详情和响应结果</li>
                   </ul>
                 </div>
@@ -1187,14 +1042,15 @@ const saveConfig = async () => {
                     </h4>
                     {debugResult && (
                       <div className="flex gap-4 text-xs text-gray-500">
-                        <span>处理器耗时: {debugResult.processorExecutionTime}ms</span>
+                        <span>处理器耗时: {debugResult.processorExecutionTime || 0}ms</span>
+                        <span>接口耗时: {debugResult.interfaceExecutionTime || 0}ms</span>
                         <span>总耗时: {debugResult.executionTimeMs}ms</span>
                       </div>
                     )}
                   </div>
 
                   <div className="h-96 overflow-auto rounded-lg bg-gray-900 p-4 text-xs font-mono">
-                    {debugLog.length === 0 ? (
+                    {debugLogs.length === 0 ? (
                       <div className="flex h-full items-center justify-center text-gray-500">
                         <div className="text-center">
                           <i className="fa-solid fa-bug text-2xl mb-2"></i>
@@ -1203,25 +1059,26 @@ const saveConfig = async () => {
                       </div>
                     ) : (
                       <div className="space-y-1">
-                        {debugLog.map((log, index) => {
-                          const isError = log.includes('❌') || log.includes('[ERROR]');
-                          const isWarn = log.includes('⚠️') || log.includes('[WARNING]');
-                          const isSuccess = log.includes('✅');
-                          const isOutput = log.includes('📤') || log.includes('[OUTPUT]');
-                          const isInfo = log.includes('========================================');
+                        {debugLogs.map((log, index) => {
+                          const icon = {
+                            error: '❌',
+                            warn: '⚠️',
+                            success: '✅',
+                            output: '📤',
+                            info: 'ℹ️'
+                          }[log.type] || 'ℹ️';
+
+                          const textColor = {
+                            error: 'text-red-400',
+                            warn: 'text-yellow-400',
+                            success: 'text-green-400',
+                            output: 'text-blue-400',
+                            info: 'text-gray-300'
+                          }[log.type] || 'text-gray-300';
 
                           return (
-                            <div
-                              key={index}
-                              className={`whitespace-pre-wrap break-all ${isError ? 'text-red-400' :
-                                isWarn ? 'text-yellow-400' :
-                                  isSuccess ? 'text-green-400' :
-                                    isOutput ? 'text-blue-400' :
-                                      isInfo ? 'text-purple-400 font-bold' :
-                                        'text-gray-300'
-                                }`}
-                            >
-                              {log}
+                            <div key={index} className={`whitespace-pre-wrap break-all ${textColor}`}>
+                              [{log.timestamp}] {icon} {log.message}
                             </div>
                           );
                         })}
@@ -1231,36 +1088,106 @@ const saveConfig = async () => {
 
                   {/* 结果显示区域 */}
                   {debugResult && (
-                    <div className="mt-4 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                      <div className="text-sm font-medium mb-2">执行摘要:</div>
-                      <div className="space-y-1 text-xs">
-                        <div className="flex items-center">
-                          <span className="w-32 text-gray-500">接口URL:</span>
-                          <span className="font-mono text-gray-700 dark:text-gray-300">{debugResult.requestUrl}</span>
-                        </div>
-                        <div className="flex items-center">
-                          <span className="w-32 text-gray-500">请求方法:</span>
-                          <span className={`font-medium ${debugResult.requestMethod === 'GET' ? 'text-green-600' : 'text-blue-600'}`}>
-                            {debugResult.requestMethod}
-                          </span>
-                        </div>
-                        <div className="flex items-center">
-                          <span className="w-32 text-gray-500">处理器耗时:</span>
-                          <span className="font-medium">{debugResult.processorExecutionTime}ms</span>
-                        </div>
-                        <div className="flex items-start">
-                          <span className="w-32 text-gray-500">请求状态:</span>
-                          <span className={debugResult.success ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
-                            {debugResult.success ? '成功' : `失败 (${debugResult.responseStatus})`}
-                          </span>
-                        </div>
-                        {debugResult.errorMessage && (
-                          <div className="flex items-start">
-                            <span className="w-32 text-gray-500">错误信息:</span>
-                            <span className="text-red-600">{debugResult.errorMessage}</span>
+                    <div className="mt-4 space-y-3">
+                      {/* 处理器结果 */}
+                      {debugResult.processorResult && (
+                        <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                          <div className="text-sm font-medium mb-2">处理器执行结果:</div>
+                          <div className="space-y-1 text-xs">
+                            <div className="flex items-center">
+                              <span className="w-32 text-gray-500">需要发送:</span>
+                              <span className={debugResult.processorResult.needToSend ? 'text-green-600 font-medium' : 'text-yellow-600 font-medium'}>
+                                {debugResult.processorResult.needToSend ? '是' : '否'}
+                              </span>
+                            </div>
+                            {debugResult.processorResult.reason && (
+                              <div className="flex items-start">
+                                <span className="w-32 text-gray-500">原因:</span>
+                                <span className="text-gray-700 dark:text-gray-300">{debugResult.processorResult.reason}</span>
+                              </div>
+                            )}
+                            {debugResult.processorResult.data && (
+                              <div className="mt-2">
+                                <span className="text-gray-500">数据:</span>
+                                <pre className="mt-1 p-2 bg-gray-800 text-gray-200 rounded text-xs overflow-auto">
+                                  {JSON.stringify(debugResult.processorResult.data, null, 2)}
+                                </pre>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      )}
+
+                      {/* 请求信息 */}
+                      {debugResult.requestInfo && (
+                        <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                          <div className="text-sm font-medium mb-2">请求信息:</div>
+                          <div className="space-y-1 text-xs">
+                            <div className="flex items-center">
+                              <span className="w-24 text-gray-500">URL:</span>
+                              <span className="font-mono text-gray-700 dark:text-gray-300 break-all">{debugResult.requestInfo.url}</span>
+                            </div>
+                            <div className="flex items-center">
+                              <span className="w-24 text-gray-500">方法:</span>
+                              <span className={`font-medium ${
+                                debugResult.requestInfo.method === 'GET' ? 'text-green-600' : 'text-blue-600'
+                              }`}>
+                                {debugResult.requestInfo.method}
+                              </span>
+                            </div>
+                            <div className="flex items-start">
+                              <span className="w-24 text-gray-500">请求头:</span>
+                              <div className="flex-1">
+                                <pre className="text-xs text-gray-700 dark:text-gray-300">
+                                  {JSON.stringify(debugResult.requestInfo.headers, null, 2)}
+                                </pre>
+                              </div>
+                            </div>
+                            {debugResult.requestInfo.body && (
+                              <div className="flex items-start">
+                                <span className="w-24 text-gray-500">请求体:</span>
+                                <pre className="flex-1 p-2 bg-gray-800 text-gray-200 rounded text-xs overflow-auto">
+                                  {debugResult.requestInfo.body}
+                                </pre>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 响应信息 */}
+                      {debugResult.responseInfo && (
+                        <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                          <div className="text-sm font-medium mb-2">响应信息:</div>
+                          <div className="space-y-1 text-xs">
+                            <div className="flex items-center">
+                              <span className="w-24 text-gray-500">状态码:</span>
+                              <span className={debugResult.responseInfo.statusCode >= 200 && debugResult.responseInfo.statusCode < 300
+                                ? 'text-green-600 font-medium'
+                                : 'text-red-600 font-medium'
+                              }>
+                                {debugResult.responseInfo.statusCode}
+                              </span>
+                            </div>
+                            {debugResult.responseInfo.body && (
+                              <div className="flex items-start">
+                                <span className="w-24 text-gray-500">响应体:</span>
+                                <pre className="flex-1 p-2 bg-gray-800 text-gray-200 rounded text-xs overflow-auto">
+                                  {debugResult.responseInfo.body}
+                                </pre>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 错误信息 */}
+                      {debugResult.errorMessage && (
+                        <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                          <div className="text-sm font-medium text-red-600 dark:text-red-400 mb-1">错误信息:</div>
+                          <div className="text-xs text-red-600 dark:text-red-400">{debugResult.errorMessage}</div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json;
 using EventStreamManager.Infrastructure.Entities;
 using EventStreamManager.Infrastructure.Models.EventListener;
@@ -23,8 +22,8 @@ namespace EventStreamManager.Infrastructure.Services
         private readonly IDatabaseSchemeService _databaseSchemeService;
         private readonly IEventListenerConfigService _eventListenerConfigService;
         private readonly IInterfaceConfigService _interfaceConfigService;
-        private readonly IHttpClientFactory _httpClientFactory;
-
+        private readonly IHttpSendService _httpSendService;
+        
         public DebugService(
             IJavaScriptExecutionService jsService,
             ILogger<DebugService> logger,
@@ -33,7 +32,7 @@ namespace EventStreamManager.Infrastructure.Services
             IDatabaseSchemeService databaseSchemeService,
             IEventListenerConfigService eventListenerConfigService,
             IInterfaceConfigService interfaceConfigService,
-            IHttpClientFactory httpClientFactory)
+            IHttpSendService httpSendService)
         {
             _jsService = jsService;
             _logger = logger;
@@ -42,7 +41,7 @@ namespace EventStreamManager.Infrastructure.Services
             _databaseSchemeService = databaseSchemeService;
             _eventListenerConfigService = eventListenerConfigService;
             _interfaceConfigService = interfaceConfigService;
-            _httpClientFactory = httpClientFactory;
+            _httpSendService = httpSendService;
         }
 
         #region 普通调试
@@ -60,35 +59,35 @@ namespace EventStreamManager.Infrastructure.Services
 
                 AddLog(logEntries, "info", $"开始{GetDebugTypeName(DebugType.Normal)}");
 
-                // 1. 获取处理器
+                //获取处理器
                 var processor = await GetProcessorAsync(request.ProcessorId, logEntries);
                 if (processor == null)
                     return CreateErrorResponse<DebugResponse>(logEntries, startTime, $"未找到处理器: {request.ProcessorId}");
 
-                // 2. 获取数据库配置
+                //获取数据库配置
                 if (!await EnsureDatabaseConfigAsync(request.DatabaseType, logEntries))
                     return CreateErrorResponse<DebugResponse>(logEntries, startTime, $"未找到数据库类型 {request.DatabaseType} 的激活配置");
 
-                // 3. 获取事件监听配置
+                //获取事件监听配置
                 var eventConfig = await GetEventListenerConfigAsync(request.DatabaseType, logEntries);
                 if (eventConfig == null)
                     return CreateErrorResponse<DebugResponse>(logEntries, startTime, $"未找到事件监听配置 {request.DatabaseType}");
 
-                // 4. 获取事件数据
+                //获取事件数据
                 var eventData = await GetEventDataAsync(request.DatabaseType, eventConfig, request.EventCode, request.EventId, logEntries);
                 if (eventData == null)
                     return CreateErrorResponse<DebugResponse>(logEntries, startTime, "获取事件数据失败");
 
-                // 5. 执行SQL查询扩展数据
+                //执行SQL查询扩展数据
                 var rows = await ExecuteSqlQueryForProcessorAsync(processor, eventData, request.DatabaseType, logEntries);
 
-                // 6. 构建增强数据对象
+                //构建增强数据对象
                 var enhancedData = BuildEnhancedData(eventData, processor, rows, request.DatabaseType);
 
-                // 7. 执行JavaScript处理器
+                //执行JavaScript处理器
                 var (executionResult, _) = await ExecuteJavaScriptCodeAsync(processor.Code, enhancedData, logEntries);
 
-                // 8. 构建响应
+                //构建响应
                 return BuildDebugResponse<DebugResponse>(logEntries, startTime, executionResult, enhancedData);
             }
             catch (Exception ex)
@@ -132,7 +131,6 @@ namespace EventStreamManager.Infrastructure.Services
                 if (!await EnsureDatabaseConfigAsync(request.DatabaseType, logEntries))
                     return CreateErrorResponse<EditorDebugResponse>(logEntries, startTime, $"未找到数据库类型 {request.DatabaseType} 的激活配置");
 
-          
                 var jsCode = request.JavaScriptCode ?? processor?.Code;
                 if (string.IsNullOrEmpty(jsCode))
                 {
@@ -140,18 +138,15 @@ namespace EventStreamManager.Infrastructure.Services
                     return CreateErrorResponse<EditorDebugResponse>(logEntries, startTime, "JavaScript代码不能为空");
                 }
 
-                
                 var parameters = new { strexamineId = request.ExamineId };
                 var sql = request.SqlTemplate.Replace("${strEventReferenceId}", "@strexamineId");
                 var rows = await ExecuteSqlQueryAsync(request.DatabaseType, sql, parameters, logEntries);
 
-               
                 var enhancedData = BuildEnhancedDataForExamine(rows, request.DatabaseType, processor);
 
                 //执行JavaScript代码
                 var (executionResult, _) = await ExecuteJavaScriptCodeAsync(jsCode, enhancedData, logEntries);
 
-               
                 return BuildDebugResponse<EditorDebugResponse>(logEntries, startTime, executionResult, enhancedData);
             }
             catch (Exception ex)
@@ -179,54 +174,60 @@ namespace EventStreamManager.Infrastructure.Services
 
                 AddLog(logEntries, "info", $"开始{GetDebugTypeName(DebugType.Interface)}");
 
-                // 1. 获取接口配置
+                //获取接口配置
                 var interfaceConfig = await GetInterfaceConfigAsync(request.InterfaceConfigId, logEntries);
                 if (interfaceConfig == null)
                     return CreateErrorResponse<InterfaceDebugResponse>(logEntries, startTime, $"未找到接口配置: {request.InterfaceConfigId}");
 
-                // 2. 获取处理器
+                //获取处理器
                 var processor = await GetProcessorAsync(request.ProcessorId, logEntries);
                 if (processor == null)
                     return CreateErrorResponse<InterfaceDebugResponse>(logEntries, startTime, $"未找到处理器: {request.ProcessorId}");
 
-                // 3. 获取数据库配置
+                //获取数据库配置
                 if (!await EnsureDatabaseConfigAsync(request.DatabaseType, logEntries))
                     return CreateErrorResponse<InterfaceDebugResponse>(logEntries, startTime, $"未找到数据库类型 {request.DatabaseType} 的激活配置");
 
-                // 4. 获取事件监听配置
+                //获取事件监听配置
                 var eventConfig = await GetEventListenerConfigAsync(request.DatabaseType, logEntries);
                 if (eventConfig == null)
                     return CreateErrorResponse<InterfaceDebugResponse>(logEntries, startTime, $"未找到事件监听配置 {request.DatabaseType}");
 
-                // 5. 获取事件数据
+                //获取事件数据
                 var eventData = await GetEventDataAsync(request.DatabaseType, eventConfig, request.EventCode, request.EventId, logEntries);
                 if (eventData == null)
                     return CreateErrorResponse<InterfaceDebugResponse>(logEntries, startTime, "获取事件数据失败");
 
-                // 6. 执行SQL查询扩展数据
+                //执行SQL查询扩展数据
                 var rows = await ExecuteSqlQueryForProcessorAsync(processor, eventData, request.DatabaseType, logEntries);
 
-                // 7. 构建增强数据对象
+                //构建增强数据对象
                 var enhancedData = BuildEnhancedData(eventData, processor, rows, request.DatabaseType);
 
-                // 8. 执行JavaScript处理器
+                //执行JavaScript处理器
                 var (executionResult, processorExecutionTime) = await ExecuteJavaScriptCodeAsync(processor.Code, enhancedData, logEntries);
 
                 if (!executionResult.Success)
                     return BuildInterfaceProcessorErrorResponse(logEntries, startTime, processorExecutionTime, executionResult);
 
-                // 9. 如果不需要发送，直接返回
+                //如果不需要发送，直接返回
                 if (!executionResult.NeedToSend)
                     return BuildInterfaceNoSendResponse(logEntries, startTime, processorExecutionTime, executionResult);
 
-                // 10. 构建并发送HTTP请求
-                var (requestInfo, responseInfo, interfaceExecutionTime) = await SendHttpRequestAsync(
-                    interfaceConfig, executionResult, eventData, logEntries);
+                //构建并发送HTTP请求
+                var sendDebugInfo = await SendHttpRequestAsync(
+                    interfaceConfig, request.DatabaseType, executionResult, eventData, logEntries);
 
-                // 11. 构建响应
+                //构建响应
                 return BuildInterfaceSuccessResponse(
-                    logEntries, startTime, processorExecutionTime, interfaceExecutionTime,
-                    executionResult, requestInfo, responseInfo);
+                    logEntries, startTime, processorExecutionTime, sendDebugInfo.ExecutionTimeMs,
+                    executionResult, sendDebugInfo.RequestInfo,new ResponseInfo()
+                    {
+                        StatusCode = sendDebugInfo.Result.StatusCode,
+                        StatusMessage = sendDebugInfo.Result.ErrorMessage,
+                        Body = sendDebugInfo.Result.ResponseContent,
+                        IsSuccess = sendDebugInfo.Result.Success,
+                    });
             }
             catch (Exception ex)
             {
@@ -341,8 +342,7 @@ namespace EventStreamManager.Infrastructure.Services
                 return eventData;
             }
         }
-
-        // 根据处理器SQL模板执行查询
+        
         private async Task<List<Dictionary<string, object>>> ExecuteSqlQueryForProcessorAsync(
             JSProcessor processor,
             Event eventData,
@@ -362,7 +362,7 @@ namespace EventStreamManager.Infrastructure.Services
             return await ExecuteSqlQueryAsync(databaseType, sql, null, logs);
         }
 
-        // 通用SQL执行方法
+        //SQL执行方法
         private async Task<List<Dictionary<string, object>>> ExecuteSqlQueryAsync(
             string databaseType,
             string sql,
@@ -475,7 +475,7 @@ namespace EventStreamManager.Infrastructure.Services
             return (executionResult, processorExecutionTime);
         }
 
-        // 获取接口配置
+   
         private async Task<InterfaceConfig?> GetInterfaceConfigAsync(string configId, List<DebugLogEntry> logs)
         {
             AddLog(logs, "info", "步骤: 获取接口配置信息");
@@ -485,92 +485,103 @@ namespace EventStreamManager.Infrastructure.Services
             return config;
         }
 
-        // 发送HTTP请求
-        private async Task<(RequestInfo Request, ResponseInfo? Response, long ExecutionTime)> SendHttpRequestAsync(
+     
+        private async Task<HttpSendDebugInfo> SendHttpRequestAsync(
             InterfaceConfig interfaceConfig,
+            string databaseType,
             Infrastructure.Models.Execution.ExecutionResult executionResult,
             Event eventData,
             List<DebugLogEntry> logs)
         {
             // 构建请求体
             string requestBody = BuildRequestBody(interfaceConfig, executionResult, eventData, logs);
-
-            // 构建请求头
-            var requestHeaders = BuildRequestHeaders(interfaceConfig);
-
+            
             AddLog(logs, "info", $"发送{interfaceConfig.Method}请求到 {interfaceConfig.Url}");
-            AddLog(logs, "info", $"请求头数量: {requestHeaders.Count}");
-
-            var httpClient = _httpClientFactory.CreateClient("DEBUG");
-            httpClient.Timeout = TimeSpan.FromSeconds(interfaceConfig.Timeout);
-
-            var httpRequest = new HttpRequestMessage(new HttpMethod(interfaceConfig.Method), interfaceConfig.Url);
-
-            // 添加请求头
-            foreach (var header in requestHeaders)
-            {
-                httpRequest.Headers.TryAddWithoutValidation(header.Key, header.Value);
-            }
-
-            // 添加请求体（GET请求不能有body）
-            if (interfaceConfig.Method != "GET" && !string.IsNullOrEmpty(requestBody))
-            {
-                httpRequest.Content = new StringContent(requestBody, Encoding.UTF8, "application/json");
-            }
-
-            var requestInfo = new RequestInfo
-            {
-                Url = interfaceConfig.Url,
-                Method = interfaceConfig.Method,
-                Headers = requestHeaders,
-                Body = requestBody
-            };
-
-            var requestStartTime = DateTime.Now;
+            AddLog(logs, "info", $"请求体大小: {requestBody.Length} 字符");
 
             try
             {
-                var response = await httpClient.SendAsync(httpRequest);
-                var requestExecutionTime = (long)(DateTime.Now - requestStartTime).TotalMilliseconds;
+                //发送请求
+                var resultDebug = await _httpSendService.SendWithDebugAsync(databaseType, interfaceConfig, requestBody);
 
-                var responseBody = await response.Content.ReadAsStringAsync();
+                AddLog(logs, "info", $"请求耗时: {resultDebug.ExecutionTimeMs}ms");
+                AddLog(logs, "info", $"响应状态: {resultDebug.Result?.StatusCode ?? 0}");
 
-                AddLog(logs, "info", $"请求耗时: {requestExecutionTime}ms");
-                AddLog(logs, "info", $"响应状态: {(int)response.StatusCode} {response.StatusCode}");
-
-                if (!string.IsNullOrEmpty(responseBody))
-                {
-                    AddLog(logs, "output", "响应体: " + (responseBody.Length > 1000 ? responseBody.Substring(0, 1000) + "..." : responseBody));
-                }
-
-                if (response.IsSuccessStatusCode)
+                if (resultDebug.Result?.Success == true)
                 {
                     AddLog(logs, "success", "✅ 接口请求成功");
                 }
                 else
                 {
-                    AddLog(logs, "error", $"❌ 接口请求失败: {(int)response.StatusCode} {response.StatusCode}");
+                    AddLog(logs, "error", $"❌ 接口请求失败: {resultDebug.Result?.StatusCode} - {resultDebug.Result?.ErrorMessage}");
                 }
 
-                var responseInfo = new ResponseInfo
+                if (!string.IsNullOrEmpty(resultDebug.Result?.ResponseContent))
                 {
-                    StatusCode = (int)response.StatusCode,
-                    StatusMessage = response.StatusCode.ToString(),
-                    Body = responseBody,
-                    IsSuccess = response.IsSuccessStatusCode
-                };
+                    var responsePreview = resultDebug.Result.ResponseContent.Length > 1000 
+                        ? resultDebug.Result.ResponseContent.Substring(0, 1000) + "..." 
+                        : resultDebug.Result.ResponseContent;
+                    AddLog(logs, "output", "响应体: " + responsePreview);
+                }
 
-                return (requestInfo, responseInfo, requestExecutionTime);
+        
+                if (resultDebug.RequestInfo == null)
+                {
+                    resultDebug.RequestInfo = new RequestInfo
+                    {
+                        Url = interfaceConfig.Url,
+                        Method = interfaceConfig.Method,
+                        Headers = interfaceConfig.Headers?.ToDictionary(h => h.Key, h => h.Value) ?? new Dictionary<string, string>(),
+                        Body = requestBody
+                    };
+                }
+
+                return resultDebug;
             }
             catch (TaskCanceledException)
             {
                 AddLog(logs, "error", $"❌ 请求超时 (超时时间: {interfaceConfig.Timeout}秒)");
-                return (requestInfo, null, (long)(DateTime.Now - requestStartTime).TotalMilliseconds);
+                
+                return new HttpSendDebugInfo
+                {
+                    ExecutionTimeMs = 0,
+                    Result = new SendResult
+                    {
+                        Success = false,
+                        StatusCode = 408,
+                        ErrorMessage = $"请求超时 (超时时间: {interfaceConfig.Timeout}秒)"
+                    },
+                    RequestInfo = new RequestInfo
+                    {
+                        Url = interfaceConfig.Url,
+                        Method = interfaceConfig.Method,
+                        Headers = interfaceConfig.Headers?.ToDictionary(h => h.Key, h => h.Value) ?? new Dictionary<string, string>(),
+                        Body = requestBody
+                    }
+                };
             }
             catch (Exception ex)
             {
                 AddLog(logs, "error", $"❌ 请求异常: {ex.Message}");
-                return (requestInfo, null, (long)(DateTime.Now - requestStartTime).TotalMilliseconds);
+                
+             
+                return new HttpSendDebugInfo
+                {
+                    ExecutionTimeMs = 0,
+                    Result = new SendResult
+                    {
+                        Success = false,
+                        StatusCode = 500,
+                        ErrorMessage = ex.Message
+                    },
+                    RequestInfo = new RequestInfo
+                    {
+                        Url = interfaceConfig.Url,
+                        Method = interfaceConfig.Method,
+                        Headers = interfaceConfig.Headers?.ToDictionary(h => h.Key, h => h.Value) ?? new Dictionary<string, string>(),
+                        Body = requestBody
+                    }
+                };
             }
         }
 
@@ -591,6 +602,17 @@ namespace EventStreamManager.Infrastructure.Services
                     .Replace("${eventId}", eventData.Id.ToString())
                     .Replace("${eventCode}", eventData.EventCode);
 
+                // 添加更多变量替换
+                if (!string.IsNullOrEmpty(eventData.StrEventReferenceId))
+                {
+                    body = body.Replace("${strEventReferenceId}", eventData.StrEventReferenceId);
+                }
+
+                if (!string.IsNullOrEmpty(eventData.OperatorCode))
+                {
+                    body = body.Replace("${operatorCode}", eventData.OperatorCode);
+                }
+
                 AddLog(logs, "output", "请求体: " + body);
                 return body;
             }
@@ -601,23 +623,7 @@ namespace EventStreamManager.Infrastructure.Services
             }
         }
 
-        private Dictionary<string, string> BuildRequestHeaders(InterfaceConfig interfaceConfig)
-        {
-            var headers = new Dictionary<string, string>();
-            foreach (var header in interfaceConfig.Headers)
-            {
-                if (!string.IsNullOrEmpty(header.Key) && !string.IsNullOrEmpty(header.Value))
-                {
-                    headers[header.Key] = header.Value;
-                }
-            }
-            return headers;
-        }
-
-        // 定义调试响应公共接口
-       
-
-        // 泛型错误响应创建（利用接口）
+        // 泛型错误响应创建
         private T CreateErrorResponse<T>(List<DebugLogEntry> logs, DateTime startTime, string errorMessage) where T : class, IDebugResponse, new()
         {
             return new T
@@ -658,7 +664,7 @@ namespace EventStreamManager.Infrastructure.Services
             return response;
         }
 
-        // 构建接口调试中处理器错误响应
+       
         private InterfaceDebugResponse BuildInterfaceProcessorErrorResponse(
             List<DebugLogEntry> logs,
             DateTime startTime,
@@ -682,7 +688,7 @@ namespace EventStreamManager.Infrastructure.Services
             };
         }
 
-        // 构建接口调试中不发送的响应
+    
         private InterfaceDebugResponse BuildInterfaceNoSendResponse(
             List<DebugLogEntry> logs,
             DateTime startTime,
@@ -704,7 +710,7 @@ namespace EventStreamManager.Infrastructure.Services
             };
         }
 
-        // 构建接口调试成功响应
+       
         private InterfaceDebugResponse BuildInterfaceSuccessResponse(
             List<DebugLogEntry> logs,
             DateTime startTime,
@@ -733,7 +739,7 @@ namespace EventStreamManager.Infrastructure.Services
             };
         }
 
-        // 反射设置属性（用于无法直接赋值的属性）
+     
         private void SetProperty<T>(T obj, string propertyName, object? value)
         {
             var property = typeof(T).GetProperty(propertyName);

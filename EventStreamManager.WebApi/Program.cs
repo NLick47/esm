@@ -36,9 +36,11 @@ builder.Services.AddSingleton<ISqlTemplateService, SqlTemplateService>();
 builder.Services.AddScoped<ITableInitializationService, TableInitializationService>();
 //调试服务
 builder.Services.AddScoped<IDebugService, DebugService>();
-//事件处理器
+
+//请求服务
 builder.Services.AddHttpClient();
-builder.Services.AddHttpClient("DEBUG");
+builder.Services.AddScoped<IHttpSendService, HttpSendService>();
+//事件处理器
 builder.Services.AddSingleton<ProcessorFactory>();
 builder.Services.AddSingleton<EventProcessorService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<EventProcessorService>());

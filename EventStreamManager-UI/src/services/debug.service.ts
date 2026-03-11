@@ -1,5 +1,5 @@
 import { post } from '@/utils/request';
-import { InterfaceDebugResult } from '@/types/interface-config';
+import { InterfaceDebugRequest, InterfaceDebugResponse } from '@/types/interface-config';
 
 /**
  * 执行处理器调试（主调试标签页）
@@ -41,14 +41,8 @@ export function executeExamineDebug(params: {
 }
 
 /**
- * 调试接口配置
+ * 调试接口配置（新接口）
  */
-export function debugInterfaceConfig(params: {
-  configId: string;
-  processorId: string;
-  databaseType: string;
-  eventType: string;
-  eventId: string;
-}): Promise<InterfaceDebugResult> {
-  return post<InterfaceDebugResult>('/api/InterfaceConfig/debug', params);
+export function debugInterfaceConfig(params: InterfaceDebugRequest): Promise<InterfaceDebugResponse> {
+  return post<InterfaceDebugResponse>('/api/InterfaceConfig/debug', params);
 }

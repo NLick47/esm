@@ -5,6 +5,7 @@ using EventStreamManager.EventProcessor.Scanners;
 using EventStreamManager.EventProcessor.Senders;
 using EventStreamManager.Infrastructure.Entities;
 using EventStreamManager.Infrastructure.Models.JSProcessor;
+using EventStreamManager.Infrastructure.Services;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -87,7 +88,7 @@ public class DatabaseTypeProcessor
                 var processorService = services.GetRequiredService<IProcessorService>();
                 var interfaceService = services.GetRequiredService<IInterfaceConfigService>();
                 var jsService = services.GetRequiredService<Infrastructure.Services.IJavaScriptExecutionService>();
-                var httpFactory = services.GetRequiredService<IHttpClientFactory>();
+                var httpFactory = services.GetRequiredService<IHttpSendService>();
 
                 // 创建本次循环使用的组件实例
                 var scanner = CreateScanner(db);
@@ -138,9 +139,9 @@ public class DatabaseTypeProcessor
         return new HandleRecorder(db, _loggerFactory.CreateLogger<HandleRecorder>());
     }
 
-    private InterfaceSender CreateSender(IHttpClientFactory httpFactory)
+    private InterfaceSender CreateSender(IHttpSendService httpSendService)
     {
-        return new InterfaceSender(httpFactory, _loggerFactory.CreateLogger<InterfaceSender>());
+        return new InterfaceSender(httpSendService, _loggerFactory.CreateLogger<InterfaceSender>());
     }
 
     /// <summary>

@@ -38,7 +38,87 @@ export interface AvailableProcessor {
 }
 
 /**
- * 接口调试结果
+ * 数据库类型信息（带激活配置）
+ */
+export interface DatabaseTypeWithActiveConfig {
+  value: string;
+  label: string;
+  activeConfig: {
+    id: string;
+    name: string;
+    connectionString: string;
+    driver: string;
+    isActive: boolean;
+    timeout: number;
+  } | null;
+}
+
+/**
+ * 调试日志条目
+ */
+export interface DebugLogEntry {
+  type: 'info' | 'warn' | 'error' | 'success' | 'output';
+  message: string;
+  timestamp: string;
+}
+
+/**
+ * 处理器执行结果
+ */
+export interface ProcessResultDto {
+  needToSend: boolean;
+  reason?: string;
+  data?: any;
+  [key: string]: any;
+}
+
+/**
+ * 请求信息
+ */
+export interface RequestInfo {
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+  body?: string;
+}
+
+/**
+ * 响应信息
+ */
+export interface ResponseInfo {
+  statusCode: number;
+  headers?: Record<string, string>;
+  body?: string;
+}
+
+/**
+ * 接口调试请求参数
+ */
+export interface InterfaceDebugRequest {
+  interfaceConfigId: string;
+  processorId: string;
+  databaseType: string;
+  eventCode?: string;
+  eventId?: string;
+}
+
+/**
+ * 接口调试响应
+ */
+export interface InterfaceDebugResponse {
+  success: boolean;
+  errorMessage?: string;
+  logs: DebugLogEntry[];
+  executionTimeMs: number;
+  processorExecutionTime?: number;
+  interfaceExecutionTime?: number;
+  processorResult?: ProcessResultDto;
+  requestInfo?: RequestInfo;
+  responseInfo?: ResponseInfo;
+}
+
+/**
+ * 接口调试结果（兼容旧版）
  */
 export interface InterfaceDebugResult {
   success: boolean;
