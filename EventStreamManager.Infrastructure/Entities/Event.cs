@@ -15,6 +15,9 @@ public class Event
     public int Id { get; set; }
 
   
+    [SugarColumn(ColumnName = "IntHospitalID",IsNullable = false, ColumnDescription = "医院ID")]
+    public long IntHospitalId { get; set; }
+    
     /// <summary>
     /// 事件类型
     /// </summary>

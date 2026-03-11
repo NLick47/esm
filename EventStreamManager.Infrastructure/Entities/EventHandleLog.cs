@@ -5,7 +5,7 @@ namespace EventStreamManager.Infrastructure.Entities;
 /// <summary>
 /// 事件处理日志
 /// </summary>
-[SugarTable("tblEventHandleLog")]
+[SugarTable("tblEventProcessLog")]
 public class EventHandleLog
 {
     /// <summary>

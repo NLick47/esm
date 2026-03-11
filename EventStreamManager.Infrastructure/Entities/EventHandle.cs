@@ -5,7 +5,7 @@ namespace EventStreamManager.Infrastructure.Entities;
 /// <summary>
 /// 事件处理记录
 /// </summary>
-[SugarTable("tblEventHandle")]
+[SugarTable("tblEventProcess")]
 public class EventHandle
 {
     /// <summary>
