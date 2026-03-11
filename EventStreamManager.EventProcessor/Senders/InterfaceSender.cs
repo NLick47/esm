@@ -34,9 +34,20 @@ public class InterfaceSender
             var client = _httpFactory.CreateClient();
             client.Timeout = TimeSpan.FromSeconds(config.Timeout);
 
-            var content = new StringContent(data, Encoding.UTF8, "application/json");
+            string contentType = "application/json"; 
+            var contentTypeHeader = config.Headers.FirstOrDefault(h => 
+                h.Key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase));
 
-            foreach (var header in config.Headers.Where(h => !string.IsNullOrWhiteSpace(h.Key)))
+            
+            if (contentTypeHeader != null && !string.IsNullOrWhiteSpace(contentTypeHeader.Value))
+            {
+                contentType = contentTypeHeader.Value;
+            }
+            
+            var content = new StringContent(data, Encoding.UTF8, contentType);
+            foreach (var header in config.Headers.Where(h => 
+                         !string.IsNullOrWhiteSpace(h.Key) && 
+                         !h.Key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase)))
             {
                 client.DefaultRequestHeaders.TryAddWithoutValidation(header.Key, header.Value);
             }
