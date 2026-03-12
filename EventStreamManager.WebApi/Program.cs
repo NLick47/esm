@@ -15,9 +15,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 
 //JS Function 插件系统
-builder.Services.AddSingleton<JSFunctionLoader>(_ => new JSFunctionLoader());
+builder.Services.AddSingleton<JsFunctionLoader>(_ => new JsFunctionLoader());
 builder.Services.AddSingleton<IEnumerable<IJSFunctionProvider>>(sp =>
-    sp.GetRequiredService<JSFunctionLoader>().LoadAllProviders());
+    sp.GetRequiredService<JsFunctionLoader>().LoadAllProviders());
 builder.Services.AddSingleton<JSFunctionRegistry>();
 builder.Services.AddSingleton<MockDataGenerator>();
 

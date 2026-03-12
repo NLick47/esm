@@ -7,6 +7,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\EventStreamManager.JSFunction.Standard\EventStreamManager.JSFunction.Standard.csproj" />
       <ProjectReference Include="..\EventStreamManager.JSFunction\EventStreamManager.JSFunction.csproj" />
     </ItemGroup>
 

@@ -1,11 +1,10 @@
 using System.Text;
 using System.Text.Json;
-using System.Collections.Concurrent;
 using System.Globalization;
 
 namespace EventStreamManager.JSFunction.Standard;
 
-public class StandardJSFunctionProvider : IJSFunctionProvider
+public class StandardJsFunctionProvider : IJSFunctionProvider
 {
     
     public string Name => "Standard JS Functions";
