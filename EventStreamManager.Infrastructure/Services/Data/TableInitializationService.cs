@@ -47,7 +47,6 @@ public class TableInitializationService : ITableInitializationService
 
             var entityTypes = new[]
             {
-                typeof(Event),
                 typeof(EventHandle),
                 typeof(EventHandleLog)
             };

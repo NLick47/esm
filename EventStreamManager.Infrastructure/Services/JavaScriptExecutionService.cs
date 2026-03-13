@@ -342,7 +342,7 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
                 }
                 catch
                 {
-                    sb.Append(arg.ToString());
+                    sb.Append(arg);
                 }
             }
         }
