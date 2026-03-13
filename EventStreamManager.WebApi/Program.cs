@@ -3,7 +3,7 @@ using EventStreamManager.EventProcessor.Processors;
 using EventStreamManager.Infrastructure.Services;
 using EventStreamManager.Infrastructure.Services.Data;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
-using EventStreamManager.Infrastructure.Services.Mock;
+
 using EventStreamManager.JSFunction;
 using EventStreamManager.JSFunction.Loader;
 using EventStreamManager.WebApi.Common.Models;
@@ -19,7 +19,7 @@ builder.Services.AddSingleton<JsFunctionLoader>(_ => new JsFunctionLoader());
 builder.Services.AddSingleton<IEnumerable<IJSFunctionProvider>>(sp =>
     sp.GetRequiredService<JsFunctionLoader>().LoadAllProviders());
 builder.Services.AddSingleton<JSFunctionRegistry>();
-builder.Services.AddSingleton<MockDataGenerator>();
+
 
 //核心服务
 builder.Services.AddSingleton<IJavaScriptExecutionService, JavaScriptExecutionService>();
