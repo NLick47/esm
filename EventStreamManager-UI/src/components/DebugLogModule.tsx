@@ -3,58 +3,58 @@ import { toast } from 'sonner';
 import * as eventLogService from '@/services/event-log.service';
 import * as databaseService from '@/services/database.service';
 import * as processorService from '@/services/processor.service';
-import { EventHandleResult } from '@/types';
- 
-// 状态类型定义
+import { EventHandle } from '@/types/event-log';
+
 type StatusType = 'Success' | 'Fail' | 'Exception' | 'Processing' | '';
 
 export default function DebugLogModule() {
   const [databaseType, setDatabaseType] = useState<string>('');
+  const [eventId, setEventId] = useState<string>('');
+  const [processorId, setProcessorId] = useState<string>('');
+  const [processorName, setProcessorName] = useState<string>('');
+  const [status, setStatus] = useState<StatusType>('');
+  const [eventCode, setEventCode] = useState<string>('');
+  const [requestDataKeyword, setRequestDataKeyword] = useState<string>('');
+  const [strEventReferenceId, setStrEventReferenceId] = useState<string>('');
+  const [isFinished, setIsFinished] = useState<string>('');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
   
-  const [eventId, setEventId] = useState<string>('');              
-  const [processorId, setProcessorId] = useState<string>('');    
-  const [status, setStatus] = useState<StatusType>('');          
-  const [eventCode, setEventCode] = useState<string>('');         
-  const [startDate, setStartDate] = useState<string>('');        
-  const [endDate, setEndDate] = useState<string>('');            
-  
-  // 隐藏/显示筛选条件功能
   const [showFilters, setShowFilters] = useState(true);
-  
-  // 分页
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
   const [total, setTotal] = useState(0);
   
-  // 数据
-  const [handles, setHandles] = useState<EventHandleResult[]>([]);
-  const [selectedEvent, setSelectedEvent] = useState<EventHandleResult | null>(null);
-  const [selectedHandle, setSelectedHandle] = useState<EventHandleResult | null>(null);
+  const [handles, setHandles] = useState<EventHandle[]>([]);
+  const [selectedEvent, setSelectedEvent] = useState<EventHandle | null>(null);
+  const [selectedHandle, setSelectedHandle] = useState<EventHandle | null>(null);
   
-  // 状态
   const [loading, setLoading] = useState(false);
-  const [detailLoading, setDetailLoading] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const [exporting, setExporting] = useState(false);
 
-  // 下拉框数据
   const [databaseTypes, setDatabaseTypes] = useState<Array<{value: string; label: string}>>([]);
   const [processors, setProcessors] = useState<Array<{id: string; name: string}>>([]);
   const [eventCodes, setEventCodes] = useState<Array<{value: string; label: string}>>([]);
 
-  // 初始化
   useEffect(() => {
     loadDatabaseTypes();
     loadProcessors();
     loadEventCodes();
   }, []);
 
-  // 切换数据库时重置并加载数据
   useEffect(() => {
     if (databaseType) {
       setPage(1);
       fetchHandles();
     }
   }, [databaseType]);
+
+  useEffect(() => {
+    if (databaseType) {
+      fetchHandles();
+    }
+  }, [page]);
 
   const loadProcessors = async () => {
     try {
@@ -92,8 +92,12 @@ export default function DebugLogModule() {
   const resetFilters = () => {
     setEventId('');
     setProcessorId('');
+    setProcessorName('');
     setStatus('');
     setEventCode('');
+    setRequestDataKeyword('');
+    setStrEventReferenceId('');
+    setIsFinished('');
     setStartDate('');
     setEndDate('');
   };
@@ -103,22 +107,26 @@ export default function DebugLogModule() {
     
     setLoading(true);
     try {
-      const params: any = {
+      const params: eventLogService.GetEventHandlesParams = {
         databaseType,
         page,
         pageSize,
         eventId: eventId ? parseInt(eventId) : undefined,
         processorId: processorId || undefined,
+        processorName: processorName || undefined,
         status: status || undefined,
         eventCode: eventCode || undefined,
+        requestDataKeyword: requestDataKeyword || undefined,
+        strEventReferenceId: strEventReferenceId || undefined,
+        isFinished: isFinished === '' ? undefined : isFinished === 'true',
         startDate: startDate || undefined,
         endDate: endDate || undefined
       };
       
       const result = await eventLogService.getEventHandles(params);
       
-      setHandles(result.list);
-      setTotal(result.total);
+      setHandles(result.list || []);
+      setTotal(result.total || 0);
     } catch (error) {
       toast.error('获取处理记录失败');
       console.error(error);
@@ -127,28 +135,12 @@ export default function DebugLogModule() {
     }
   };
 
-
-
   const viewHandleDetails = async (handleId: number) => {
-    if (!databaseType) return;
-    
-    setDetailLoading(true);
-    try {
-      // 直接从handles列表中查找对应的处理记录
-      const selectedHandleData = handles.find(h => h.id === handleId);
-      
-      if (selectedHandleData) {
-        setSelectedHandle(selectedHandleData);
-        // 显示成功提示
-        toast.success('已加载处理记录详情');
-      } else {
-        toast.error('未找到对应的处理记录');
-      }
-    } catch (error) {
-      toast.error('获取处理记录详情失败');
-      console.error(error);
-    } finally {
-      setDetailLoading(false);
+    const handle = handles.find(h => h.id === handleId);
+    if (handle) {
+      setSelectedHandle(handle);
+    } else {
+      toast.error('未找到对应的处理记录');
     }
   };
 
@@ -172,20 +164,44 @@ export default function DebugLogModule() {
     return colors[status] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
   };
 
-
-  const handleExport = () => {
-   
-    // TODO: 实现导出功能
+  const handleExport = async () => {
+    if (!databaseType) {
+      toast.error('请先选择数据库类型');
+      return;
+    }
+    
+    setExporting(true);
+    try {
+      const params: eventLogService.ExportEventHandlesParams = {
+        databaseType,
+        eventId: eventId ? parseInt(eventId) : undefined,
+        processorId: processorId || undefined,
+        processorName: processorName || undefined,
+        status: status || undefined,
+        eventCode: eventCode || undefined,
+        requestDataKeyword: requestDataKeyword || undefined,
+        strEventReferenceId: strEventReferenceId || undefined,
+        isFinished: isFinished === '' ? undefined : isFinished === 'true',
+        startDate: startDate || undefined,
+        endDate: endDate || undefined
+      };
+      
+      eventLogService.downloadExportFile(params);
+      toast.success('导出成功');
+    } catch (error) {
+      toast.error('导出失败');
+      console.error(error);
+    } finally {
+      setExporting(false);
+    }
   };
 
-  // 切换筛选条件显示/隐藏
   const toggleFilters = () => {
     setShowFilters(!showFilters);
   };
 
   const renderFilterBar = () => (
     <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm space-y-4">
-      {/* 筛选条件标题和切换按钮 */}
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-medium">筛选条件</h3>
         <button
@@ -197,15 +213,11 @@ export default function DebugLogModule() {
         </button>
       </div>
 
-      {/* 筛选条件区域 - 可隐藏/显示 */}
       {showFilters && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {/* 事件ID */}
             <div>
-              <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
-                事件ID
-              </label>
+              <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">事件ID</label>
               <input
                 type="number"
                 value={eventId}
@@ -216,11 +228,19 @@ export default function DebugLogModule() {
               />
             </div>
 
-            {/* 处理器名称（下拉框） */}
             <div>
-              <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
-                处理器名称
-              </label>
+              <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">事件引用ID</label>
+              <input
+                type="text"
+                value={strEventReferenceId}
+                onChange={(e) => setStrEventReferenceId(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-800"
+                placeholder="输入事件引用ID"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">处理器ID</label>
               <select
                 value={processorId}
                 onChange={(e) => setProcessorId(e.target.value)}
@@ -233,11 +253,19 @@ export default function DebugLogModule() {
               </select>
             </div>
 
-            {/* 处理状态（下拉框） */}
             <div>
-              <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
-                处理状态
-              </label>
+              <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">处理器名称</label>
+              <input
+                type="text"
+                value={processorName}
+                onChange={(e) => setProcessorName(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-800"
+                placeholder="输入处理器名称"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">处理状态</label>
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as StatusType)}
@@ -251,11 +279,21 @@ export default function DebugLogModule() {
               </select>
             </div>
 
-            {/* 事件码（下拉框） */}
             <div>
-              <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
-                事件码
-              </label>
+              <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">是否完成</label>
+              <select
+                value={isFinished}
+                onChange={(e) => setIsFinished(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-800"
+              >
+                <option value="">全部</option>
+                <option value="true">已完成</option>
+                <option value="false">未完成</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">事件码</label>
               <select
                 value={eventCode}
                 onChange={(e) => setEventCode(e.target.value)}
@@ -268,11 +306,19 @@ export default function DebugLogModule() {
               </select>
             </div>
 
-            {/* 创建时间范围 - 开始日期 */}
             <div>
-              <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
-                开始日期
-              </label>
+              <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">请求数据关键字</label>
+              <input
+                type="text"
+                value={requestDataKeyword}
+                onChange={(e) => setRequestDataKeyword(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-800"
+                placeholder="输入关键字"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">开始日期</label>
               <input
                 type="date"
                 value={startDate}
@@ -281,11 +327,8 @@ export default function DebugLogModule() {
               />
             </div>
 
-            {/* 创建时间范围 - 结束日期 */}
             <div>
-              <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
-                结束日期
-              </label>
+              <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">结束日期</label>
               <input
                 type="date"
                 value={endDate}
@@ -295,7 +338,6 @@ export default function DebugLogModule() {
             </div>
           </div>
 
-          {/* 操作按钮 */}
           <div className="flex justify-end gap-2">
             <button
               onClick={resetFilters}
@@ -331,6 +373,7 @@ export default function DebugLogModule() {
                 <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">状态</th>
                 <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">处理次数</th>
                 <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">耗时(ms)</th>
+                <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">是否完成</th>
                 <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">最后处理时间</th>
                 <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">事件创建时间</th>
                 <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">操作</th>
@@ -353,8 +396,13 @@ export default function DebugLogModule() {
                   </td>
                   <td className="px-4 py-3 text-sm">{handle.handleTimes}</td>
                   <td className="px-4 py-3 text-sm">{handle.lastHandleElapsedMs || '-'}</td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center px-2 py-1 rounded text-xs ${handle.isFinished ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                      {handle.isFinished ? '已完成' : '未完成'}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-sm whitespace-nowrap">
-                    {new Date(handle.lastHandleDatetime).toLocaleString()}
+                    {handle.lastHandleDatetime ? new Date(handle.lastHandleDatetime).toLocaleString() : '-'}
                   </td>
                   <td className="px-4 py-3 text-sm whitespace-nowrap">
                     {handle.createDatetime ? new Date(handle.createDatetime).toLocaleString() : '-'}
@@ -364,11 +412,9 @@ export default function DebugLogModule() {
                       <button
                         onClick={() => viewHandleDetails(handle.id)}
                         className="text-blue-600 hover:text-blue-700 text-sm whitespace-nowrap"
-                        title="查看详情"
                       >
                         详情
                       </button>
-                    
                       <button
                         onClick={() => toggleRowExpand(handle.id)}
                         className="text-gray-600 hover:text-gray-700 text-sm whitespace-nowrap"
@@ -396,9 +442,7 @@ export default function DebugLogModule() {
 
   const renderPagination = () => (
     <div className="flex items-center justify-between mt-4">
-      <div className="text-sm text-gray-500">
-        共 {total} 条记录
-      </div>
+      <div className="text-sm text-gray-500">共 {total} 条记录</div>
       <div className="flex gap-2">
         <button
           onClick={() => setPage(p => Math.max(1, p - 1))}
@@ -407,9 +451,7 @@ export default function DebugLogModule() {
         >
           上一页
         </button>
-        <span className="px-3 py-1">
-          {page} / {Math.ceil(total / pageSize) || 1}
-        </span>
+        <span className="px-3 py-1">{page} / {Math.ceil(total / pageSize) || 1}</span>
         <button
           onClick={() => setPage(p => p + 1)}
           disabled={page >= Math.ceil(total / pageSize) || loading}
@@ -426,24 +468,26 @@ export default function DebugLogModule() {
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">处理记录调试</h2>
         <div className="flex items-center gap-3">
-          {detailLoading && (
-            <div className="text-sm text-gray-500">
-              <i className="fa-solid fa-spinner fa-spin mr-1"></i>
-              加载详情中...
-            </div>
-          )}
-          {/* 导出按钮 - 只加入UI，不实现功能 */}
           <button
             onClick={handleExport}
-            className="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 flex items-center gap-2"
+            disabled={exporting || !databaseType}
+            className="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            <i className="fa-solid fa-download"></i>
-            导出日志
+            {exporting ? (
+              <>
+                <i className="fa-solid fa-spinner fa-spin"></i>
+                导出中...
+              </>
+            ) : (
+              <>
+                <i className="fa-solid fa-download"></i>
+                导出日志
+              </>
+            )}
           </button>
         </div>
       </div>
 
-      {/* 数据库类型选择 */}
       <div className="flex flex-wrap gap-2">
         {databaseTypes.map(type => (
           <button
@@ -471,12 +515,11 @@ export default function DebugLogModule() {
         </>
       )}
 
-      {/* 事件详情弹窗 */}
       {selectedEvent && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-auto">
             <div className="flex justify-between items-start mb-4">
-              <h3 className="text-lg font-semibold">事件详情 - ID: </h3>
+              <h3 className="text-lg font-semibold">事件详情 - ID: {selectedEvent.eventId}</h3>
               <button
                 onClick={() => setSelectedEvent(null)}
                 className="text-gray-500 hover:text-gray-700"
@@ -484,13 +527,13 @@ export default function DebugLogModule() {
                 <i className="fa-solid fa-times"></i>
               </button>
             </div>
-            
-          
+            <pre className="bg-gray-100 dark:bg-gray-900 p-4 rounded overflow-auto text-sm">
+              {JSON.stringify(selectedEvent, null, 2)}
+            </pre>
           </div>
         </div>
       )}
 
-      {/* 处理记录详情弹窗 */}
       {selectedHandle && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-auto">

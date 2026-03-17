@@ -123,3 +123,6 @@ launchSettings.json
 
 
 EventStreamManager.WebApi/Data/
+
+**/wwwroot/
+**/wwwroot/*

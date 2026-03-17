@@ -62,6 +62,22 @@ public class EventHandleResult
     
     
     /// <summary>
+    /// 事件引用ID
+    /// </summary>
+    public string? StrEventReferenceId { get; set; }
+    
+    
+    
+    /// <summary>
+    /// 请求数据（可考虑截断显示）
+    /// </summary>
+    public string? RequestData { get; set; }
+    
+    
+    
+    public string? ResponseData { get; set; }
+    
+    /// <summary>
     /// 是否已完成
     /// </summary>
     public bool IsFinished { get; set; }

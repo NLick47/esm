@@ -34,6 +34,7 @@ builder.Services.AddSingleton<IDataService, JsonDataService>();
 builder.Services.AddSingleton<IProcessorService, ProcessorService>();
 builder.Services.AddSingleton<ISqlTemplateService, SqlTemplateService>();
 builder.Services.AddScoped<ITableInitializationService, TableInitializationService>();
+builder.Services.AddScoped<IEventLogService, EventLogService>();
 //调试服务
 builder.Services.AddScoped<IDebugService, DebugService>();
 
@@ -100,7 +101,7 @@ app.UseRouting();
 app.UseCors("AllowAll");
 app.UseAuthorization();
 
-
+//配置静态文件中间件，用于访问前端发布后的index.html
 app.UseDefaultFiles();
 app.UseStaticFiles(); 
 app.MapControllers();
