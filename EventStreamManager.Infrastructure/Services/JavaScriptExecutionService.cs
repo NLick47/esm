@@ -13,13 +13,13 @@ namespace EventStreamManager.Infrastructure.Services;
 
 public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposable
 {
-    private readonly JSFunctionRegistry _functionRegistry;
+    private readonly JsFunctionRegistry _functionRegistry;
     private readonly ILogger<JavaScriptExecutionService> _logger;
     private readonly ExecutionServiceOptions _options;
     private readonly SemaphoreSlim _semaphore;
 
     public JavaScriptExecutionService(
-        JSFunctionRegistry functionRegistry,
+        JsFunctionRegistry functionRegistry,
         ILogger<JavaScriptExecutionService> logger)
     {
         _functionRegistry = functionRegistry;
@@ -271,7 +271,7 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
     private void InjectConsoleFunctions(Engine engine, ScriptOutput output)
     {
         engine.SetValue("console_log", new Action<object?[]?>(args =>
-            output.Write(FormatArguments(args), OutputType.Log)));
+            output.Write(FormatArguments(args))));
 
         engine.SetValue("console_info", new Action<object?[]?>(args =>
             output.Write(FormatArguments(args), OutputType.Info)));
@@ -285,7 +285,7 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
         engine.SetValue("console_debug", new Action<object?[]?>(args =>
             output.Write(FormatArguments(args), OutputType.Debug)));
 
-        engine.SetValue("console_clear", new Action(output.Clear));
+        engine.SetValue("console_clear", output.Clear);
 
         // 适配器脚本，使 console 函数支持 ...args 语法
         string adapterScript = @"
@@ -394,13 +394,12 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
 
     public void Dispose()
     {
-        _semaphore?.Dispose();
+        _semaphore.Dispose();
     }
 
-    public class ExecutionServiceOptions
+    private class ExecutionServiceOptions
     {
         public int MaxConcurrentExecutions { get; set; } = 10;
         public int WaitTimeoutSeconds { get; set; } = 5;
-        public bool EnableMetrics { get; set; } = true;
     }
 }

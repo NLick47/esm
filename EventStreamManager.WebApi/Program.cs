@@ -15,10 +15,19 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 
 //JS Function 插件系统
-builder.Services.AddSingleton<JsFunctionLoader>(_ => new JsFunctionLoader());
-builder.Services.AddSingleton<IEnumerable<IJSFunctionProvider>>(sp =>
-    sp.GetRequiredService<JsFunctionLoader>().LoadAllProviders());
-builder.Services.AddSingleton<JSFunctionRegistry>();
+builder.Services.AddSingleton<JsFunctionLoader>(serviceProvider =>
+{
+    var logger = serviceProvider.GetService<ILogger<JsFunctionLoader>>();
+    return new JsFunctionLoader(logger);
+});
+
+builder.Services.AddSingleton<IEnumerable<IJSFunctionProvider>>(serviceProvider =>
+{
+    var loader = serviceProvider.GetRequiredService<JsFunctionLoader>();
+    return loader.LoadAllProviders().ToList();
+});
+
+builder.Services.AddSingleton<JsFunctionRegistry>();
 
 
 //核心服务

@@ -8,13 +8,13 @@ namespace EventStreamManager.Infrastructure.Services;
 /// <summary>
 /// JS函数注册服务
 /// </summary>
-public class JSFunctionRegistry
+public class JsFunctionRegistry
 {
     private readonly IEnumerable<IJSFunctionProvider> _providers;
     private readonly Dictionary<string, FunctionDefinition> _functionMap;
-    private readonly ILogger<JSFunctionRegistry> _logger;
+    private readonly ILogger<JsFunctionRegistry> _logger;
 
-    public JSFunctionRegistry(IEnumerable<IJSFunctionProvider> providers, ILogger<JSFunctionRegistry> logger)
+    public JsFunctionRegistry(IEnumerable<IJSFunctionProvider>? providers, ILogger<JsFunctionRegistry> logger)
     {
         _providers = providers ?? Enumerable.Empty<IJSFunctionProvider>();
         _functionMap = new Dictionary<string, FunctionDefinition>();
@@ -33,10 +33,7 @@ public class JSFunctionRegistry
             var allFunctions = GetAllFunctionDefinitions().ToList();
             foreach (var func in allFunctions)
             {
-                if (!_functionMap.ContainsKey(func.Name))
-                {
-                    _functionMap[func.Name] = func;
-                }
+                _functionMap.TryAdd(func.Name, func);
             }
         }
         catch (Exception e)
@@ -59,11 +56,11 @@ public class JSFunctionRegistry
                 {
                     Name = func.Name,
                     Description = func.Description,
-                    Category = func.Category ?? "Uncategorized",
+                    Category = func.Category,
                     FunctionDelegate = func.FunctionDelegate,
-                    Parameters = func.Parameters ?? new List<FunctionParameter>(),
-                    ReturnType = func.ReturnType ?? typeof(object),
-                    Example = func.Example ?? string.Empty,
+                    Parameters = func.Parameters,
+                    ReturnType = func.ReturnType,
+                    Example = func.Example,
                     ProviderName = provider.Name,
                     ProviderVersion = provider.Version
                 };
@@ -85,7 +82,7 @@ public class JSFunctionRegistry
     public IEnumerable<FunctionDefinition> GetFunctionsByCategory(string category)
     {
         return GetAvailableFunctions()
-            .Where(f => f.Category?.Equals(category, StringComparison.OrdinalIgnoreCase) == true);
+            .Where(f => f.Category.Equals(category, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
@@ -94,7 +91,7 @@ public class JSFunctionRegistry
     public IEnumerable<string> GetAllCategories()
     {
         return GetAvailableFunctions()
-            .Select(f => f.Category ?? "Uncategorized")
+            .Select(f => f.Category)
             .Distinct()
             .OrderBy(c => c);
     }
@@ -153,7 +150,7 @@ public class JSFunctionRegistry
     /// </summary>
     public FunctionDefinition? GetFunction(string name)
     {
-        return _functionMap.TryGetValue(name, out var func) ? func : null;
+        return _functionMap.GetValueOrDefault(name);
     }
 
     /// <summary>
