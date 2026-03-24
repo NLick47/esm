@@ -1,4 +1,4 @@
-using EventStreamManager.WebApi.Common.Models;
+using EventStreamManager.WebApi.Models.Common.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventStreamManager.WebApi.Controllers;

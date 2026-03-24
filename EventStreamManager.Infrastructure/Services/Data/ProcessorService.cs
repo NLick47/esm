@@ -14,29 +14,29 @@ public class ProcessorService : IProcessorService
         _dataService = dataService;
     }
 
-    public async Task<List<JSProcessor>> GetAllAsync()
+    public async Task<List<JsProcessor>> GetAllAsync()
     {
-        return await _dataService.ReadAsync<JSProcessor>(FileName);
+        return await _dataService.ReadAsync<JsProcessor>(FileName);
     }
 
-    public async Task<JSProcessor?> GetByIdAsync(string id)
+    public async Task<JsProcessor?> GetByIdAsync(string id)
     {
-        var list = await _dataService.ReadAsync<JSProcessor>(FileName);
+        var list = await _dataService.ReadAsync<JsProcessor>(FileName);
         return list.FirstOrDefault(x => x.Id == id);
     }
 
-    public async Task<JSProcessor> CreateAsync(JSProcessor processor)
+    public async Task<JsProcessor> CreateAsync(JsProcessor processor)
     {
         processor.Id = Guid.NewGuid().ToString();
-        var list = await _dataService.ReadAsync<JSProcessor>(FileName);
+        var list = await _dataService.ReadAsync<JsProcessor>(FileName);
         list.Add(processor);
         await _dataService.WriteAsync(FileName, list);
         return processor;
     }
 
-    public async Task<bool> UpdateAsync(string id, JSProcessor processor)
+    public async Task<bool> UpdateAsync(string id, JsProcessor processor)
     {
-        var list = await _dataService.ReadAsync<JSProcessor>(FileName);
+        var list = await _dataService.ReadAsync<JsProcessor>(FileName);
         var index = list.FindIndex(x => x.Id == id);
         if (index == -1) return false;
         
@@ -48,7 +48,7 @@ public class ProcessorService : IProcessorService
 
     public async Task<bool> DeleteAsync(string id)
     {
-        var list = await _dataService.ReadAsync<JSProcessor>(FileName);
+        var list = await _dataService.ReadAsync<JsProcessor>(FileName);
         var newList = list.Where(x => x.Id != id).ToList();
         if (newList.Count == list.Count) return false;
         
@@ -56,9 +56,9 @@ public class ProcessorService : IProcessorService
         return true;
     }
 
-    public async Task<JSProcessor?> ToggleAsync(string id)
+    public async Task<JsProcessor?> ToggleAsync(string id)
     {
-        var list = await _dataService.ReadAsync<JSProcessor>(FileName);
+        var list = await _dataService.ReadAsync<JsProcessor>(FileName);
         var item = list.FirstOrDefault(x => x.Id == id);
         if (item == null) return null;
         

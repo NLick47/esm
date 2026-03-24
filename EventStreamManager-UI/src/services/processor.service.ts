@@ -1,18 +1,17 @@
-/**
- * JS 处理器服务
- */
-
 import { get, post, put, del, patch } from '@/utils/request';
 import { 
   JSProcessor, 
   EventCode, 
   SystemSqlTemplate, 
   CustomSqlTemplate,
+  CreateCustomSqlTemplateRequest,
+  UpdateCustomSqlTemplateRequest,
   DefaultTemplateResponse,
   ValidationResult,
+  JSProcessorDetailResponse,
   DebugResult
 } from '@/types/processor';
-// 导入调试方法从 debug.service
+
 import { executeDebug, executeExamineDebug } from './debug.service';
 
 const BASE_PATH = '/api';
@@ -27,8 +26,8 @@ export function getProcessors(): Promise<JSProcessor[]> {
 /**
  * 获取单个处理器
  */
-export function getProcessor(id: string): Promise<JSProcessor> {
-  return get<JSProcessor>(`${BASE_PATH}/processors/${id}`);
+export function getProcessor(id: string): Promise<JSProcessorDetailResponse> {
+  return get<JSProcessorDetailResponse>(`${BASE_PATH}/processors/${id}`);
 }
 
 /**
@@ -122,23 +121,23 @@ export function debugCode(params: {
 /**
  * 创建自定义模板
  */
-export function createCustomTemplate(template: Omit<CustomSqlTemplate, 'id'>): Promise<CustomSqlTemplate> {
+export function createCustomTemplate(template: CreateCustomSqlTemplateRequest): Promise<CustomSqlTemplate> {
   return post<CustomSqlTemplate>(`${BASE_PATH}/sqltemplates/custom`, template);
 }
 
 /**
  * 更新自定义模板
  */
-export function updateCustomTemplate(id: string, template: Partial<CustomSqlTemplate>): Promise<CustomSqlTemplate> {
-  return put<CustomSqlTemplate>(`${BASE_PATH}/sqltemplates/custom/${id}`, template);
+export function updateCustomTemplate(id: string, template: UpdateCustomSqlTemplateRequest): Promise<boolean> {
+  return put<boolean>(`${BASE_PATH}/sqltemplates/custom/${id}`, template);
 }
 
 /**
  * 删除自定义模板
  */
-export function deleteCustomTemplate(id: string): Promise<void> {
+export function deleteCustomTemplate(id: string): Promise<boolean> {
   return del(`${BASE_PATH}/sqltemplates/custom/${id}`);
 }
 
-// 重新导出调试方法，保持兼容性
+
 export { executeDebug, executeExamineDebug };

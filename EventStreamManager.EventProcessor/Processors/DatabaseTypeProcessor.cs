@@ -195,7 +195,7 @@ public class DatabaseTypeProcessor
     /// </summary>
     private async Task ProcessSingleProcessorAsync(
         Event eventData,
-        JSProcessor processor,
+        JsProcessor processor,
         IInterfaceConfigService interfaceService,
         ScriptExecutor executor,
         HandleRecorder recorder,
@@ -307,7 +307,7 @@ public class DatabaseTypeProcessor
         return true;
     }
 
-    private async Task<List<JSProcessor>> GetMatchingProcessorsAsync(Event eventData, IProcessorService processorService)
+    private async Task<List<JsProcessor>> GetMatchingProcessorsAsync(Event eventData, IProcessorService processorService)
     {
         var all = await processorService.GetAllAsync();
         return all.Where(p => p.Enabled)
@@ -317,7 +317,7 @@ public class DatabaseTypeProcessor
     }
 
     private async Task<ExecutionResult> ExecuteProcessorAsync(
-        Event eventData, JSProcessor processor, ScriptExecutor executor)
+        Event eventData, JsProcessor processor, ScriptExecutor executor)
     {
         try
         {

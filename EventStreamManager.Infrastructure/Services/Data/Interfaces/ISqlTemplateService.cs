@@ -9,4 +9,7 @@ public interface ISqlTemplateService
     Task<CustomSqlTemplate> CreateCustomAsync(CustomSqlTemplate template);
     Task<bool> UpdateCustomAsync(string id, CustomSqlTemplate template);
     Task<bool> DeleteCustomAsync(string id);
+    
+    
+    Task<string?> GetCustomSqlAsync(string templateId, Dictionary<string, object> parameters);
 }

@@ -1,5 +1,7 @@
+using AutoMapper;
 using EventStreamManager.Infrastructure.Models.JSProcessor;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
+using EventStreamManager.WebApi.Models.Requests;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventStreamManager.WebApi.Controllers;
@@ -10,13 +12,14 @@ public class SqlTemplatesController : BaseController
 {
     private readonly ISqlTemplateService _sqlTemplateService;
     private readonly ILogger<SqlTemplatesController> _logger;
-
+    private readonly IMapper _mapper;
     public SqlTemplatesController(
         ISqlTemplateService sqlTemplateService,
-        ILogger<SqlTemplatesController> logger)
+        ILogger<SqlTemplatesController> logger, IMapper mapper)
     {
         _sqlTemplateService = sqlTemplateService;
         _logger = logger;
+        _mapper = mapper;
     }
     
     [HttpGet("system")]
@@ -50,10 +53,11 @@ public class SqlTemplatesController : BaseController
     }
     
     [HttpPost("custom")]
-    public async Task<IActionResult> CreateCustom([FromBody] CustomSqlTemplate template)
+    public async Task<IActionResult> CreateCustom([FromBody] CustomSqlTemplateRequest  request)
     {
         try
         {
+            var template = _mapper.Map<CustomSqlTemplate>(request);
             var created = await _sqlTemplateService.CreateCustomAsync(template);
             return Ok(created, "创建自定义模板成功");
         }
@@ -65,10 +69,11 @@ public class SqlTemplatesController : BaseController
     }
     
     [HttpPut("custom/{id}")]
-    public async Task<IActionResult> UpdateCustom(string id, [FromBody] CustomSqlTemplate template)
+    public async Task<IActionResult> UpdateCustom(string id, [FromBody] CustomSqlTemplateRequest request)
     {
         try
         {
+            var template = _mapper.Map<CustomSqlTemplate>(request);
             var updated = await _sqlTemplateService.UpdateCustomAsync(id, template);
             if (!updated)
             {

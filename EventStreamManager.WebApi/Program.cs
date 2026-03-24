@@ -3,10 +3,11 @@ using EventStreamManager.EventProcessor.Processors;
 using EventStreamManager.Infrastructure.Services;
 using EventStreamManager.Infrastructure.Services.Data;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
-
+using EventStreamManager.Infrastructure.Services.Validators;
 using EventStreamManager.JSFunction;
 using EventStreamManager.JSFunction.Loader;
-using EventStreamManager.WebApi.Common.Models;
+using EventStreamManager.WebApi.Mappings;
+using EventStreamManager.WebApi.Models.Common.Models;
 using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -26,7 +27,6 @@ builder.Services.AddSingleton<IEnumerable<IJSFunctionProvider>>(serviceProvider 
     var loader = serviceProvider.GetRequiredService<JsFunctionLoader>();
     return loader.LoadAllProviders().ToList();
 });
-
 builder.Services.AddSingleton<JsFunctionRegistry>();
 
 
@@ -56,6 +56,9 @@ builder.Services.AddSingleton<EventProcessorService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<EventProcessorService>());
 
 
+
+builder.Services.AddAutoMapper(typeof(Program));
+builder.Services.AddAutoMapper(typeof(MappingProfile));
 // 配置 API 行为选项
 builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options =>

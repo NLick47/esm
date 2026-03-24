@@ -1,19 +1,43 @@
-/**
- * JS 处理器相关类型定义
- */
+export enum SqlTemplateType {
+  /** 系统模板 */
+  System = 'System',
+  /** 自定义模板 */
+  Custom = 'Custom'
+}
 
-/**
- * JS 处理器配置
- */
+
 export interface JSProcessor {
   id: string;
   name: string;
   databaseTypes: string[];
   eventCodes: string[];
-  sqlTemplate: string;
+  sqlTemplateType: SqlTemplateType;
+  sqlTemplateId: string;
   code: string;
   enabled: boolean;
   description: string;
+}
+
+
+export interface JSProcessorListResponse {
+  id: string;
+  name: string;
+  databaseTypes: string[];
+  eventCodes: string[];
+  sqlTemplateType: SqlTemplateType;
+  sqlTemplateId: string;
+  enabled: boolean;
+  description: string;
+}
+
+
+
+export interface JSProcessorDetailResponse extends JSProcessorListResponse {
+  sqlTemplate: string;
+  code: string;
+  sqlTemplateName?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 /**
@@ -32,8 +56,28 @@ export interface SystemSqlTemplate {
 export interface CustomSqlTemplate {
   id: string;
   name: string;
-  eventCodes: string[];
   sqlTemplate: string;
+  description?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/**
+ * 创建自定义 SQL 模板请求
+ */
+export interface CreateCustomSqlTemplateRequest {
+  name: string;
+  sqlTemplate: string;
+  description?: string;
+}
+
+/**
+ * 更新自定义 SQL 模板请求
+ */
+export interface UpdateCustomSqlTemplateRequest {
+  name?: string;
+  sqlTemplate?: string;
+  description?: string;
 }
 
 /**

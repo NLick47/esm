@@ -144,7 +144,7 @@ public class InterfaceConfigService : IInterfaceConfigService
     
     public async Task<List<AvailableProcessor>> GetAvailableProcessorsAsync()
     {
-        var list = await _dataService.ReadAsync<JSProcessor>(ProcessorsFileName);
+        var list = await _dataService.ReadAsync<JsProcessor>(ProcessorsFileName);
         return list.Select(x => new AvailableProcessor()
         {
             Name = x.Name,

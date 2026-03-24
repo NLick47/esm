@@ -9,7 +9,7 @@ import {
   duplicateInterfaceConfig,
   getUnreferencedProcessors,
   toggleInterfaceConfig,
-  getAllProcessors,
+  GetAvailableProcessors,
   debugInterfaceConfig
 } from '@/services/interface.service';
 
@@ -142,7 +142,7 @@ export default function InterfaceSendConfig() {
     try {
       let data;
       if (mode === 'all') {
-        data = await getAllProcessors();
+        data = await GetAvailableProcessors();
       } else {
         data = await getUnreferencedProcessors();
       }

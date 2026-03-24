@@ -59,14 +59,14 @@ export function toggleInterfaceConfig(id: string): Promise<InterfaceConfig> {
  * 获取未被引用的处理器
  */
 export function getUnreferencedProcessors(): Promise<AvailableProcessor[]> {
-  return get<AvailableProcessor[]>('/api/InterfaceConfig/unreferenced-processors');
+  return get<AvailableProcessor[]>('/api/InterfaceConfig/processors/unreferenced');
 }
 
 /**
  * 获取所有处理器（包含引用状态）
  */
-export function getAllProcessors(): Promise<AvailableProcessor[]> {
-  return get<AvailableProcessor[]>('/api/Processor/all');
+export function GetAvailableProcessors(): Promise<AvailableProcessor[]> {
+  return get<AvailableProcessor[]>('/api/InterfaceConfig/processors/available');
 }
 
 

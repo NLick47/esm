@@ -8,6 +8,8 @@
     
     
     <ItemGroup>
+        <PackageReference Include="AutoMapper" Version="12.0.1" />
+        <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="12.0.1" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0"/>
     </ItemGroup>
 
@@ -34,6 +36,15 @@
       <None Update="Templates\DefaultProcessor.js">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
+    </ItemGroup>
+
+    <ItemGroup>
+      <_ContentIncludedByDefault Remove="Data\customtemplates.json" />
+      <_ContentIncludedByDefault Remove="Data\database-configs.json" />
+      <_ContentIncludedByDefault Remove="Data\event-listener-config.json" />
+      <_ContentIncludedByDefault Remove="Data\interfaceConfigs.json" />
+      <_ContentIncludedByDefault Remove="Data\processors.json" />
+      <_ContentIncludedByDefault Remove="Data\service-state.json" />
     </ItemGroup>
 
 </Project>

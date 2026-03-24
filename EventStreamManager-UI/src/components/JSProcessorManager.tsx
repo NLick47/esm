@@ -11,6 +11,7 @@ import { createPortal } from 'react-dom';
 import { getApiUrl } from '@/config/api.config';
 import {
   getProcessors,
+  getProcessor, 
   getEventCodes,
   getSystemTemplates,
   getCustomTemplates,
@@ -27,51 +28,29 @@ import {
 
 } from '@/services/processor.service';
 
+import { 
+  JSProcessor,
+  JSProcessorListResponse,
+  JSProcessorDetailResponse,
+  CustomSqlTemplate, 
+  SystemSqlTemplate,
+  SqlTemplateType,
+  EventCode 
+} from '@/types/processor';
+
+import {
+  DatabaseTypeWithActiveConfig
+} from '@/types/database';
+
 import{getDatabaseTypesWithActiveConfig}
 from '@/services/database.service'
 
-// 类型定义（与后端模型一致）
-interface JSProcessor {
-  id: string;
-  name: string;
-  databaseTypes: string[];  // 修改为 string[]，因为数据库类型是动态的
-  eventCodes: string[];
-  sqlTemplate: string;
-  code: string;
-  enabled: boolean;
-  description: string;
-}
 
-interface SystemSqlTemplate {
-  id: string;
-  name: string;
-  eventCodes: string[];
-  sqlTemplate: string;
-}
 
-interface CustomSqlTemplate {
-  id: string;
-  name: string;
-  eventCodes: string[];
-  sqlTemplate: string;
-}
-
-interface EventCode {
-  code: string;
-  description: string;
-  enabled: boolean;
-}
-
-// 从后端接口返回的数据库类型（包含激活配置，但我们只需要类型信息）
-interface DatabaseTypeWithActiveConfig {
-  value: string;
-  label: string;
-  activeConfig: any | null;  // 我们不关心激活配置的具体内容
-}
 
 export default function JSProcessorManager() {
   // 状态定义
-  const [processors, setProcessors] = useState<JSProcessor[]>([]);
+  const [processors, setProcessors] = useState<JSProcessorListResponse[]>([]);  
   const [eventCodes, setEventCodes] = useState<EventCode[]>([]);
   const [systemTemplates, setSystemTemplates] = useState<SystemSqlTemplate[]>([]);
   const [customTemplates, setCustomTemplates] = useState<CustomSqlTemplate[]>([]);
@@ -118,16 +97,18 @@ export default function JSProcessorManager() {
     hasProcessFunction: boolean;
   }
 
-  // 当前编辑的处理器（新建或编辑）
-  const [editingProcessor, setEditingProcessor] = useState<JSProcessor>({
+  
+  const [editingProcessor, setEditingProcessor] = useState<JSProcessorDetailResponse>({
     id: '',
     name: '',
     databaseTypes: [],
     eventCodes: [],
+    sqlTemplateType: SqlTemplateType.System,
+    sqlTemplateId: '',
     sqlTemplate: '',
     code: defaultTemplate || '',
     enabled: false,
-    description: ''
+    description: '',
   });
 
   // 阻止自动滚动的处理函数
@@ -217,23 +198,35 @@ export default function JSProcessorManager() {
     }
   };
 
-  const editProcessor = (id: string) => {
-    const processor = processors.find(p => p.id === id);
-    if (processor) {
+  const editProcessor = async (id: string) => {
+    try {
+      const detail = await getProcessor(id);
+    
       const updatedProcessor = {
-        ...processor,
-        code: processor.code || defaultTemplate
+        ...detail,
+        code: detail.code || defaultTemplate,
+        sqlTemplate: detail.sqlTemplate || '',
       };
       setEditingProcessor(updatedProcessor);
       setSelectedProcessor(id);
       setIsNewProcessor(false);
       setActiveTab('editor');
-      setSelectedSystemTemplateId(null);
-      setSelectedCustomTemplateId(null);
-
-      if (!processor.code) {
+      if (detail.sqlTemplateType === SqlTemplateType.System) {
+        setSelectedSystemTemplateId(detail.sqlTemplateId);
+        setSelectedCustomTemplateId(null);
+      } else if (detail.sqlTemplateType === SqlTemplateType.Custom) {
+        setSelectedSystemTemplateId(null);
+        setSelectedCustomTemplateId(detail.sqlTemplateId);
+      } else {
+        setSelectedSystemTemplateId(null);
+        setSelectedCustomTemplateId(null);
+      }
+  
+      if (!detail.code) {
         console.log('处理器代码为空，已使用默认模板');
       }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '加载处理器详情失败');
     }
   };
 
@@ -243,10 +236,12 @@ export default function JSProcessorManager() {
       name: '',
       databaseTypes: databaseTypes.length > 0 ? [databaseTypes[0].value] : [],
       eventCodes: [],
+      sqlTemplateType: SqlTemplateType.System,
+      sqlTemplateId: '',
       sqlTemplate: '',
       code: defaultTemplate || '',
       enabled: false,
-      description: ''
+      description: '',
     });
     setSelectedProcessor(null);
     setIsNewProcessor(true);
@@ -255,40 +250,68 @@ export default function JSProcessorManager() {
     setSelectedCustomTemplateId(null);
   };
 
-  const saveProcessor = async () => {
-    if (!editingProcessor.name.trim()) {
-      toast.error('处理器名称不能为空');
-      return;
-    }
 
-    try {
-      if (isNewProcessor || !editingProcessor.id || editingProcessor.id.trim() === '') {
-        // 创建
-        const newProcessor = await createProcessorService(editingProcessor);
-        setProcessors(prev => [...prev, newProcessor]);
-        setSelectedProcessor(newProcessor.id);
-        setIsNewProcessor(false);
-        toast.success('处理器已创建');
-      } else {
-        // 更新
-        await updateProcessorService(editingProcessor.id, editingProcessor);
-        setProcessors(prev => prev.map(p =>
-          p.id === selectedProcessor ? editingProcessor : p
-        ));
-        toast.success('处理器已更新');
-      }
-      setActiveTab('list');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '保存失败');
-    }
+ const saveProcessor = async () => {
+  if (!editingProcessor.name.trim()) {
+    toast.error('处理器名称不能为空');
+    return;
+  }
+
+  const processorToSave: Partial<JSProcessor> = {
+    name: editingProcessor.name,
+    databaseTypes: editingProcessor.databaseTypes,
+    eventCodes: editingProcessor.eventCodes,
+    sqlTemplateType: editingProcessor.sqlTemplateType,
+    sqlTemplateId: editingProcessor.sqlTemplateId,
+    code: editingProcessor.code,
+    enabled: editingProcessor.enabled,
+    description: editingProcessor.description,
   };
+
+  try {
+    if (isNewProcessor || !editingProcessor.id || editingProcessor.id.trim() === '') {
+      const newProcessor = await createProcessorService(processorToSave);
+      setProcessors(prev => [...prev, {
+        id: newProcessor.id,
+        name: newProcessor.name,
+        databaseTypes: newProcessor.databaseTypes,
+        eventCodes: newProcessor.eventCodes,
+        sqlTemplateType: newProcessor.sqlTemplateType,
+        sqlTemplateId: newProcessor.sqlTemplateId,
+        enabled: newProcessor.enabled,
+        description: newProcessor.description,
+      }]);
+      setSelectedProcessor(newProcessor.id);
+      setIsNewProcessor(false);
+      toast.success('处理器已创建');
+    } else {
+      await updateProcessorService(editingProcessor.id, processorToSave);
+      setProcessors(prev => prev.map(p =>
+        p.id === selectedProcessor ? {
+          ...p,
+          name: editingProcessor.name,
+          databaseTypes: editingProcessor.databaseTypes,
+          eventCodes: editingProcessor.eventCodes,
+          sqlTemplateType: editingProcessor.sqlTemplateType,
+          sqlTemplateId: editingProcessor.sqlTemplateId,
+          enabled: editingProcessor.enabled,
+          description: editingProcessor.description,
+        } : p
+      ));
+      toast.success('处理器已更新');
+    }
+    setActiveTab('list');
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : '保存失败');
+  }
+};
 
   const cancelEdit = () => {
     setActiveTab('list');
     setSelectedProcessor(null);
   };
 
-  const handleProcessorChange = (field: keyof JSProcessor, value: any) => {
+  const handleProcessorChange = (field: keyof JSProcessorDetailResponse, value: any) => {
     setEditingProcessor(prev => ({ ...prev, [field]: value }));
   };
 
@@ -310,7 +333,9 @@ export default function JSProcessorManager() {
       setEditingProcessor(prev => ({
         ...prev,
         eventCodes: [...template.eventCodes],
-        sqlTemplate: template.sqlTemplate
+        sqlTemplate: template.sqlTemplate,
+        sqlTemplateId: templateId,
+        sqlTemplateType: SqlTemplateType.System,
       }));
       setSelectedSystemTemplateId(templateId);
       setSelectedCustomTemplateId(null);
@@ -323,8 +348,9 @@ export default function JSProcessorManager() {
     if (template) {
       setEditingProcessor(prev => ({
         ...prev,
-        eventCodes: [...template.eventCodes],
-        sqlTemplate: template.sqlTemplate
+        sqlTemplate: template.sqlTemplate,
+        sqlTemplateId: templateId, 
+        sqlTemplateType: SqlTemplateType.Custom, 
       }));
       setSelectedCustomTemplateId(templateId);
       setSelectedSystemTemplateId(null);
@@ -332,11 +358,10 @@ export default function JSProcessorManager() {
     }
   };
 
-  // 自定义模板 CRUD
+ 
   const addCustomTemplate = async () => {
     const newTemplate: Omit<CustomSqlTemplate, 'id'> = {
-      name: '新自定义模板',
-      eventCodes: [],
+      name: '新自定义查询模板',
       sqlTemplate: 'SELECT * FROM tblexamine where strexamineId = ${strEventReferenceId}'
     };
     try {
@@ -369,7 +394,7 @@ export default function JSProcessorManager() {
   };
 
   const deleteCustomTemplate = async (id: string) => {
-    if (!window.confirm('确定要删除这个自定义模板吗？')) return;
+    if (!window.confirm('确定要删除这个自定义查询模板吗？')) return;
     try {
       await deleteCustomTemplateService(id);
       setCustomTemplates(prev => prev.filter(t => t.id !== id));
@@ -930,11 +955,11 @@ export default function JSProcessorManager() {
                       </div>
                     </div>
 
-                    {/* 自定义模板 */}
+                    
                     <div>
                       <div className="flex items-center justify-between mb-2">
                         <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          自定义模板
+                          自定义查询模板
                         </label>
                         <button
                           onClick={addCustomTemplate}
@@ -946,78 +971,77 @@ export default function JSProcessorManager() {
 
                       {customTemplates.length === 0 ? (
                         <div className="text-sm text-gray-500 dark:text-gray-400 italic p-2 border border-dashed border-gray-300 rounded-lg dark:border-gray-700">
-                          暂无自定义模板，点击"新建模板"创建
+                          暂无自定义查询模板，点击"新建模板"创建
                         </div>
                       ) : (
-                        <div className="space-y-2 max-h-60 overflow-y-auto p-2 border border-gray-200 rounded-lg dark:border-gray-700">
-                          {customTemplates.map((template) => (
-                            <div
-                              key={template.id}
-                              className={`flex items-center gap-2 p-2 rounded-lg border transition-colors ${selectedCustomTemplateId === template.id
-                                  ? 'bg-blue-50 border-blue-300 dark:bg-blue-900/30 dark:border-blue-700 ring-1 ring-blue-500'
-                                  : 'bg-gray-50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'
-                                }`}
-                            >
-                              <div className="flex-1 min-w-0">
-                                <input
-                                  type="text"
-                                  value={template.name}
-                                  onChange={(e) => {
-                                    // 仅更新本地状态，不调用接口
-                                    setCustomTemplates(prev =>
-                                      prev.map(t => t.id === template.id ? { ...t, name: e.target.value } : t)
-                                    );
-                                  }}
-                                  onBlur={(e) => {
-                                    // 失去焦点时保存（仅当值有变化时才调接口）
-                                    updateCustomTemplate(template.id, { name: e.target.value });
-                                  }}
-                                  className={`w-full text-sm bg-transparent border-b ${selectedCustomTemplateId === template.id
-                                      ? 'border-blue-300 dark:border-blue-700'
-                                      : 'border-transparent hover:border-gray-300 dark:hover:border-gray-600'
-                                    } focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500`}
-                                  placeholder="模板名称"
-                                />
-                              </div>
-                              <div className="flex items-center gap-1 flex-shrink-0">
-                                {/* 移除选中状态的勾图标 */}
-                                <button
-                                  onClick={() => applyCustomTemplate(template.id)}
-                                  className={`p-1.5 rounded-md transition-colors ${selectedCustomTemplateId === template.id
-                                      ? 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50'
-                                      : 'text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30'
-                                    }`}
-                                  title="应用模板"
-                                >
-                                  <i className="fa-solid fa-check text-sm"></i>
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setEditingTemplate({
-                                      id: template.id,
-                                      name: template.name,
-                                      sql: template.sqlTemplate
-                                    });
-                                  }}
-                                  className={`p-1.5 rounded-md transition-colors ${selectedCustomTemplateId === template.id
-                                      ? 'text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-700'
-                                      : 'text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                                    }`}
-                                  title="编辑SQL"
-                                >
-                                  <i className="fa-solid fa-pen text-sm"></i>
-                                </button>
-                                <button
-                                  onClick={() => deleteCustomTemplate(template.id)}
-                                  className="p-1.5 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md transition-colors"
-                                  title="删除模板"
-                                >
-                                  <i className="fa-solid fa-trash text-sm"></i>
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                       // 在自定义模板列表渲染部分，确保选中样式正确应用
+<div className="space-y-2 max-h-60 overflow-y-auto p-2 border border-gray-200 rounded-lg dark:border-gray-700">
+  {customTemplates.map((template) => (
+    <div
+      key={template.id}
+      className={`flex items-center gap-2 p-2 rounded-lg border transition-colors ${
+        selectedCustomTemplateId === template.id
+          ? 'bg-blue-50 border-blue-300 dark:bg-blue-900/30 dark:border-blue-700 ring-1 ring-blue-500'
+          : 'bg-gray-50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'
+      }`}
+    >
+      <div className="flex-1 min-w-0">
+        <input
+          type="text"
+          value={template.name}
+          onChange={(e) => {
+            setCustomTemplates(prev =>
+              prev.map(t => t.id === template.id ? { ...t, name: e.target.value } : t)
+            );
+          }}
+          onBlur={(e) => {
+            updateCustomTemplate(template.id, { name: e.target.value });
+          }}
+          className={`w-full text-sm bg-transparent border-b ${
+            selectedCustomTemplateId === template.id
+              ? 'border-blue-300 dark:border-blue-700'
+              : 'border-transparent hover:border-gray-300 dark:hover:border-gray-600'
+          } focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500`}
+          placeholder="模板名称"
+        />
+      </div>
+      <div className="flex items-center gap-1 flex-shrink-0">
+       
+        <button
+          onClick={() => applyCustomTemplate(template.id)}
+          className={`p-1.5 rounded-md transition-colors ${
+            selectedCustomTemplateId === template.id
+              ? 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50'
+              : 'text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30'
+          }`}
+          title="应用模板"
+        >
+          <i className="fa-solid fa-check text-sm"></i>
+        </button>
+        <button
+          onClick={() => {
+            setEditingTemplate({
+              id: template.id,
+              name: template.name,
+              sql: template.sqlTemplate
+            });
+          }}
+          className="p-1.5 text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+          title="编辑SQL"
+        >
+          <i className="fa-solid fa-pen text-sm"></i>
+        </button>
+        <button
+          onClick={() => deleteCustomTemplate(template.id)}
+          className="p-1.5 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md transition-colors"
+          title="删除模板"
+        >
+          <i className="fa-solid fa-trash text-sm"></i>
+        </button>
+      </div>
+    </div>
+  ))}
+</div>
                       )}
                     </div>
 
@@ -1356,7 +1380,7 @@ export default function JSProcessorManager() {
                           </option>
                         ))}
                       </optgroup>
-                      <optgroup label="自定义模板">
+                      <optgroup label="自定义查询模板">
                         {customTemplates.map(t => (
                           <option key={`custom:${t.id}`} value={`custom:${t.id}`}>
                             {t.name}

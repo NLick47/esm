@@ -114,7 +114,7 @@ namespace EventStreamManager.Infrastructure.Services
 
                 AddLog(logEntries, "info", $"开始{GetDebugTypeName(DebugType.Normal)} (Examine)");
                 
-                JSProcessor? processor = null;
+                JsProcessor? processor = null;
                 if (!string.IsNullOrEmpty(request.ProcessorId))
                 {
                     processor = await GetProcessorAsync(request.ProcessorId, logEntries);
@@ -262,7 +262,7 @@ namespace EventStreamManager.Infrastructure.Services
         }
 
         // 获取处理器
-        private async Task<JSProcessor?> GetProcessorAsync(string processorId, List<DebugLogEntry> logs)
+        private async Task<JsProcessor?> GetProcessorAsync(string processorId, List<DebugLogEntry> logs)
         {
             AddLog(logs, "info", "步骤: 获取处理器信息");
             var processor = await _processorService.GetByIdAsync(processorId);
@@ -344,7 +344,7 @@ namespace EventStreamManager.Infrastructure.Services
         }
         
         private async Task<List<Dictionary<string, object>>> ExecuteSqlQueryForProcessorAsync(
-            JSProcessor processor,
+            JsProcessor processor,
             Event eventData,
             string databaseType,
             List<DebugLogEntry> logs)
@@ -394,7 +394,7 @@ namespace EventStreamManager.Infrastructure.Services
         // 构建增强数据（用于普通/接口调试）
         private EnhancedQueryData BuildEnhancedData(
             Event eventData,
-            JSProcessor processor,
+            JsProcessor processor,
             List<Dictionary<string, object>> rows,
             string databaseType)
         {
@@ -427,7 +427,7 @@ namespace EventStreamManager.Infrastructure.Services
         private EnhancedQueryData BuildEnhancedDataForExamine(
             List<Dictionary<string, object>> rows,
             string databaseType,
-            JSProcessor? processor)
+            JsProcessor? processor)
         {
             return new EnhancedQueryData
             {

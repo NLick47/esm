@@ -1,5 +1,8 @@
+using AutoMapper;
 using EventStreamManager.Infrastructure.Models.JSProcessor;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
+using EventStreamManager.WebApi.Models.Requests;
+using EventStreamManager.WebApi.Models.Responses;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventStreamManager.WebApi.Controllers;
@@ -11,15 +14,21 @@ public class ProcessorsController : BaseController
     private readonly IProcessorService _processorService;
     private readonly IInterfaceConfigService _interfaceConfigService;
     private readonly ILogger<ProcessorsController> _logger;
+    private readonly ISqlTemplateService _sqlTemplateService; 
+    private readonly IMapper _mapper;
 
     public ProcessorsController(
         IProcessorService processorService,
         IInterfaceConfigService interfaceConfigService,
-        ILogger<ProcessorsController> logger)
+        ILogger<ProcessorsController> logger, 
+        IMapper mapper,
+        ISqlTemplateService sqlTemplateService)
     {
         _processorService = processorService;
         _interfaceConfigService = interfaceConfigService;
         _logger = logger;
+        _mapper = mapper;
+        _sqlTemplateService = sqlTemplateService;
     }
     
     [HttpGet]
@@ -47,7 +56,41 @@ public class ProcessorsController : BaseController
             {
                 return Fail($"未找到ID为 {id} 的处理器", 404);
             }
-            return Ok(item, "获取处理器成功");
+            
+            var response = _mapper.Map<JsProcessorDetailResponse>(item);
+            if (!string.IsNullOrEmpty(item.SqlTemplateId))
+            {
+                string? sqlTemplate = null;
+                string? templateName = null;
+
+                if (item.SqlTemplateType == SqlTemplateType.System)
+                {
+                    var systemTemplates = await _sqlTemplateService.GetSystemTemplatesAsync();
+                    var template = systemTemplates.FirstOrDefault(t => t.Id == item.SqlTemplateId);
+                    if (template != null)
+                    {
+                        sqlTemplate = template.SqlTemplate;
+                        templateName = template.Name;
+                    }
+                }
+                
+                else if (item.SqlTemplateType == SqlTemplateType.Custom)
+                {
+                    var customTemplates = await _sqlTemplateService.GetCustomTemplatesAsync();
+                    var template = customTemplates.FirstOrDefault(t => t.Id == item.SqlTemplateId);
+                    if (template != null)
+                    {
+                        sqlTemplate = template.SqlTemplate;
+                        templateName = template.Name;
+                    }
+                }
+                
+                response.SqlTemplate = sqlTemplate ?? string.Empty;
+                response.SqlTemplateName = templateName;
+            }
+            
+            
+            return Ok(response, "获取处理器成功");
         }
         catch (Exception ex)
         {
@@ -75,10 +118,11 @@ public class ProcessorsController : BaseController
     }
     
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] JSProcessor processor)
+    public async Task<IActionResult> Create([FromBody] ProcessorRequest request)
     {
         try
         {
+            var processor = _mapper.Map<JsProcessor>(request);
             var created = await _processorService.CreateAsync(processor);
             return Ok(created, "创建处理器成功");
         }
@@ -90,10 +134,11 @@ public class ProcessorsController : BaseController
     }
     
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(string id, [FromBody] JSProcessor processor)
+    public async Task<IActionResult> Update(string id, [FromBody] ProcessorRequest request)
     {
         try
         {
+            var processor = _mapper.Map<JsProcessor>(request);
             var updated = await _processorService.UpdateAsync(id, processor);
             if (!updated)
             {
