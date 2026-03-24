@@ -124,22 +124,7 @@ namespace EventStreamManager.Infrastructure.Services.Data
 
             foreach (var dbType in databaseTypes)
             {
-                defaultConfigs.Databases[dbType.Key] = new EventConfig
-                {
-                    ScanFrequency = 60, 
-                    BatchSize = 100,    
-                    Enabled = false,   
-                    TableName = "tblevent", 
-                    PrimaryKey = "Id",     
-                    TimestampField = "CreateDatetime", 
-                    TotalEventsProcessed = 0,
-                    StartCondition = new StartCondition
-                    {
-                        Type = "time",
-                        TimeValue = DateTime.Now.AddDays(-1).ToString("yyyy-MM-ddTHH:mm"),
-                        IdValue = ""
-                    }
-                };
+                defaultConfigs.Databases[dbType.Key] = GetDefaultConfig();
             }
 
             await SaveConfigsAsync(defaultConfigs);
@@ -270,7 +255,7 @@ namespace EventStreamManager.Infrastructure.Services.Data
             {
                 ScanFrequency = 60,
                 BatchSize = 100,
-                Enabled = false,
+                Enabled = true,
                 TableName = "tblevent",
                 PrimaryKey = "Id",
                 TimestampField = "CreateDatetime",
