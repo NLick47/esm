@@ -26,21 +26,13 @@ public class DebugController : BaseController
     [HttpPost("execute-examine")]
     public async Task<IActionResult> ExecuteExamineDebug([FromBody] EditorDebugRequest request)
     {
-        try
-        {
-            _logger.LogInformation("开始编辑器调试 - ExamineID: {ExamineId}, 数据库类型: {DatabaseType}",
-                request.ExamineId, request.DatabaseType);
+        _logger.LogInformation("开始编辑器调试 - ExamineID: {ExamineId}, 数据库类型: {DatabaseType}",
+            request.ExamineId, request.DatabaseType);
 
-            var result = await _debugService.ExecuteExamineDebugAsync(request);
-            return result.Success
-                ? Ok(result, "编辑器调试执行完成")
-                : Ok(result, "编辑器调试执行完成（业务执行失败）");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "编辑器调试执行异常");
-            return Error("编辑器调试执行异常", data: new { error = ex.Message });
-        }
+        var result = await _debugService.ExecuteExamineDebugAsync(request);
+        return result.Success
+            ? Ok(result, "编辑器调试执行完成")
+            : Ok(result, "编辑器调试执行完成（业务执行失败）");
     }
 
     /// <summary>
@@ -49,21 +41,13 @@ public class DebugController : BaseController
     [HttpPost("execute")]
     public async Task<IActionResult> ExecuteDebug([FromBody] DebugRequest request)
     {
-        try
-        {
-            _logger.LogInformation("开始调试处理器: {ProcessorId}, 数据库: {DatabaseType}, 事件ID: {EventId}",
-                request.ProcessorId, request.DatabaseType, request.EventId);
+        _logger.LogInformation("开始调试处理器: {ProcessorId}, 数据库: {DatabaseType}, 事件ID: {EventId}",
+            request.ProcessorId, request.DatabaseType, request.EventId);
 
-            var result = await _debugService.ExecuteDebugAsync(request);
-            return result.Success
-                ? Ok(result, "调试执行完成")
-                : Ok(result, "调试执行完成（业务执行失败）");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "调试执行异常");
-            return Error("调试执行异常", data: new { error = ex.Message });
-        }
+        var result = await _debugService.ExecuteDebugAsync(request);
+        return result.Success
+            ? Ok(result, "调试执行完成")
+            : Ok(result, "调试执行完成（业务执行失败）");
     }
 
     /// <summary>
@@ -72,23 +56,13 @@ public class DebugController : BaseController
     [HttpPost("interface")]
     public async Task<IActionResult> DebugInterface([FromBody] InterfaceDebugRequest request)
     {
-        try
+        var result = await _debugService.DebugInterfaceAsync(request);
+        
+        if (result.Success)
         {
-            var result = await _debugService.DebugInterfaceAsync(request);
-            
-            if (result.Success)
-            {
-                return Ok(result, "接口调试完成");
-            }
-            else
-            {
-                return Ok(result, "接口调试完成（业务执行失败）");
-            }
+            return Ok(result, "接口调试完成");
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "接口调试控制器异常 - ConfigId: {ConfigId}", request.InterfaceConfigId);
-            return Error("接口调试失败", data: new { error = ex.Message });
-        }
+
+        return Ok(result, "接口调试完成（业务执行失败）");
     }
 }

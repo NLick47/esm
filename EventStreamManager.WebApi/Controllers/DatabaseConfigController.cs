@@ -1,6 +1,6 @@
+// WebApi/Controllers/DatabaseConfigController.cs
 using EventStreamManager.Infrastructure.Models.DataBase;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
-
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventStreamManager.WebApi.Controllers
@@ -30,246 +30,119 @@ namespace EventStreamManager.WebApi.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAllConfigs()
         {
-            try
-            {
-                var configs = await _databaseSchemeService.GetAllConfigsAsync();
-                return Ok(configs, "获取所有配置成功");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "获取所有配置失败");
-                return Error("获取所有配置失败", data: new { error = ex.Message });
-            }
+            var configs = await _databaseSchemeService.GetAllConfigsAsync();
+            return Ok(configs, "获取所有配置成功");
         }
 
         // 获取指定类型的数据库配置
         [HttpGet("{databaseType}")]
         public async Task<IActionResult> GetConfigsByType(string databaseType)
         {
-            try
-            {
-                var configs = await _databaseSchemeService.GetConfigsByTypeAsync(databaseType);
-                return Ok(configs, $"获取{databaseType}配置成功");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "获取{DatabaseType}配置失败", databaseType);
-                return Error($"获取{databaseType}配置失败", data: new { error = ex.Message });
-            }
+            var configs = await _databaseSchemeService.GetConfigsByTypeAsync(databaseType);
+            return Ok(configs, $"获取{databaseType}配置成功");
         }
 
         // 获取指定ID的配置
         [HttpGet("{databaseType}/{id}")]
         public async Task<IActionResult> GetConfigById(string databaseType, string id)
         {
-            try
+            var config = await _databaseSchemeService.GetConfigByIdAsync(databaseType, id);
+            if (config == null)
             {
-                var config = await _databaseSchemeService.GetConfigByIdAsync(databaseType, id);
-                if (config == null)
-                {
-                    return Fail("配置不存在", 404);
-                }
-                return Ok(config, "获取配置成功");
+                return Fail("配置不存在", 404);
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "获取配置失败 - Type: {DatabaseType}, Id: {Id}", databaseType, id);
-                return Error($"获取配置失败", data: new { error = ex.Message });
-            }
+            return Ok(config, "获取配置成功");
         }
 
         // 创建新配置
         [HttpPost("{databaseType}")]
         public async Task<IActionResult> CreateConfig(string databaseType, [FromBody] DatabaseConfig config)
         {
-            try
+            if (string.IsNullOrWhiteSpace(config.Name))
             {
-                if (!ModelState.IsValid)
-                {
-                    var errors = ModelState
-                        .Where(e => e.Value?.Errors.Count > 0)
-                        .ToDictionary(
-                            kvp => kvp.Key,
-                            kvp => kvp.Value?.Errors.Select(e => e.ErrorMessage).ToArray()
-                        );
-                    return Fail("请求参数验证失败", 400, errors);
-                }
-
-                if (string.IsNullOrWhiteSpace(config.Name))
-                {
-                    return Fail("配置名称不能为空");
-                }
-
-                var newConfig = await _databaseSchemeService.AddConfigAsync(databaseType, config);
-                return Ok(newConfig, "创建配置成功");
+                return Fail("配置名称不能为空");
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "创建配置失败 - Type: {DatabaseType}", databaseType);
-                return Error("创建配置失败", data: new { error = ex.Message });
-            }
+
+            var newConfig = await _databaseSchemeService.AddConfigAsync(databaseType, config);
+            return Ok(newConfig, "创建配置成功");
         }
 
         // 更新配置
         [HttpPut("{databaseType}/{id}")]
         public async Task<IActionResult> UpdateConfig(string databaseType, string id, [FromBody] DatabaseConfig config)
         {
-            try
+            var updatedConfig = await _databaseSchemeService.UpdateConfigAsync(databaseType, id, config);
+            if (updatedConfig == null)
             {
-                if (!ModelState.IsValid)
-                {
-                    var errors = ModelState
-                        .Where(e => e.Value?.Errors.Count > 0)
-                        .ToDictionary(
-                            kvp => kvp.Key,
-                            kvp => kvp.Value?.Errors.Select(e => e.ErrorMessage).ToArray()
-                        );
-                    return Fail("请求参数验证失败", 400, errors);
-                }
-
-                var updatedConfig = await _databaseSchemeService.UpdateConfigAsync(databaseType, id, config);
-                if (updatedConfig == null)
-                {
-                    return Fail("配置不存在", 404);
-                }
-                return Ok(updatedConfig, "更新配置成功");
+                return Fail("配置不存在", 404);
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "更新配置失败 - Type: {DatabaseType}, Id: {Id}", databaseType, id);
-                return Error("更新配置失败", data: new { error = ex.Message });
-            }
+            return Ok(updatedConfig, "更新配置成功");
         }
 
         // 删除配置
         [HttpDelete("{databaseType}/{id}")]
         public async Task<IActionResult> DeleteConfig(string databaseType, string id)
         {
-            try
+            var deleted = await _databaseSchemeService.DeleteConfigAsync(databaseType, id);
+            if (!deleted)
             {
-                var deleted = await _databaseSchemeService.DeleteConfigAsync(databaseType, id);
-                if (!deleted)
-                {
-                    return Fail("删除失败：至少需要保留一个配置或配置不存在");
-                }
-                return OkMessage("删除成功");
+                return Fail("删除失败：至少需要保留一个配置或配置不存在");
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "删除配置失败 - Type: {DatabaseType}, Id: {Id}", databaseType, id);
-                return Error("删除配置失败", data: new { error = ex.Message });
-            }
+            return OkMessage("删除成功");
         }
 
         // 测试连接
         [HttpPost("test-connection")]
         public async Task<IActionResult> TestConnection([FromBody] ConnectionTestRequest request)
         {
-            try
+            if (string.IsNullOrWhiteSpace(request.ConnectionString))
             {
-               
-
-                if (string.IsNullOrWhiteSpace(request.ConnectionString))
-                {
-                    return Fail("连接字符串不能为空");
-                }
-
-                var result = await _connectionService.TestConnectionAsync(request);
-                return Ok(result, "连接测试完成");
+                return Fail("连接字符串不能为空");
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "测试连接失败");
-                return Error("测试连接失败", data: new { error = ex.Message });
-            }
+
+            var result = await _connectionService.TestConnectionAsync(request);
+            return Ok(result, "连接测试完成");
         }
 
         // 获取所有数据库类型
         [HttpGet("types")]
         public async Task<IActionResult> GetDatabaseTypes()
         {
-            try
-            {
-                var types = await _databaseSchemeService.GetAllDatabaseTypesAsync();
-                return Ok(types, "获取数据库类型成功");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "获取数据库类型失败");
-                return Error("获取数据库类型失败", data: new { error = ex.Message });
-            }
+            var types = await _databaseSchemeService.GetAllDatabaseTypesAsync();
+            return Ok(types, "获取数据库类型成功");
         }
         
         // 获取带有激活配置的数据库类型列表
         [HttpGet("types-with-active-config")]
         public async Task<IActionResult> GetDatabaseTypesWithActiveConfig()
         {
-            try
-            {
-                var result = await _databaseSchemeService.GetAllDatabaseTypesWithActiveConfigAsync();
-                return Ok(result, "获取带有激活配置的数据库类型成功");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "获取带有激活配置的数据库类型失败");
-                return Error("获取带有激活配置的数据库类型失败", data: new { error = ex.Message });
-            }
+            var result = await _databaseSchemeService.GetAllDatabaseTypesWithActiveConfigAsync();
+            return Ok(result, "获取带有激活配置的数据库类型成功");
         }
 
         // 添加新数据库类型
         [HttpPost("types")]
         public async Task<IActionResult> AddDatabaseType([FromBody] DatabaseType databaseType)
         {
-            try
+            if (string.IsNullOrWhiteSpace(databaseType.Value) || string.IsNullOrWhiteSpace(databaseType.Label))
             {
-                if (!ModelState.IsValid)
-                {
-                    var errors = ModelState
-                        .Where(e => e.Value?.Errors.Count > 0)
-                        .ToDictionary(
-                            kvp => kvp.Key,
-                            kvp => kvp.Value?.Errors.Select(e => e.ErrorMessage).ToArray()
-                        );
-                    return Fail("请求参数验证失败", 400, errors);
-                }
+                return Fail("类型标识和显示名称不能为空");
+            }
 
-                if (string.IsNullOrWhiteSpace(databaseType.Value) || string.IsNullOrWhiteSpace(databaseType.Label))
-                {
-                    return Fail("类型标识和显示名称不能为空");
-                }
-
-                var newType = await _databaseSchemeService.AddDatabaseTypeAsync(databaseType);
-                return Ok(newType, "添加数据库类型成功");
-            }
-            catch (InvalidOperationException ex)
-            {
-                return Fail(ex.Message);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "添加数据库类型失败");
-                return Error("添加数据库类型失败", data: new { error = ex.Message });
-            }
+            var newType = await _databaseSchemeService.AddDatabaseTypeAsync(databaseType);
+            return Ok(newType, "添加数据库类型成功");
         }
 
         // 删除数据库类型
         [HttpDelete("types/{typeValue}")]
         public async Task<IActionResult> DeleteDatabaseType(string typeValue)
         {
-            try
+            var deleted = await _databaseSchemeService.DeleteDatabaseTypeAsync(typeValue);
+            if (!deleted)
             {
-                var deleted = await _databaseSchemeService.DeleteDatabaseTypeAsync(typeValue);
-                if (!deleted)
-                {
-                    return Fail("删除失败：至少需要保留一个类型或类型不存在");
-                }
-                return OkMessage("数据库类型删除成功");
+                return Fail("删除失败：至少需要保留一个类型或类型不存在");
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "删除数据库类型失败 - Value: {TypeValue}", typeValue);
-                return Error("删除数据库类型失败", data: new { error = ex.Message });
-            }
+            return OkMessage("数据库类型删除成功");
         }
 
         // 获取连接字符串示例
@@ -284,7 +157,7 @@ namespace EventStreamManager.WebApi.Controllers
                 ["Oracle"] = "Data Source=localhost:1521/ORCL;User Id=system;Password=123456;"
             };
 
-            if (examples.TryGetValue(driver, value: out var example))
+            if (examples.TryGetValue(driver, out var example))
             {
                 return Ok(new { driver, example }, "获取连接示例成功");
             }
@@ -296,76 +169,42 @@ namespace EventStreamManager.WebApi.Controllers
         [HttpGet("{databaseType}/active")]
         public async Task<IActionResult> GetActiveConfig(string databaseType)
         {
-            try
-            {
-                var activeConfig = await _databaseSchemeService.GetActiveConfigAsync(databaseType);
-                return Ok(activeConfig, "获取激活配置成功");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "获取{DatabaseType}激活配置失败", databaseType);
-                return Error("获取激活配置失败", data: new { error = ex.Message });
-            }
+            var activeConfig = await _databaseSchemeService.GetActiveConfigAsync(databaseType);
+            return Ok(activeConfig, "获取激活配置成功");
         }
 
         // 设置为当前使用的配置
         [HttpPost("{databaseType}/{id}/activate")]
         public async Task<IActionResult> SetActiveConfig(string databaseType, string id)
         {
-            try
+            var success = await _databaseSchemeService.SetActiveConfigAsync(databaseType, id);
+            if (!success)
             {
-                var success = await _databaseSchemeService.SetActiveConfigAsync(databaseType, id);
-                if (!success)
-                {
-                    return Fail("配置不存在", 404);
-                }
-                return OkMessage("已设置为当前使用的配置");
+                return Fail("配置不存在", 404);
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "设置{DatabaseType}激活配置失败 - Id: {Id}", databaseType, id);
-                return Error("设置激活配置失败", data: new { error = ex.Message });
-            }
+            return OkMessage("已设置为当前使用的配置");
         }
-        
-        
         
         [HttpPost("{databaseType}/{id}/initialize-tables")]
         public async Task<IActionResult> InitializeTables(string databaseType, string id)
         {
-            try
-            {
-                _logger.LogInformation("开始初始化表结构 - 数据库类型: {DatabaseType}, 配置ID: {Id}", databaseType, id);
+            _logger.LogInformation("开始初始化表结构 - 数据库类型: {DatabaseType}, 配置ID: {Id}", databaseType, id);
 
-                var config = await _databaseSchemeService.GetConfigByIdAsync(databaseType, id);
-                if (config == null)
-                {
-                    _logger.LogWarning("配置不存在 - Type: {DatabaseType}, Id: {Id}", databaseType, id);
-                    return Fail("配置不存在", 404);
-                }
-                
-                var response  = await _tableInitializationService.InitializeTablesAsync(config);
-                
-                if (response.Success)
-                {
-                    return Ok(response, "表结构初始化成功");
-                }
-
-                return Error(response.Message, 500, response);
-            }
-            catch (Exception ex)
+            var config = await _databaseSchemeService.GetConfigByIdAsync(databaseType, id);
+            if (config == null)
             {
-                _logger.LogError(ex, "初始化表结构失败 - Type: {DatabaseType}, Id: {Id}", databaseType, id);
-        
-                var errorResponse = new
-                {
-                    success = false,
-                    message = $"初始化表结构失败: {ex.Message}",
-                    createdTables = new List<string>()
-                };
-        
-                return Error("初始化表结构失败", data: errorResponse);
+                _logger.LogWarning("配置不存在 - Type: {DatabaseType}, Id: {Id}", databaseType, id);
+                return Fail("配置不存在", 404);
             }
+            
+            var response = await _tableInitializationService.InitializeTablesAsync(config);
+            
+            if (response.Success)
+            {
+                return Ok(response, "表结构初始化成功");
+            }
+
+            return Error(response.Message, 500, response);
         }
     }
 }

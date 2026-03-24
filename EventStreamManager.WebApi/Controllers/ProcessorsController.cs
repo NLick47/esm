@@ -34,69 +34,53 @@ public class ProcessorsController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        try
-        {
-            var list = await _processorService.GetAllAsync();
-            return Ok(list, "获取处理器列表成功");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "获取处理器列表失败");
-            return Error("获取处理器列表失败", data: new { error = ex.Message });
-        }
+        var list = await _processorService.GetAllAsync();
+        return Ok(list, "获取处理器列表成功");
     }
     
     [HttpGet("{id}")]
     public async Task<IActionResult> Get(string id)
     {
-        try
+        var item = await _processorService.GetByIdAsync(id);
+        if (item == null)
         {
-            var item = await _processorService.GetByIdAsync(id);
-            if (item == null)
-            {
-                return Fail($"未找到ID为 {id} 的处理器", 404);
-            }
+            return Fail($"未找到ID为 {id} 的处理器", 404);
+        }
             
-            var response = _mapper.Map<JsProcessorDetailResponse>(item);
-            if (!string.IsNullOrEmpty(item.SqlTemplateId))
-            {
-                string? sqlTemplate = null;
-                string? templateName = null;
+        var response = _mapper.Map<JsProcessorDetailResponse>(item);
+        if (!string.IsNullOrEmpty(item.SqlTemplateId))
+        {
+            string? sqlTemplate = null;
+            string? templateName = null;
 
-                if (item.SqlTemplateType == SqlTemplateType.System)
+            if (item.SqlTemplateType == SqlTemplateType.System)
+            {
+                var systemTemplates = await _sqlTemplateService.GetSystemTemplatesAsync();
+                var template = systemTemplates.FirstOrDefault(t => t.Id == item.SqlTemplateId);
+                if (template != null)
                 {
-                    var systemTemplates = await _sqlTemplateService.GetSystemTemplatesAsync();
-                    var template = systemTemplates.FirstOrDefault(t => t.Id == item.SqlTemplateId);
-                    if (template != null)
-                    {
-                        sqlTemplate = template.SqlTemplate;
-                        templateName = template.Name;
-                    }
+                    sqlTemplate = template.SqlTemplate;
+                    templateName = template.Name;
                 }
-                
-                else if (item.SqlTemplateType == SqlTemplateType.Custom)
-                {
-                    var customTemplates = await _sqlTemplateService.GetCustomTemplatesAsync();
-                    var template = customTemplates.FirstOrDefault(t => t.Id == item.SqlTemplateId);
-                    if (template != null)
-                    {
-                        sqlTemplate = template.SqlTemplate;
-                        templateName = template.Name;
-                    }
-                }
-                
-                response.SqlTemplate = sqlTemplate ?? string.Empty;
-                response.SqlTemplateName = templateName;
             }
+                
+            else if (item.SqlTemplateType == SqlTemplateType.Custom)
+            {
+                var customTemplates = await _sqlTemplateService.GetCustomTemplatesAsync();
+                var template = customTemplates.FirstOrDefault(t => t.Id == item.SqlTemplateId);
+                if (template != null)
+                {
+                    sqlTemplate = template.SqlTemplate;
+                    templateName = template.Name;
+                }
+            }
+                
+            response.SqlTemplate = sqlTemplate ?? string.Empty;
+            response.SqlTemplateName = templateName;
+        }
             
             
-            return Ok(response, "获取处理器成功");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "获取处理器失败 - Id: {Id}", id);
-            return Error("获取处理器失败", data: new { error = ex.Message });
-        }
+        return Ok(response, "获取处理器成功");
     }
     
     /// <summary>
@@ -105,106 +89,65 @@ public class ProcessorsController : BaseController
     [HttpGet("default-template")]
     public async Task<IActionResult> GetDefaultTemplate()
     {
-        try
-        {
-            var code = await _processorService.GetDefaultTemplateAsync();
-            return Ok(new { code }, "获取默认模板成功");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "获取默认模板失败");
-            return Error("获取默认模板失败", data: new { error = ex.Message });
-        }
+        var code = await _processorService.GetDefaultTemplateAsync();
+        return Ok(new { code }, "获取默认模板成功");
     }
     
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] ProcessorRequest request)
     {
-        try
-        {
-            var processor = _mapper.Map<JsProcessor>(request);
-            var created = await _processorService.CreateAsync(processor);
-            return Ok(created, "创建处理器成功");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "创建处理器失败");
-            return Error("创建处理器失败", data: new { error = ex.Message });
-        }
+        var processor = _mapper.Map<JsProcessor>(request);
+        var created = await _processorService.CreateAsync(processor);
+        return Ok(created, "创建处理器成功");
     }
     
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(string id, [FromBody] ProcessorRequest request)
     {
-        try
+        var processor = _mapper.Map<JsProcessor>(request);
+        var updated = await _processorService.UpdateAsync(id, processor);
+        if (!updated)
         {
-            var processor = _mapper.Map<JsProcessor>(request);
-            var updated = await _processorService.UpdateAsync(id, processor);
-            if (!updated)
-            {
-                return Fail($"未找到ID为 {id} 的处理器", 404);
-            }
-            return OkMessage("更新处理器成功");
+            return Fail($"未找到ID为 {id} 的处理器", 404);
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "更新处理器失败 - Id: {Id}", id);
-            return Error("更新处理器失败", data: new { error = ex.Message });
-        }
+        return OkMessage("更新处理器成功");
     }
     
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(string id)
     {
-        try
+        var processor = await _processorService.GetByIdAsync(id);
+        if (processor == null)
         {
+            return Fail($"未找到ID为 {id} 的处理器", 404);
+        }
             
-            var processor = await _processorService.GetByIdAsync(id);
-            if (processor == null)
-            {
-                return Fail($"未找到ID为 {id} 的处理器", 404);
-            }
-            
-            var referencingConfig = await _interfaceConfigService.GetConfigByProcessorIdAsync(id);
-            if (referencingConfig != null)
-            {
-                _logger.LogWarning("尝试删除被引用的处理器 - Id: {Id}, Name: {Name}, 引用配置: {ConfigName}", 
-                    id, processor.Name, referencingConfig.Name);
+        var referencingConfig = await _interfaceConfigService.GetConfigByProcessorIdAsync(id);
+        if (referencingConfig != null)
+        {
+            _logger.LogWarning("尝试删除被引用的处理器 - Id: {Id}, Name: {Name}, 引用配置: {ConfigName}", 
+                id, processor.Name, referencingConfig.Name);
                 
-                return Fail($"处理器 \"{processor.Name}\" 正在被接口配置 \"{referencingConfig.Name}\" 引用，无法删除");
-            }
-            var deleted = await _processorService.DeleteAsync(id);
-            if (!deleted)
-            {
-                return Fail($"删除处理器失败", 500);
-            }
-            
-            _logger.LogInformation("处理器删除成功 - Id: {Id}, Name: {Name}", id, processor.Name);
-            return OkMessage("删除处理器成功");
+            return Fail($"处理器 \"{processor.Name}\" 正在被接口配置 \"{referencingConfig.Name}\" 引用，无法删除");
         }
-        catch (Exception ex)
+        var deleted = await _processorService.DeleteAsync(id);
+        if (!deleted)
         {
-            _logger.LogError(ex, "删除处理器失败 - Id: {Id}", id);
-            return Error("删除处理器失败", data: new { error = ex.Message });
+            return Fail($"删除处理器失败", 500);
         }
+            
+        _logger.LogInformation("处理器删除成功 - Id: {Id}, Name: {Name}", id, processor.Name);
+        return OkMessage("删除处理器成功");
     }
     
     [HttpPatch("{id}/toggle")]
     public async Task<IActionResult> Toggle(string id)
     {
-        try
+        var item = await _processorService.ToggleAsync(id);
+        if (item == null)
         {
-            var item = await _processorService.ToggleAsync(id);
-            if (item == null)
-            {
-                return Fail($"未找到ID为 {id} 的处理器", 404);
-            }
-            return Ok(item, "切换处理器状态成功");
+            return Fail($"未找到ID为 {id} 的处理器", 404);
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "切换处理器状态失败 - Id: {Id}", id);
-            return Error("切换处理器状态失败", data: new { error = ex.Message });
-        }
+        return Ok(item, "切换处理器状态成功");
     }
 }

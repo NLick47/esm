@@ -3,10 +3,10 @@ using EventStreamManager.EventProcessor.Processors;
 using EventStreamManager.Infrastructure.Services;
 using EventStreamManager.Infrastructure.Services.Data;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
-using EventStreamManager.Infrastructure.Services.Validators;
 using EventStreamManager.JSFunction;
 using EventStreamManager.JSFunction.Loader;
 using EventStreamManager.WebApi.Mappings;
+using EventStreamManager.WebApi.Middleware;
 using EventStreamManager.WebApi.Models.Common.Models;
 using Microsoft.AspNetCore.Mvc;
 
@@ -102,6 +102,8 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {

@@ -23,15 +23,7 @@ public class EventCodesController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        try
-        {
-            var list = await _dataService.ReadTemplateAsync<EventCode>(FileName);
-            return Ok(list, "获取事件代码成功");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "获取事件代码失败");
-            return Error("获取事件代码失败", data: new { error = ex.Message });
-        }
+        var list = await _dataService.ReadTemplateAsync<EventCode>(FileName);
+        return Ok(list, "获取事件代码成功");
     }
 }

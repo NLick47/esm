@@ -28,16 +28,8 @@ namespace EventStreamManager.WebApi.Controllers
         [HttpGet("status")]
         public IActionResult GetServiceStatus()
         {
-            try
-            {
-                var status = _service.GetServiceStatus();
-                return Ok(status, "获取服务状态成功");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "获取服务状态失败");
-                return Error("获取服务状态失败");
-            }
+            var status = _service.GetServiceStatus();
+            return Ok(status, "获取服务状态成功");
         }
 
         /// <summary>
@@ -46,17 +38,9 @@ namespace EventStreamManager.WebApi.Controllers
         [HttpPost("enable")]
         public async Task<IActionResult> EnableService()
         {
-            try
-            {
-                await _service.EnableAsync();
-                var status = _service.GetServiceStatus();
-                return Ok(status, "服务启用成功");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "启用服务失败");
-                return Error("启用服务失败");
-            }
+            await _service.EnableAsync();
+            var status = _service.GetServiceStatus();
+            return Ok(status, "服务启用成功");
         }
 
         /// <summary>
@@ -65,17 +49,9 @@ namespace EventStreamManager.WebApi.Controllers
         [HttpPost("disable")]
         public async Task<IActionResult> DisableService()
         {
-            try
-            {
-                await _service.DisableAsync();
-                var status = _service.GetServiceStatus();
-                return Ok(status, "服务禁用成功");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "禁用服务失败");
-                return Error("禁用服务失败");
-            }
+            await _service.DisableAsync();
+            var status = _service.GetServiceStatus();
+            return Ok(status, "服务禁用成功");
         }
 
         /// <summary>
@@ -84,16 +60,8 @@ namespace EventStreamManager.WebApi.Controllers
         [HttpGet("processors")]
         public IActionResult GetAllProcessorStatus()
         {
-            try
-            {
-                var statuses = _service.GetAllStatus();
-                return Ok(statuses, "获取处理器状态成功");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "获取处理器状态失败");
-                return Error("获取处理器状态失败");
-            }
+            var statuses = _service.GetAllStatus();
+            return Ok(statuses, "获取处理器状态成功");
         }
     }
 }

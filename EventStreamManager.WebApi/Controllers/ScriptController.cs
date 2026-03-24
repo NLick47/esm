@@ -21,15 +21,7 @@ public class ScriptController : BaseController
     [HttpPost("validate")]
     public IActionResult ValidateScript([FromBody] string script)
     {
-        try
-        {
-            var result = _scriptExecutionService.ValidateScript(script);
-            return Ok(result, "脚本验证完成");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "脚本验证失败");
-            return Error("脚本验证失败", data: new { error = ex.Message });
-        }
+        var result = _scriptExecutionService.ValidateScript(script);
+        return Ok(result, "脚本验证完成");
     }
 }
