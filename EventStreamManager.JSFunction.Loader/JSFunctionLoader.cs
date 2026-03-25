@@ -9,7 +9,7 @@ namespace EventStreamManager.JSFunction.Loader;
 public class JsFunctionLoader : IDisposable
 {
     private readonly List<AssemblyLoadContext> _loadContexts = new();
-    private readonly List<IJSFunctionProvider> _providers = new();
+    private readonly List<IJsFunctionProvider> _providers = new();
     private readonly string _pluginPath;
     private readonly bool _loadBuiltInProviders;
     private readonly ILogger<JsFunctionLoader>? _logger;
@@ -33,7 +33,7 @@ public class JsFunctionLoader : IDisposable
     /// <summary>
     /// 加载所有函数提供者
     /// </summary>
-    public IEnumerable<IJSFunctionProvider> LoadAllProviders()
+    public IEnumerable<IJsFunctionProvider> LoadAllProviders()
     {
         _providers.Clear();
         _logger?.LogDebug("开始加载所有函数提供者");
@@ -64,7 +64,7 @@ public class JsFunctionLoader : IDisposable
         try
         {
             var builtInProviders = BuiltInProviderRegistry.CreateAll();
-            var jsFunctionProviders = builtInProviders as IJSFunctionProvider[] ?? builtInProviders.ToArray();
+            var jsFunctionProviders = builtInProviders as IJsFunctionProvider[] ?? builtInProviders.ToArray();
             _providers.AddRange(jsFunctionProviders);
             
             foreach (var provider in jsFunctionProviders)
@@ -110,8 +110,8 @@ public class JsFunctionLoader : IDisposable
                 var assembly = loadContext.LoadFromAssemblyPath(dllFile);
                 
                 var providers = assembly.GetTypes()
-                    .Where(t => typeof(IJSFunctionProvider).IsAssignableFrom(t) && t is { IsInterface: false, IsAbstract: false })
-                    .Select(t => Activator.CreateInstance(t) as IJSFunctionProvider)
+                    .Where(t => typeof(IJsFunctionProvider).IsAssignableFrom(t) && t is { IsInterface: false, IsAbstract: false })
+                    .Select(t => Activator.CreateInstance(t) as IJsFunctionProvider)
                     .Where(p => p != null)
                     .ToList();
 
@@ -123,7 +123,7 @@ public class JsFunctionLoader : IDisposable
                     _logger?.LogInformation("从 {FileName} 加载了 {Count} 个函数提供者", 
                         fileName, providers.Count);
                     
-                    foreach (var provider in providers!)
+                    foreach (var provider in providers)
                     {
                         _logger?.LogDebug("  - 提供者: {ProviderName}, 版本: {Version}", 
                             provider.Name, provider.Version ?? "未知");
@@ -151,7 +151,7 @@ public class JsFunctionLoader : IDisposable
     /// <summary>
     /// 重新加载所有提供者
     /// </summary>
-    public IEnumerable<IJSFunctionProvider> ReloadAllProviders()
+    public IEnumerable<IJsFunctionProvider> ReloadAllProviders()
     {
         _logger?.LogInformation("开始重新加载所有函数提供者");
         Dispose();

@@ -73,12 +73,12 @@ public class ProcessorService : IProcessorService
         {
             var templatePath = Path.Combine(Directory.GetCurrentDirectory(), "Templates", "DefaultProcessor.js");
             
-            if (!System.IO.File.Exists(templatePath))
+            if (!File.Exists(templatePath))
             {
                 return GetDefaultTemplateCode();
             }
             
-            return await System.IO.File.ReadAllTextAsync(templatePath);
+            return await File.ReadAllTextAsync(templatePath);
         }
         catch
         {

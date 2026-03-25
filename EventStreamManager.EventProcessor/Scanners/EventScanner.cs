@@ -1,4 +1,3 @@
-using EventStreamManager.EventProcessor.Entities;
 using EventStreamManager.Infrastructure.Entities;
 using EventStreamManager.Infrastructure.Models.EventListener;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
@@ -65,7 +64,7 @@ public class EventScanner
                 .WhereIF(eventCodes != null && eventCodes.Count > 0, 
                     e => eventCodes!.Contains(e.EventCode))
                 // 排序
-                .OrderBy(e => e.Id, OrderByType.Asc)
+                .OrderBy(e => e.Id)
                 // 分页
                 .Take(config.BatchSize);
 

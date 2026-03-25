@@ -37,7 +37,7 @@ public class SqlSugarContext : ISqlSugarContext
             _logger.LogDebug("创建数据库连接 - 类型: {DatabaseType}, 配置: {ConfigName}, 驱动: {Driver}", 
                 databaseType, activeConfig.Name, activeConfig.Driver);
             
-            return CreateSqlSugarClient(activeConfig.Driver,activeConfig.ConnectionString,activeConfig.Timeout);;
+            return CreateSqlSugarClient(activeConfig.Driver,activeConfig.ConnectionString,activeConfig.Timeout);
         }
         catch (Exception ex)
         {
@@ -47,12 +47,12 @@ public class SqlSugarContext : ISqlSugarContext
     }
     
     
-    public async Task<ISqlSugarClient> GetClientAsync(DatabaseConfig config)
+    public Task<ISqlSugarClient> GetClientAsync(DatabaseConfig config)
     {
         if (config == null)
             throw new ArgumentNullException(nameof(config));
     
-        return CreateSqlSugarClient(config.Driver, config.ConnectionString, config.Timeout);
+        return Task.FromResult(CreateSqlSugarClient(config.Driver, config.ConnectionString, config.Timeout));
     }
     
     

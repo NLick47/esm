@@ -10,13 +10,13 @@ namespace EventStreamManager.Infrastructure.Services;
 /// </summary>
 public class JsFunctionRegistry
 {
-    private readonly IEnumerable<IJSFunctionProvider> _providers;
+    private readonly IEnumerable<IJsFunctionProvider> _providers;
     private readonly Dictionary<string, FunctionDefinition> _functionMap;
     private readonly ILogger<JsFunctionRegistry> _logger;
 
-    public JsFunctionRegistry(IEnumerable<IJSFunctionProvider>? providers, ILogger<JsFunctionRegistry> logger)
+    public JsFunctionRegistry(IEnumerable<IJsFunctionProvider>? providers, ILogger<JsFunctionRegistry> logger)
     {
-        _providers = providers ?? Enumerable.Empty<IJSFunctionProvider>();
+        _providers = providers ?? Enumerable.Empty<IJsFunctionProvider>();
         _functionMap = new Dictionary<string, FunctionDefinition>();
         _logger = logger;
         

@@ -4,7 +4,7 @@ using System.Globalization;
 
 namespace EventStreamManager.JSFunction.Standard;
 
-public class StandardJsFunctionProvider : IJSFunctionProvider
+public class StandardJsFunctionProvider : IJsFunctionProvider
 {
     
     public string Name => "Standard JS Functions";
@@ -19,7 +19,7 @@ public class StandardJsFunctionProvider : IJSFunctionProvider
             Category = "Base64",
             Description = "将字符串转换为Base64编码",
             FunctionDelegate = new Func<string, string>(str =>
-                Convert.ToBase64String(Encoding.UTF8.GetBytes(str ?? string.Empty))),
+                Convert.ToBase64String(Encoding.UTF8.GetBytes(str))),
             Parameters = new List<FunctionParameter>
             {
                 new() { Name = "input", Type = typeof(string), Description = "要编码的字符串" }
@@ -33,7 +33,7 @@ public class StandardJsFunctionProvider : IJSFunctionProvider
             Name = "base64_decode",
             Category = "Base64",
             Description = "将Base64字符串解码",
-            FunctionDelegate = new Func<string, string>(str => Encoding.UTF8.GetString(Convert.FromBase64String(str ?? string.Empty))),
+            FunctionDelegate = new Func<string, string>(str => Encoding.UTF8.GetString(Convert.FromBase64String(str))),
             Parameters = new List<FunctionParameter>
             {
                 new() { Name = "input", Type = typeof(string), Description = "Base64字符串" }
@@ -116,7 +116,7 @@ public class StandardJsFunctionProvider : IJSFunctionProvider
             Category = "String",
             Description = "连接字符串数组",
             FunctionDelegate = new Func<string, object[], string>((separator, values) =>
-                string.Join(separator ?? ",", values.Select(v => v?.ToString() ?? string.Empty))),
+                string.Join(separator, values.Select(v => v?.ToString() ?? string.Empty))),
             Parameters = new List<FunctionParameter>
             {
                 new() { Name = "separator", Type = typeof(string), Description = "分隔符" },
@@ -525,7 +525,7 @@ yield return new FunctionMetadata
                 }
                 catch
                 {
-                    sb.Append(arg.ToString());
+                    sb.Append(arg);
                 }
             }
         }

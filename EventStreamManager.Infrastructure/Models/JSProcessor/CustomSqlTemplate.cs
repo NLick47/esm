@@ -1,5 +1,3 @@
-using System.ComponentModel.DataAnnotations;
-
 namespace EventStreamManager.Infrastructure.Models.JSProcessor;
 
 public class CustomSqlTemplate

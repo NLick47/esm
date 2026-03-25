@@ -1,6 +1,6 @@
 namespace EventStreamManager.JSFunction;
 
-public interface  IJSFunctionProvider
+public interface  IJsFunctionProvider
 {
     /// <summary>
     /// 提供者名称

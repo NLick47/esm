@@ -56,7 +56,7 @@ public class DatabaseConnectionService : IDatabaseConnectionService
             
             var testQuery = request.Driver.GetTestQuery();
             
-            var result = await sqlSugarClient.Ado.GetIntAsync(testQuery);
+            await sqlSugarClient.Ado.GetIntAsync(testQuery);
             
             string? version = null;
             try

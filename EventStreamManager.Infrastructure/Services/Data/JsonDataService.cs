@@ -81,7 +81,7 @@ public class JsonDataService : IDataService
     }
 
   
-    public void ClearCache(string fileName = null)
+    public void ClearCache(string? fileName = null)
     {
         _lock.Wait();
         try

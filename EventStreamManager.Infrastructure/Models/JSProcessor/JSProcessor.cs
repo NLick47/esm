@@ -24,8 +24,8 @@ public class JsProcessor
     /// </summary>
     [JsonIgnore]
     public string SqlTemplate { get; set; } = string.Empty;
-    
-    public string Code { get; set; }
+
+    public string Code { get; set; } = string.Empty;
     public bool Enabled { get; set; }
     public string Description { get; set; } = string.Empty;
 }

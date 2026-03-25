@@ -44,15 +44,16 @@ public class DatabaseTypeProcessor
         _status = new ProcessorStatus { DatabaseType = databaseType };
     }
 
-    public async Task StartAsync(CancellationToken cancellationToken)
+    public Task StartAsync(CancellationToken cancellationToken)
     {
-        if (_status.IsRunning) return;
+        if (_status.IsRunning) return Task.CompletedTask;
 
         _cancellationToken = cancellationToken;
         _status.IsRunning = true;
         _logger.LogInformation("[{DatabaseType}] 处理器启动", _databaseType);
 
         _ = ProcessLoopAsync();
+        return Task.CompletedTask;
     }
 
     public async Task StopAsync()
@@ -87,7 +88,7 @@ public class DatabaseTypeProcessor
                 var db = services.GetRequiredService<ISqlSugarContext>();
                 var processorService = services.GetRequiredService<IProcessorService>();
                 var interfaceService = services.GetRequiredService<IInterfaceConfigService>();
-                var jsService = services.GetRequiredService<Infrastructure.Services.IJavaScriptExecutionService>();
+                var jsService = services.GetRequiredService<IJavaScriptExecutionService>();
                 var httpFactory = services.GetRequiredService<IHttpSendService>();
 
                 // 创建本次循环使用的组件实例
@@ -129,7 +130,7 @@ public class DatabaseTypeProcessor
         return new EventScanner(db, _loggerFactory.CreateLogger<EventScanner>());
     }
 
-    private ScriptExecutor CreateExecutor(Infrastructure.Services.IJavaScriptExecutionService jsService, ISqlSugarContext db)
+    private ScriptExecutor CreateExecutor(IJavaScriptExecutionService jsService, ISqlSugarContext db)
     {
         return new ScriptExecutor(jsService, db, _loggerFactory.CreateLogger<ScriptExecutor>());
     }

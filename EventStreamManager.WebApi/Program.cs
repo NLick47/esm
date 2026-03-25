@@ -22,7 +22,7 @@ builder.Services.AddSingleton<JsFunctionLoader>(serviceProvider =>
     return new JsFunctionLoader(logger);
 });
 
-builder.Services.AddSingleton<IEnumerable<IJSFunctionProvider>>(serviceProvider =>
+builder.Services.AddSingleton<IEnumerable<IJsFunctionProvider>>(serviceProvider =>
 {
     var loader = serviceProvider.GetRequiredService<JsFunctionLoader>();
     return loader.LoadAllProviders().ToList();

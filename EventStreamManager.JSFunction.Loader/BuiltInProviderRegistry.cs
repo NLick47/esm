@@ -4,7 +4,7 @@ namespace EventStreamManager.JSFunction.Loader;
 
 public class BuiltInProviderRegistry
 {
-    private static readonly List<Func<IJSFunctionProvider>> ProviderFactories = new();
+    private static readonly List<Func<IJsFunctionProvider>> ProviderFactories = new();
     
     static BuiltInProviderRegistry()
     {
@@ -12,13 +12,13 @@ public class BuiltInProviderRegistry
         Register(() => new StandardJsFunctionProvider());
     }
     
-    public static void Register(Func<IJSFunctionProvider> factory)
+    public static void Register(Func<IJsFunctionProvider> factory)
     {
         ProviderFactories.Add(factory);
     }
     
     
-    public static IEnumerable<IJSFunctionProvider> CreateAll()
+    public static IEnumerable<IJsFunctionProvider> CreateAll()
     {
         return ProviderFactories.Select(factory => factory()).Where(p => p != null);
     }

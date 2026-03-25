@@ -22,7 +22,7 @@ public class EditorDebugResponse : IDebugResponse
     /// <summary>
     /// 原始数据
     /// </summary>
-    public EnhancedQueryData RawData { get; set; }
+    public EnhancedQueryData? RawData { get; set; }
 
     /// <summary>
     /// 处理结果

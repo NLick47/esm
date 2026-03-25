@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using EventStreamManager.EventProcessor.Entities;
 using EventStreamManager.Infrastructure.Entities;
-using EventStreamManager.Infrastructure.Models.Execution;
 using EventStreamManager.Infrastructure.Models.Execution.Parameter;
 using EventStreamManager.Infrastructure.Services;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
@@ -99,7 +98,7 @@ public class ScriptExecutor
 
             if (result?.Any() == true && result.First() is IDictionary<string, object> dict)
             {
-                return dict.ToDictionary(k => k.Key, v => v.Value ?? string.Empty);
+                return dict.ToDictionary(k => k.Key, v => v.Value);
             }
             return null;
         }

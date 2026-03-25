@@ -1,4 +1,3 @@
-using System.Text.Json.Serialization;
 using EventStreamManager.Infrastructure.Models.JSProcessor;
 
 namespace EventStreamManager.WebApi.Models.Responses;
