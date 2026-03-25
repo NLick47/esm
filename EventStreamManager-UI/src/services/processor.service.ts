@@ -90,7 +90,7 @@ export function getDefaultTemplate(): Promise<DefaultTemplateResponse> {
  * 验证 JS 代码
  */
 export function validateCode(code: string): Promise<ValidationResult> {
-  return post<ValidationResult>(`${BASE_PATH}/processors/validate`, { code });
+  return post<ValidationResult>(`${BASE_PATH}/script/validate`, { script: code });
 }
 
 /**

@@ -1,4 +1,5 @@
 using EventStreamManager.Infrastructure.Services;
+using EventStreamManager.WebApi.Models.Requests;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventStreamManager.WebApi.Controllers;
@@ -19,9 +20,9 @@ public class ScriptController : BaseController
     }
 
     [HttpPost("validate")]
-    public IActionResult ValidateScript([FromBody] string script)
+    public IActionResult ValidateScript([FromBody] ValidateScriptRequest request)
     {
-        var result = _scriptExecutionService.ValidateScript(script);
+        var result = _scriptExecutionService.ValidateScript(request.Script);
         return Ok(result, "脚本验证完成");
     }
 }

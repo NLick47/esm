@@ -8,7 +8,6 @@ import prettier from 'prettier';
 import parserBabel from 'prettier/plugins/babel';
 import prettierPluginEstree from 'prettier/plugins/estree';
 import { createPortal } from 'react-dom';
-import { getApiUrl } from '@/config/api.config';
 import {
   getProcessors,
   getProcessor, 
@@ -16,6 +15,7 @@ import {
   getSystemTemplates,
   getCustomTemplates,
   getDefaultTemplate,
+  validateCode,
   toggleProcessor as toggleProcessorService,
   deleteProcessor as deleteProcessorService,
   createProcessor as createProcessorService,
@@ -1133,60 +1133,49 @@ export default function JSProcessorManager() {
                             <i className="fa-solid fa-wand-magic-sparkles"></i> 格式化
                           </button>
                           <button
-                            type="button"
-                            onClick={async () => {
-                              try {
-                                const response = await fetch(getApiUrl('/api/Script/validate'), {
-                                  method: 'POST',
-                                  headers: {
-                                    'Content-Type': 'application/json',
-                                  },
-                                  body: JSON.stringify(editingProcessor.code)
-                                });
+  type="button"
+  onClick={async () => {
+    try {
+     
+      const result: ValidationResult = await validateCode(editingProcessor.code);
 
-                                if (!response.ok) {
-                                  throw new Error('校验请求失败');
-                                }
-
-                                const result: ValidationResult = await response.json();
-
-                                if (result.isValid) {
-                                  if (!result.hasProcessFunction) {
-                                    toast.warning(
-                                      <div>
-                                        <p className="font-medium">代码语法正确</p>
-                                        <p className="text-sm opacity-90">但未找到 process 函数</p>
-                                      </div>,
-                                      { duration: 5000 }
-                                    );
-                                  } else {
-                                    toast.success('校验通过 ✓');
-                                  }
-                                } else {
-                                  // 构建详细的错误信息组件
-                                  toast.error(
-                                    <div className="space-y-1">
-                                      <p className="font-medium">{result.message || '代码语法错误'}</p>
-                                      {(result.lineNumber || result.column) && (
-                                        <p className="text-sm opacity-90">
-                                          位置: 第 {result.lineNumber || '?'} 行，第 {result.column || '?'} 列
-                                        </p>
-                                      )}
-                                      {result.source && (
-                                        <p className="text-sm opacity-90">来源: {result.source}</p>
-                                      )}
-                                    </div>,
-                                    { duration: 8000 }
-                                  );
-                                }
-                              } catch (error) {
-                                toast.error(error instanceof Error ? error.message : '校验失败');
-                              }
-                            }}
-                            className="flex items-center gap-1 px-2 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-50 dark:bg-gray-600 dark:border-gray-500 dark:text-gray-200 dark:hover:bg-gray-500"
-                          >
-                            <i className="fa-solid fa-check-circle"></i> 校验
-                          </button>
+      if (result.isValid) {
+        if (!result.hasProcessFunction) {
+          toast.warning(
+            <div>
+              <p className="font-medium">代码语法正确</p>
+              <p className="text-sm opacity-90">但未找到 process 函数</p>
+            </div>,
+            { duration: 5000 }
+          );
+        } else {
+          toast.success('校验通过 ✓');
+        }
+      } else {
+        // 构建详细的错误信息组件
+        toast.error(
+          <div className="space-y-1">
+            <p className="font-medium">{result.message || '代码语法错误'}</p>
+            {(result.lineNumber || result.column) && (
+              <p className="text-sm opacity-90">
+                位置: 第 {result.lineNumber || '?'} 行，第 {result.column || '?'} 列
+              </p>
+            )}
+            {result.source && (
+              <p className="text-sm opacity-90">来源: {result.source}</p>
+            )}
+          </div>,
+          { duration: 8000 }
+        );
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '校验失败');
+    }
+  }}
+  className="flex items-center gap-1 px-2 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-50 dark:bg-gray-600 dark:border-gray-500 dark:text-gray-200 dark:hover:bg-gray-500"
+>
+  <i className="fa-solid fa-check-circle"></i> 校验
+</button>
 
                           <button
                             type="button"
