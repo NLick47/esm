@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import CodeMirror from '@uiw/react-codemirror';
 import { javascript } from '@codemirror/lang-javascript';
@@ -25,7 +25,6 @@ import {
   deleteCustomTemplate as deleteCustomTemplateService,
   executeDebug,
   executeExamineDebug,
-
 } from '@/services/processor.service';
 
 import { 
@@ -45,8 +44,339 @@ import {
 import{getDatabaseTypesWithActiveConfig}
 from '@/services/database.service'
 
+// ==================== 常量定义 ====================
 
+// CodeMirror 基础配置
+const CODE_MIRROR_BASIC_SETUP = {
+  lineNumbers: true,
+  highlightActiveLineGutter: true,
+  highlightSpecialChars: true,
+  foldGutter: true,
+  drawSelection: true,
+  dropCursor: true,
+  allowMultipleSelections: true,
+  indentOnInput: true,
+  syntaxHighlighting: true,
+  bracketMatching: true,
+  closeBrackets: true,
+  autocompletion: true,
+  rectangularSelection: true,
+  crosshairCursor: true,
+  highlightActiveLine: true,
+  highlightSelectionMatches: true,
+  foldKeymap: true,
+} as const;
 
+// ==================== 类型定义 ====================
+
+interface ValidationResult {
+  isValid: boolean;
+  message?: string;
+  lineNumber?: number;
+  column?: number;
+  source?: string;
+  hasProcessFunction: boolean;
+}
+
+// ==================== 工具函数 ====================
+
+/**
+ * 格式化JavaScript代码
+ */
+const formatJavaScriptCode = async (code: string): Promise<string> => {
+  const formatted = await prettier.format(code, {
+    parser: 'babel',
+    plugins: [parserBabel, prettierPluginEstree],
+    semi: true,
+    singleQuote: true,
+    tabWidth: 2,
+    trailingComma: 'es5',
+  });
+  return formatted.trim();
+};
+
+/**
+ * 复制代码到剪贴板
+ */
+const copyToClipboard = async (text: string): Promise<void> => {
+  await navigator.clipboard.writeText(text);
+  toast.success('代码已复制到剪贴板');
+};
+
+/**
+ * 校验代码
+ */
+const validateJavaScriptCode = async (code: string): Promise<ValidationResult> => {
+  const result: ValidationResult = await validateCode(code);
+  return result;
+};
+
+/**
+ * 显示校验结果
+ */
+const showValidationResult = (result: ValidationResult) => {
+  if (result.isValid) {
+    if (!result.hasProcessFunction) {
+      toast.warning(
+        <div>
+          <p className="font-medium">代码语法正确</p>
+          <p className="text-sm opacity-90">但未找到 process 函数</p>
+        </div>,
+        { duration: 5000 }
+      );
+    } else {
+      toast.success('校验通过 ✓');
+    }
+  } else {
+    toast.error(
+      <div className="space-y-1">
+        <p className="font-medium">{result.message || '代码语法错误'}</p>
+        {(result.lineNumber || result.column) && (
+          <p className="text-sm opacity-90">
+            位置: 第 {result.lineNumber || '?'} 行，第 {result.column || '?'} 列
+          </p>
+        )}
+        {result.source && (
+          <p className="text-sm opacity-90">来源: {result.source}</p>
+        )}
+      </div>,
+      { duration: 8000 }
+    );
+  }
+};
+
+// ==================== 组件定义 ====================
+
+/**
+ * 编辑器工具栏组件
+ */
+interface EditorToolbarProps {
+  code: string;
+  onCodeChange: (code: string) => void;
+  showFullscreenButton?: boolean;
+  onFullscreenClick?: () => void;
+  showDocButton?: boolean;
+  variant?: 'default' | 'dark';
+}
+
+const EditorToolbar: React.FC<EditorToolbarProps> = ({
+  code,
+  onCodeChange,
+  showFullscreenButton = false,
+  onFullscreenClick,
+  showDocButton = true,
+  variant = 'default',
+}) => {
+  const buttonBaseClass = variant === 'dark'
+    ? "flex items-center gap-1 px-2 py-1 text-sm bg-gray-700 text-white rounded hover:bg-gray-600"
+    : "flex items-center gap-1 px-2 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-50 dark:bg-gray-600 dark:border-gray-500 dark:text-gray-200 dark:hover:bg-gray-500";
+
+  const docButtonClass = variant === 'dark'
+    ? "flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+    : "flex items-center gap-1 px-2 py-1 text-xs bg-blue-50 border border-blue-300 text-blue-700 rounded hover:bg-blue-100 dark:bg-blue-900 dark:border-blue-700 dark:text-blue-200 dark:hover:bg-blue-800";
+
+  const handleFormat = async () => {
+    try {
+      const formatted = await formatJavaScriptCode(code);
+      onCodeChange(formatted);
+      toast.success('代码已格式化');
+    } catch (error) {
+      toast.error('格式化失败，请检查代码语法');
+    }
+  };
+
+  const handleCopy = () => copyToClipboard(code);
+
+  const handleValidate = async () => {
+    try {
+      const result = await validateJavaScriptCode(code);
+      showValidationResult(result);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '校验失败');
+    }
+  };
+
+  return (
+    <div className="flex gap-2">
+      <button type="button" onClick={handleCopy} className={buttonBaseClass}>
+        <i className="fa-solid fa-copy"></i> 复制
+      </button>
+      <button type="button" onClick={handleFormat} className={buttonBaseClass}>
+        <i className="fa-solid fa-wand-magic-sparkles"></i> 格式化
+      </button>
+      <button type="button" onClick={handleValidate} className={buttonBaseClass}>
+        <i className="fa-solid fa-check-circle"></i> 校验
+      </button>
+      {showDocButton && (
+        <button
+          type="button"
+          onClick={() => window.open('/src/doc/func.html', '_blank')}
+          className={docButtonClass}
+        >
+          <i className="fa-solid fa-book"></i> 文档
+        </button>
+      )}
+      {showFullscreenButton && onFullscreenClick && (
+        <button type="button" onClick={onFullscreenClick} className={buttonBaseClass}>
+          <i className="fa-solid fa-expand"></i> 全屏
+        </button>
+      )}
+    </div>
+  );
+};
+
+/**
+ * 全屏编辑器模态框组件
+ */
+interface FullscreenEditorProps {
+  isOpen: boolean;
+  code: string;
+  fontSize: number;
+  onClose: () => void;
+  onCodeChange: (code: string) => void;
+}
+
+const FullscreenEditor: React.FC<FullscreenEditorProps> = ({
+  isOpen,
+  code,
+  fontSize,
+  onClose,
+  onCodeChange,
+}) => {
+  if (!isOpen) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex flex-col bg-gray-900">
+      <div className="flex items-center justify-between px-4 py-3 bg-gray-800 border-b border-gray-700">
+        <h3 className="text-lg font-semibold text-white">全屏编辑 - JavaScript 代码</h3>
+        <EditorToolbar
+          code={code}
+          onCodeChange={onCodeChange}
+          showDocButton={true}
+          variant="dark"
+        />
+        <button
+          onClick={onClose}
+          className="flex items-center gap-1 px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 ml-2"
+        >
+          <i className="fa-solid fa-compress"></i> 退出全屏
+        </button>
+      </div>
+      <div className="flex-1 overflow-auto p-4">
+        <CodeMirror
+          value={code}
+          height="100%"
+          style={{ fontSize: `${fontSize}px` }}
+          extensions={[javascript()]}
+          theme={oneDark}
+          onChange={(value) => onCodeChange(value)}
+          basicSetup={CODE_MIRROR_BASIC_SETUP}
+        />
+      </div>
+    </div>,
+    document.body
+  );
+};
+
+/**
+ * JavaScript代码编辑器组件
+ */
+interface JSCodeEditorProps {
+  code: string;
+  fontSize: number;
+  height?: string;
+  onCodeChange: (code: string) => void;
+  onFullscreenClick: () => void;
+}
+
+const JSCodeEditor: React.FC<JSCodeEditorProps> = ({
+  code,
+  fontSize,
+  height = '800px',
+  onCodeChange,
+  onFullscreenClick,
+}) => {
+  return (
+    <div
+      className="rounded-xl bg-white p-6 shadow-md dark:bg-gray-800 dark:shadow-lg"
+      onScroll={(e) => e.stopPropagation()}
+    >
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="text-lg font-semibold">JavaScript 代码</h3>
+        <div className="text-xs text-gray-500 dark:text-gray-400">
+          请实现process函数，接收数据并返回处理后的结果
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-gray-300 overflow-hidden dark:border-gray-700">
+        <div className="flex items-center justify-between px-3 py-2 bg-gray-100 border-b border-gray-300 dark:bg-gray-700 dark:border-gray-600">
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">JavaScript</span>
+          <EditorToolbar
+            code={code}
+            onCodeChange={onCodeChange}
+            showFullscreenButton={true}
+            onFullscreenClick={onFullscreenClick}
+          />
+        </div>
+
+        <div
+          style={{ height }}
+          onWheel={(e) => e.stopPropagation()}
+          onScroll={(e) => e.stopPropagation()}
+        >
+          <CodeMirror
+            value={code}
+            height={height}
+            style={{ fontSize: `${fontSize}px` }}
+            extensions={[javascript()]}
+            theme={oneDark}
+            onChange={(value) => onCodeChange(value)}
+            basicSetup={CODE_MIRROR_BASIC_SETUP}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * SQL编辑器组件
+ */
+interface SQLEditorProps {
+  code: string;
+  height?: string;
+  onCodeChange: (code: string) => void;
+}
+
+const SQLEditor: React.FC<SQLEditorProps> = ({
+  code,
+  height = '250px',
+  onCodeChange,
+}) => {
+  return (
+    <div className="rounded-xl bg-white p-6 shadow-md dark:bg-gray-800 dark:shadow-lg">
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="text-lg font-semibold">SQL预览</h3>
+      </div>
+
+      <div className="rounded-lg border border-gray-300 overflow-hidden dark:border-gray-700">
+        <div style={{ height }}>
+          <CodeMirror
+            style={{ fontSize: '15px' }}
+            value={code}
+            height={height}
+            extensions={[sql()]}
+            theme={oneDark}
+            onChange={(value) => onCodeChange(value)}
+            basicSetup={CODE_MIRROR_BASIC_SETUP}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==================== 主组件 ====================
 
 export default function JSProcessorManager() {
   // 状态定义
@@ -83,21 +413,12 @@ export default function JSProcessorManager() {
 
   const [debugResult, setDebugResult] = useState<any>(null);
 
-  // 编辑器布局和字体大小状态
-  const [editorLayout, setEditorLayout] = useState<'horizontal' | 'vertical'>('horizontal');
+  // 编辑器字体大小状态
   const [editorFontSize, setEditorFontSize] = useState<number>(15);
-
-
-  interface ValidationResult {
-    isValid: boolean;
-    message?: string;
-    lineNumber?: number;
-    column?: number;
-    source?: string;
-    hasProcessFunction: boolean;
-  }
-
   
+  // 全屏编辑状态
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
   const [editingProcessor, setEditingProcessor] = useState<JSProcessorDetailResponse>({
     id: '',
     name: '',
@@ -111,12 +432,22 @@ export default function JSProcessorManager() {
     description: '',
   });
 
-  // 阻止自动滚动的处理函数
-  const handleEditorScroll = (e: React.UIEvent) => {
-    e.stopPropagation();
-  };
+  // ==================== 回调函数 ====================
 
-  // 加载所有数据
+  const handleProcessorChange = useCallback((field: keyof JSProcessorDetailResponse, value: any) => {
+    setEditingProcessor(prev => ({ ...prev, [field]: value }));
+  }, []);
+
+  const handleCodeChange = useCallback((code: string) => {
+    handleProcessorChange('code', code);
+  }, [handleProcessorChange]);
+
+  const handleSqlTemplateChange = useCallback((sqlTemplate: string) => {
+    handleProcessorChange('sqlTemplate', sqlTemplate);
+  }, [handleProcessorChange]);
+
+  // ==================== 数据加载 ====================
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -137,12 +468,10 @@ export default function JSProcessorManager() {
         setDefaultTemplate(templateData.code);
         setDatabaseTypes(typesData);
 
-        // 如果有数据库类型，设置第一个为默认调试数据库类型
         if (typesData.length > 0) {
           setDebugDatabaseType(typesData[0].value);
         }
 
-        // 更新editingProcessor的默认代码
         setEditingProcessor(prev => ({
           ...prev,
           code: templateData.code || ''
@@ -156,7 +485,6 @@ export default function JSProcessorManager() {
     fetchData();
   }, []);
 
-  // 当数据库类型加载完成后，设置默认的数据库类型
   useEffect(() => {
     if (databaseTypes.length > 0 && editingProcessor.databaseTypes.length === 0) {
       setEditingProcessor(prev => ({
@@ -164,15 +492,15 @@ export default function JSProcessorManager() {
         databaseTypes: [databaseTypes[0].value]
       }));
     }
-  }, [databaseTypes]);
+  }, [databaseTypes, editingProcessor.databaseTypes.length]);
 
-  // 获取数据库类型标签
+  // ==================== 处理器操作函数 ====================
+
   const getDatabaseTypeLabel = (type: string): string => {
     const found = databaseTypes.find(t => t.value === type);
     return found ? found.label : type;
   };
 
-  // 处理器操作
   const toggleProcessorStatus = async (id: string) => {
     try {
       const updated = await toggleProcessorService(id);
@@ -201,7 +529,6 @@ export default function JSProcessorManager() {
   const editProcessor = async (id: string) => {
     try {
       const detail = await getProcessor(id);
-    
       const updatedProcessor = {
         ...detail,
         code: detail.code || defaultTemplate,
@@ -220,10 +547,6 @@ export default function JSProcessorManager() {
       } else {
         setSelectedSystemTemplateId(null);
         setSelectedCustomTemplateId(null);
-      }
-  
-      if (!detail.code) {
-        console.log('处理器代码为空，已使用默认模板');
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '加载处理器详情失败');
@@ -250,69 +573,64 @@ export default function JSProcessorManager() {
     setSelectedCustomTemplateId(null);
   };
 
-
- const saveProcessor = async () => {
-  if (!editingProcessor.name.trim()) {
-    toast.error('处理器名称不能为空');
-    return;
-  }
-
-  const processorToSave: Partial<JSProcessor> = {
-    name: editingProcessor.name,
-    databaseTypes: editingProcessor.databaseTypes,
-    eventCodes: editingProcessor.eventCodes,
-    sqlTemplateType: editingProcessor.sqlTemplateType,
-    sqlTemplateId: editingProcessor.sqlTemplateId,
-    code: editingProcessor.code,
-    enabled: editingProcessor.enabled,
-    description: editingProcessor.description,
-  };
-
-  try {
-    if (isNewProcessor || !editingProcessor.id || editingProcessor.id.trim() === '') {
-      const newProcessor = await createProcessorService(processorToSave);
-      setProcessors(prev => [...prev, {
-        id: newProcessor.id,
-        name: newProcessor.name,
-        databaseTypes: newProcessor.databaseTypes,
-        eventCodes: newProcessor.eventCodes,
-        sqlTemplateType: newProcessor.sqlTemplateType,
-        sqlTemplateId: newProcessor.sqlTemplateId,
-        enabled: newProcessor.enabled,
-        description: newProcessor.description,
-      }]);
-      setSelectedProcessor(newProcessor.id);
-      setIsNewProcessor(false);
-      toast.success('处理器已创建');
-    } else {
-      await updateProcessorService(editingProcessor.id, processorToSave);
-      setProcessors(prev => prev.map(p =>
-        p.id === selectedProcessor ? {
-          ...p,
-          name: editingProcessor.name,
-          databaseTypes: editingProcessor.databaseTypes,
-          eventCodes: editingProcessor.eventCodes,
-          sqlTemplateType: editingProcessor.sqlTemplateType,
-          sqlTemplateId: editingProcessor.sqlTemplateId,
-          enabled: editingProcessor.enabled,
-          description: editingProcessor.description,
-        } : p
-      ));
-      toast.success('处理器已更新');
+  const saveProcessor = async () => {
+    if (!editingProcessor.name.trim()) {
+      toast.error('处理器名称不能为空');
+      return;
     }
-    setActiveTab('list');
-  } catch (error) {
-    toast.error(error instanceof Error ? error.message : '保存失败');
-  }
-};
+
+    const processorToSave: Partial<JSProcessor> = {
+      name: editingProcessor.name,
+      databaseTypes: editingProcessor.databaseTypes,
+      eventCodes: editingProcessor.eventCodes,
+      sqlTemplateType: editingProcessor.sqlTemplateType,
+      sqlTemplateId: editingProcessor.sqlTemplateId,
+      code: editingProcessor.code,
+      enabled: editingProcessor.enabled,
+      description: editingProcessor.description,
+    };
+
+    try {
+      if (isNewProcessor || !editingProcessor.id || editingProcessor.id.trim() === '') {
+        const newProcessor = await createProcessorService(processorToSave);
+        setProcessors(prev => [...prev, {
+          id: newProcessor.id,
+          name: newProcessor.name,
+          databaseTypes: newProcessor.databaseTypes,
+          eventCodes: newProcessor.eventCodes,
+          sqlTemplateType: newProcessor.sqlTemplateType,
+          sqlTemplateId: newProcessor.sqlTemplateId,
+          enabled: newProcessor.enabled,
+          description: newProcessor.description,
+        }]);
+        setSelectedProcessor(newProcessor.id);
+        setIsNewProcessor(false);
+        toast.success('处理器已创建');
+      } else {
+        await updateProcessorService(editingProcessor.id, processorToSave);
+        setProcessors(prev => prev.map(p =>
+          p.id === selectedProcessor ? {
+            ...p,
+            name: editingProcessor.name,
+            databaseTypes: editingProcessor.databaseTypes,
+            eventCodes: editingProcessor.eventCodes,
+            sqlTemplateType: editingProcessor.sqlTemplateType,
+            sqlTemplateId: editingProcessor.sqlTemplateId,
+            enabled: editingProcessor.enabled,
+            description: editingProcessor.description,
+          } : p
+        ));
+        toast.success('处理器已更新');
+      }
+      setActiveTab('list');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '保存失败');
+    }
+  };
 
   const cancelEdit = () => {
     setActiveTab('list');
     setSelectedProcessor(null);
-  };
-
-  const handleProcessorChange = (field: keyof JSProcessorDetailResponse, value: any) => {
-    setEditingProcessor(prev => ({ ...prev, [field]: value }));
   };
 
   const toggleEventCode = (code: string) => {
@@ -326,7 +644,8 @@ export default function JSProcessorManager() {
     handleProcessorChange('eventCodes', eventCodes);
   };
 
-  // 模板应用
+  // ==================== 模板操作函数 ====================
+
   const applySystemTemplate = (templateId: string) => {
     const template = systemTemplates.find(t => t.id === templateId);
     if (template) {
@@ -358,7 +677,6 @@ export default function JSProcessorManager() {
     }
   };
 
- 
   const addCustomTemplate = async () => {
     const newTemplate: Omit<CustomSqlTemplate, 'id'> = {
       name: '新自定义查询模板',
@@ -377,7 +695,6 @@ export default function JSProcessorManager() {
     const template = customTemplates.find(t => t.id === id);
     if (!template) return;
 
-    // 检查是否有实际变化
     const hasChanges = Object.keys(updates).some(key =>
       template[key as keyof CustomSqlTemplate] !== updates[key as keyof CustomSqlTemplate]
     );
@@ -407,7 +724,33 @@ export default function JSProcessorManager() {
     }
   };
 
-  // 运行调试（主调试标签页）
+  // ==================== 调试函数 ====================
+
+  const addDebugLog = (type: string, message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    const prefix = type === 'error' ? '❌' :
+      type === 'warn' ? '⚠️' :
+        type === 'success' ? '✅' :
+          type === 'output' ? '📤' :
+            'ℹ️';
+    setDebugLog(prev => [...prev, `[${timestamp}] ${prefix} ${message}`]);
+  };
+
+  const addEditorDebugLog = (type: string, message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    const prefix = type === 'error' ? '❌' :
+      type === 'warn' ? '⚠️' :
+        type === 'success' ? '✅' :
+          type === 'output' ? '📤' :
+            'ℹ️';
+    setEditorDebugLog(prev => [...prev, `[${timestamp}] ${prefix} ${message}`]);
+  };
+
+  const clearEditorDebugLog = () => {
+    setEditorDebugLog([]);
+    setEditorDebugResult(null);
+  };
+
   const runDebug = async () => {
     if (!selectedProcessor) {
       toast.error('请选择要调试的处理器');
@@ -470,7 +813,6 @@ export default function JSProcessorManager() {
     }
   };
 
-  // 编辑器调试函数
   const runEditorDebug = async () => {
     if (!editorDebugExamineId.trim()) {
       toast.error('请输入检查ID');
@@ -494,7 +836,6 @@ export default function JSProcessorManager() {
         validateCode: true
       });
 
-      // 显示代码验证结果
       if (result.codeValidation) {
         if (result.codeValidation.errors.length > 0) {
           result.codeValidation.errors.forEach((error: string) => {
@@ -550,35 +891,8 @@ export default function JSProcessorManager() {
     }
   };
 
-  // 添加日志的辅助函数
-  const addDebugLog = (type: string, message: string) => {
-    const timestamp = new Date().toLocaleTimeString();
-    const prefix = type === 'error' ? '❌' :
-      type === 'warn' ? '⚠️' :
-        type === 'success' ? '✅' :
-          type === 'output' ? '📤' :
-            'ℹ️';
-    setDebugLog(prev => [...prev, `[${timestamp}] ${prefix} ${message}`]);
-  };
+  // ==================== 渲染函数 ====================
 
-  // 添加编辑器调试日志函数
-  const addEditorDebugLog = (type: string, message: string) => {
-    const timestamp = new Date().toLocaleTimeString();
-    const prefix = type === 'error' ? '❌' :
-      type === 'warn' ? '⚠️' :
-        type === 'success' ? '✅' :
-          type === 'output' ? '📤' :
-            'ℹ️';
-    setEditorDebugLog(prev => [...prev, `[${timestamp}] ${prefix} ${message}`]);
-  };
-
-  // 清除编辑器调试日志
-  const clearEditorDebugLog = () => {
-    setEditorDebugLog([]);
-    setEditorDebugResult(null);
-  };
-
-  // 如果正在加载，显示加载状态
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -594,6 +908,7 @@ export default function JSProcessorManager() {
         <h2 className="text-2xl font-bold">JS处理器管理</h2>
       </div>
 
+      {/* 标签页导航 */}
       <div className="flex border-b border-gray-200 dark:border-gray-800">
         <button
           onClick={() => setActiveTab('list')}
@@ -754,34 +1069,10 @@ export default function JSProcessorManager() {
       {/* 代码编辑器标签页 */}
       {activeTab === 'editor' && (
         <div className="space-y-6">
-          {/* 布局切换工具栏 */}
+          {/* 工具栏 */}
           <div className="flex items-center justify-between bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600 dark:text-gray-400">编辑器布局：</span>
-                <button
-                  onClick={() => setEditorLayout('horizontal')}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${editorLayout === 'horizontal'
-                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                    : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700'
-                    }`}
-                >
-                  <i className="fa-solid fa-columns"></i>
-                  <span className="text-sm">左右分栏</span>
-                </button>
-                <button
-                  onClick={() => setEditorLayout('vertical')}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${editorLayout === 'vertical'
-                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                    : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700'
-                    }`}
-                >
-                  <i className="fa-solid fa-bars-staggered"></i>
-                  <span className="text-sm">上下堆叠</span>
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2 ml-4">
                 <span className="text-sm text-gray-600 dark:text-gray-400">字体大小：</span>
                 <button
                   onClick={() => setEditorFontSize(prev => Math.max(12, prev - 1))}
@@ -825,726 +1116,272 @@ export default function JSProcessorManager() {
             </div>
           </div>
 
-          {/* 根据布局模式显示不同的内容 */}
-          {editorLayout === 'horizontal' ? (
-            /* 左右分栏布局 */
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-              {/* 左侧配置面板 */}
-              <div className="lg:col-span-1">
-                <div className="rounded-xl bg-white p-6 shadow-md dark:bg-gray-800 dark:shadow-lg flex flex-col h-full">
-                  <h3 className="mb-4 text-lg font-semibold flex-shrink-0">处理器配置</h3>
+          {/* 左右分栏布局 */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            {/* 左侧配置面板 */}
+            <div className="lg:col-span-1">
+              <div className="rounded-xl bg-white p-6 shadow-md dark:bg-gray-800 dark:shadow-lg flex flex-col h-full">
+                <h3 className="mb-4 text-lg font-semibold flex-shrink-0">处理器配置</h3>
 
-                  {/* 主要内容区域 - 添加 flex-1 和 overflow-y-auto 使其可滚动 */}
-                  <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-                    {/* 处理器名称输入 */}
-                    <div>
-                      <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                        处理器名称 *
-                      </label>
-                      <input
-                        type="text"
-                        value={editingProcessor.name}
-                        onChange={(e) => handleProcessorChange('name', e.target.value)}
-                        className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
-                        placeholder="请输入处理器名称"
-                      />
-                    </div>
-
-                    {/* 数据库类型选择 */}
-                    <div>
-                      <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                        适用数据库类型 (可多选)
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        {databaseTypes.length > 0 ? (
-                          databaseTypes.map((type) => (
-                            <label
-                              key={type.value}
-                              className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors cursor-pointer ${editingProcessor.databaseTypes.includes(type.value)
-                                  ? 'border-blue-600 bg-blue-50 text-blue-700 dark:border-blue-500 dark:bg-blue-900/30 dark:text-blue-400'
-                                  : 'border-gray-300 bg-white text-gray-700 hover:border-blue-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-blue-700'
-                                }`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={editingProcessor.databaseTypes.includes(type.value)}
-                                onChange={() => {
-                                  const newTypes = [...editingProcessor.databaseTypes];
-                                  const index = newTypes.indexOf(type.value);
-                                  if (index > -1) {
-                                    if (newTypes.length > 1) {
-                                      newTypes.splice(index, 1);
-                                    } else {
-                                      toast.info('至少需要选择一个数据库类型');
-                                      return;
-                                    }
-                                  } else {
-                                    newTypes.push(type.value);
-                                  }
-                                  handleProcessorChange('databaseTypes', newTypes);
-                                }}
-                                className="mr-2 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                              />
-                              {type.label}
-                            </label>
-                          ))
-                        ) : (
-                          <div className="text-sm text-gray-500">加载数据库类型中...</div>
-                        )}
-                      </div>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        选择处理器适用的数据库系统，至少选择一个
-                      </p>
-                    </div>
-
-                    {/* 事件码过滤 */}
-                    <div>
-                      <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                        事件码过滤 (可多选)
-                      </label>
-                      <div className="flex flex-wrap gap-2 max-h-80 overflow-y-auto p-2 border border-gray-200 rounded-lg dark:border-gray-700">
-                        {eventCodes.filter(ec => ec.enabled).map((ec) => (
-                          <label
-                            key={ec.code}
-                            className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium transition-colors ${editingProcessor.eventCodes.includes(ec.code)
-                              ? 'border-blue-600 bg-blue-50 text-blue-700 dark:border-blue-500 dark:bg-blue-900/30 dark:text-blue-400'
-                              : 'border-gray-300 bg-white text-gray-700 hover:border-blue-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-blue-700'
-                              }`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={editingProcessor.eventCodes.includes(ec.code)}
-                              onChange={() => toggleEventCode(ec.code)}
-                              className="mr-2 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                            />
-                            {ec.code}
-                            {ec.description && <span className="ml-1 text-xs text-gray-500">({ec.description})</span>}
-                          </label>
-                        ))}
-                      </div>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        选择处理器需要监听的事件码，留空表示不过滤
-                      </p>
-                    </div>
-
-                    {/* 系统预设模板 */}
-                    <div>
-                      <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                        预设sql查询
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        {systemTemplates.map((template) => (
-                          <button
-                            key={template.id}
-                            onClick={() => applySystemTemplate(template.id)}
-                            className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${selectedSystemTemplateId === template.id
-                              ? 'border-blue-600 bg-blue-100 text-blue-800 ring-2 ring-blue-600 ring-offset-1 dark:border-blue-400 dark:bg-blue-900/50 dark:text-blue-300 dark:ring-blue-400'
-                              : 'border-gray-300 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-blue-700 dark:hover:bg-blue-900/30'
-                              }`}
-                          >
-                            <i className={`fa-solid fa-database mr-1 ${selectedSystemTemplateId === template.id
-                              ? 'text-blue-600 dark:text-blue-400'
-                              : 'text-blue-500'
-                              }`}></i>
-                            {template.name}
-                            {selectedSystemTemplateId === template.id && (
-                              <i className="fa-solid fa-check ml-1 text-blue-600 dark:text-blue-400"></i>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          自定义查询模板
-                        </label>
-                        <button
-                          onClick={addCustomTemplate}
-                          className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                        >
-                          <i className="fa-solid fa-plus mr-1"></i>新建模板
-                        </button>
-                      </div>
-
-                      {customTemplates.length === 0 ? (
-                        <div className="text-sm text-gray-500 dark:text-gray-400 italic p-2 border border-dashed border-gray-300 rounded-lg dark:border-gray-700">
-                          暂无自定义查询模板，点击"新建模板"创建
-                        </div>
-                      ) : (
-                       // 在自定义模板列表渲染部分，确保选中样式正确应用
-<div className="space-y-2 max-h-60 overflow-y-auto p-2 border border-gray-200 rounded-lg dark:border-gray-700">
-  {customTemplates.map((template) => (
-    <div
-      key={template.id}
-      className={`flex items-center gap-2 p-2 rounded-lg border transition-colors ${
-        selectedCustomTemplateId === template.id
-          ? 'bg-blue-50 border-blue-300 dark:bg-blue-900/30 dark:border-blue-700 ring-1 ring-blue-500'
-          : 'bg-gray-50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'
-      }`}
-    >
-      <div className="flex-1 min-w-0">
-        <input
-          type="text"
-          value={template.name}
-          onChange={(e) => {
-            setCustomTemplates(prev =>
-              prev.map(t => t.id === template.id ? { ...t, name: e.target.value } : t)
-            );
-          }}
-          onBlur={(e) => {
-            updateCustomTemplate(template.id, { name: e.target.value });
-          }}
-          className={`w-full text-sm bg-transparent border-b ${
-            selectedCustomTemplateId === template.id
-              ? 'border-blue-300 dark:border-blue-700'
-              : 'border-transparent hover:border-gray-300 dark:hover:border-gray-600'
-          } focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500`}
-          placeholder="模板名称"
-        />
-      </div>
-      <div className="flex items-center gap-1 flex-shrink-0">
-       
-        <button
-          onClick={() => applyCustomTemplate(template.id)}
-          className={`p-1.5 rounded-md transition-colors ${
-            selectedCustomTemplateId === template.id
-              ? 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50'
-              : 'text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30'
-          }`}
-          title="应用模板"
-        >
-          <i className="fa-solid fa-check text-sm"></i>
-        </button>
-        <button
-          onClick={() => {
-            setEditingTemplate({
-              id: template.id,
-              name: template.name,
-              sql: template.sqlTemplate
-            });
-          }}
-          className="p-1.5 text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
-          title="编辑SQL"
-        >
-          <i className="fa-solid fa-pen text-sm"></i>
-        </button>
-        <button
-          onClick={() => deleteCustomTemplate(template.id)}
-          className="p-1.5 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md transition-colors"
-          title="删除模板"
-        >
-          <i className="fa-solid fa-trash text-sm"></i>
-        </button>
-      </div>
-    </div>
-  ))}
-</div>
-                      )}
-                    </div>
-
-                    {/* 描述输入 */}
-                    <div>
-                      <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                        描述
-                      </label>
-                      <textarea
-                        value={editingProcessor.description}
-                        onChange={(e) => handleProcessorChange('description', e.target.value)}
-                        rows={3}
-                        className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
-                        placeholder="请输入处理器描述"
-                      />
-                    </div>
-                  </div>
-
-                  {/* 提示区域 - 固定在底部 */}
-                  <div className="mt-2 rounded-lg bg-yellow-50 p-4 text-sm text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400 flex-shrink-0">
-                    <div className="flex items-start">
-                      <i className="fa-solid fa-lightbulb mt-0.5 mr-2"></i>
-                      <div>
-                        <p className="mb-1 font-medium">提示:</p>
-                        <ul className="list-disc pl-5 space-y-1">
-                          <li>确保实现process函数作为入口点，并且保留模板process函数外的代码</li>
-                          <li>process函数data参数为sql查询结果转换为对象后注入的产物</li>
-                          <li>请按照规范返回ProcessResult对象</li>
-                          <li>可以定义辅助函数来分离复杂逻辑</li>
-                          <li>如有必要进行try catch处理</li>
-                          <li>脚本库函数全部为函数注入，添加库函数需要进行插件注册</li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* 右侧编辑器 */}
-              <div className="lg:col-span-2">
-                <div className="space-y-6">
-                  {/* JS代码编辑器 */}
-                  <div
-                    className="rounded-xl bg-white p-6 shadow-md dark:bg-gray-800 dark:shadow-lg"
-                    onScroll={handleEditorScroll}
-                  >
-                    <div className="mb-4 flex items-center justify-between">
-                      <h3 className="text-lg font-semibold">JavaScript 代码</h3>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        请实现process函数，接收数据并返回处理后的结果
-                      </div>
-                    </div>
-
-                    <div className="rounded-lg border border-gray-300 overflow-hidden dark:border-gray-700">
-                      {/* 编辑器工具栏 */}
-                      <div className="flex items-center justify-between px-3 py-2 bg-gray-100 border-b border-gray-300 dark:bg-gray-700 dark:border-gray-600">
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">JavaScript</span>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              navigator.clipboard.writeText(editingProcessor.code);
-                              toast.success('代码已复制到剪贴板');
-                            }}
-                            className="flex items-center gap-1 px-2 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-50 dark:bg-gray-600 dark:border-gray-500 dark:text-gray-200 dark:hover:bg-gray-500"
-                          >
-                            <i className="fa-solid fa-copy"></i> 复制
-                          </button>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              try {
-                                const formatted = await prettier.format(editingProcessor.code, {
-                                  parser: 'babel',
-                                  plugins: [parserBabel, prettierPluginEstree],
-                                  semi: true,
-                                  singleQuote: true,
-                                  tabWidth: 2,
-                                  trailingComma: 'es5',
-                                });
-                                handleProcessorChange('code', formatted.trim());
-                                toast.success('代码已格式化');
-                              } catch (error) {
-                                toast.error('格式化失败，请检查代码语法');
-                              }
-                            }}
-                            className="flex items-center gap-1 px-2 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-50 dark:bg-gray-600 dark:border-gray-500 dark:text-gray-200 dark:hover:bg-gray-500"
-                          >
-                            <i className="fa-solid fa-wand-magic-sparkles"></i> 格式化
-                          </button>
-                          <button
-  type="button"
-  onClick={async () => {
-    try {
-     
-      const result: ValidationResult = await validateCode(editingProcessor.code);
-
-      if (result.isValid) {
-        if (!result.hasProcessFunction) {
-          toast.warning(
-            <div>
-              <p className="font-medium">代码语法正确</p>
-              <p className="text-sm opacity-90">但未找到 process 函数</p>
-            </div>,
-            { duration: 5000 }
-          );
-        } else {
-          toast.success('校验通过 ✓');
-        }
-      } else {
-        // 构建详细的错误信息组件
-        toast.error(
-          <div className="space-y-1">
-            <p className="font-medium">{result.message || '代码语法错误'}</p>
-            {(result.lineNumber || result.column) && (
-              <p className="text-sm opacity-90">
-                位置: 第 {result.lineNumber || '?'} 行，第 {result.column || '?'} 列
-              </p>
-            )}
-            {result.source && (
-              <p className="text-sm opacity-90">来源: {result.source}</p>
-            )}
-          </div>,
-          { duration: 8000 }
-        );
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '校验失败');
-    }
-  }}
-  className="flex items-center gap-1 px-2 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-50 dark:bg-gray-600 dark:border-gray-500 dark:text-gray-200 dark:hover:bg-gray-500"
->
-  <i className="fa-solid fa-check-circle"></i> 校验
-</button>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              window.open('/src/doc/func.html', '_blank');
-                            }}
-                            className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-50 border border-blue-300 text-blue-700 rounded hover:bg-blue-100 dark:bg-blue-900 dark:border-blue-700 dark:text-blue-200 dark:hover:bg-blue-800"
-                          >
-                            <i className="fa-solid fa-book"></i> 文档
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* CodeMirror 编辑器 */}
-                      <div
-                        style={{ height: '800px' }}
-                        onWheel={(e) => e.stopPropagation()}
-                        onScroll={(e) => e.stopPropagation()}
-                      >
-                        <CodeMirror
-                          value={editingProcessor.code}
-                          height="800px"
-                          style={{ fontSize: `${editorFontSize}px` }}
-                          extensions={[javascript()]}
-                          theme={oneDark}
-                          onChange={(value) => handleProcessorChange('code', value)}
-                          basicSetup={{
-                            lineNumbers: true,
-                            highlightActiveLineGutter: true,
-                            highlightSpecialChars: true,
-                            foldGutter: true,
-                            drawSelection: true,
-                            dropCursor: true,
-                            allowMultipleSelections: true,
-                            indentOnInput: true,
-                            syntaxHighlighting: true,
-                            bracketMatching: true,
-                            closeBrackets: true,
-                            autocompletion: true,
-                            rectangularSelection: true,
-                            crosshairCursor: true,
-                            highlightActiveLine: true,
-                            highlightSelectionMatches: true,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* SQL模板编辑器 */}
-                  <div className="rounded-xl bg-white p-6 shadow-md dark:bg-gray-800 dark:shadow-lg">
-                    <div className="mb-4 flex items-center justify-between">
-                      <h3 className="text-lg font-semibold">SQL预览</h3>
-                    </div>
-
-                    <div className="rounded-lg border border-gray-300 overflow-hidden dark:border-gray-700">
-                      <div style={{ height: '250px' }}>
-                        <CodeMirror
-                          style={{ fontSize: '15px' }}
-                          value={editingProcessor.sqlTemplate}
-                          height="250px"
-                          extensions={[sql()]}
-                          theme={oneDark}
-                          onChange={(value) => handleProcessorChange('sqlTemplate', value)}
-                          basicSetup={{
-                            lineNumbers: true,
-                            highlightActiveLineGutter: true,
-                            highlightSpecialChars: true,
-                            foldGutter: true,
-                            drawSelection: true,
-                            dropCursor: true,
-                            allowMultipleSelections: true,
-                            indentOnInput: true,
-                            syntaxHighlighting: true,
-                            bracketMatching: true,
-                            closeBrackets: true,
-                            autocompletion: true,
-                            rectangularSelection: true,
-                            crosshairCursor: true,
-                            highlightActiveLine: true,
-                            highlightSelectionMatches: true,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            /* 上下堆叠布局 - 优化代码编写体验 */
-            <div className="space-y-6">
-              {/* 顶部配置面板 - 紧凑设计 */}
-              <div className="rounded-xl bg-white p-4 shadow-md dark:bg-gray-800 dark:shadow-lg">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {/* 处理器名称 */}
+                <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                  {/* 处理器名称输入 */}
                   <div>
-                    <label className="block mb-1 text-xs font-medium text-gray-700 dark:text-gray-300">
+                    <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                       处理器名称 *
                     </label>
                     <input
                       type="text"
                       value={editingProcessor.name}
                       onChange={(e) => handleProcessorChange('name', e.target.value)}
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
+                      className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
                       placeholder="请输入处理器名称"
                     />
                   </div>
 
                   {/* 数据库类型选择 */}
                   <div>
-                    <label className="block mb-1 text-xs font-medium text-gray-700 dark:text-gray-300">
-                      数据库类型
+                    <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                      适用数据库类型 (可多选)
                     </label>
-                    <div className="flex flex-wrap gap-1">
+                    <div className="flex flex-wrap gap-2">
                       {databaseTypes.length > 0 ? (
                         databaseTypes.map((type) => (
-                          <button
+                          <label
                             key={type.value}
-                            onClick={() => {
-                              const newTypes = [...editingProcessor.databaseTypes];
-                              const index = newTypes.indexOf(type.value);
-                              if (index > -1) {
-                                if (newTypes.length > 1) {
-                                  newTypes.splice(index, 1);
-                                }
-                              } else {
-                                newTypes.push(type.value);
-                              }
-                              handleProcessorChange('databaseTypes', newTypes);
-                            }}
-                            className={`px-2 py-1 text-xs rounded-full transition-colors ${editingProcessor.databaseTypes.includes(type.value)
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300'
-                              }`}
+                            className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors cursor-pointer ${editingProcessor.databaseTypes.includes(type.value)
+                                ? 'border-blue-600 bg-blue-50 text-blue-700 dark:border-blue-500 dark:bg-blue-900/30 dark:text-blue-400'
+                                : 'border-gray-300 bg-white text-gray-700 hover:border-blue-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-blue-700'
+                                }`}
                           >
+                            <input
+                              type="checkbox"
+                              checked={editingProcessor.databaseTypes.includes(type.value)}
+                              onChange={() => {
+                                const newTypes = [...editingProcessor.databaseTypes];
+                                const index = newTypes.indexOf(type.value);
+                                if (index > -1) {
+                                  if (newTypes.length > 1) {
+                                    newTypes.splice(index, 1);
+                                  } else {
+                                    toast.info('至少需要选择一个数据库类型');
+                                    return;
+                                  }
+                                } else {
+                                  newTypes.push(type.value);
+                                }
+                                handleProcessorChange('databaseTypes', newTypes);
+                              }}
+                              className="mr-2 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                            />
                             {type.label}
-                          </button>
+                          </label>
                         ))
                       ) : (
-                        <div className="text-xs text-gray-500">加载中...</div>
+                        <div className="text-sm text-gray-500">加载数据库类型中...</div>
                       )}
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      选择处理器适用的数据库系统，至少选择一个
+                    </p>
+                  </div>
+
+                  {/* 事件码过滤 */}
+                  <div>
+                    <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                      事件码过滤 (可多选)
+                    </label>
+                    <div className="flex flex-wrap gap-2 max-h-80 overflow-y-auto p-2 border border-gray-200 rounded-lg dark:border-gray-700">
+                      {eventCodes.filter(ec => ec.enabled).map((ec) => (
+                        <label
+                          key={ec.code}
+                          className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-medium transition-colors ${editingProcessor.eventCodes.includes(ec.code)
+                              ? 'border-blue-600 bg-blue-50 text-blue-700 dark:border-blue-500 dark:bg-blue-900/30 dark:text-blue-400'
+                              : 'border-gray-300 bg-white text-gray-700 hover:border-blue-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-blue-700'
+                              }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={editingProcessor.eventCodes.includes(ec.code)}
+                            onChange={() => toggleEventCode(ec.code)}
+                            className="mr-2 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                          />
+                          {ec.code}
+                          {ec.description && <span className="ml-1 text-xs text-gray-500">({ec.description})</span>}
+                        </label>
+                      ))}
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      选择处理器需要监听的事件码，留空表示不过滤
+                    </p>
+                  </div>
+
+                  {/* 系统预设模板 */}
+                  <div>
+                    <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                      预设sql查询
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {systemTemplates.map((template) => (
+                        <button
+                          key={template.id}
+                          onClick={() => applySystemTemplate(template.id)}
+                          className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${selectedSystemTemplateId === template.id
+                              ? 'border-blue-600 bg-blue-100 text-blue-800 ring-2 ring-blue-600 ring-offset-1 dark:border-blue-400 dark:bg-blue-900/50 dark:text-blue-300 dark:ring-blue-400'
+                              : 'border-gray-300 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-blue-700 dark:hover:bg-blue-900/30'
+                              }`}
+                        >
+                          <i className={`fa-solid fa-database mr-1 ${selectedSystemTemplateId === template.id
+                              ? 'text-blue-600 dark:text-blue-400'
+                              : 'text-blue-500'
+                              }`}></i>
+                          {template.name}
+                          {selectedSystemTemplateId === template.id && (
+                            <i className="fa-solid fa-check ml-1 text-blue-600 dark:text-blue-400"></i>
+                          )}
+                        </button>
+                      ))}
                     </div>
                   </div>
 
-                  {/* 事件码快速选择 */}
+                  {/* 自定义模板 */}
                   <div>
-                    <label className="block mb-1 text-xs font-medium text-gray-700 dark:text-gray-300">
-                      事件码
-                    </label>
-                    <select
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          toggleEventCode(e.target.value);
-                        }
-                      }}
-                      value=""
-                    >
-                      <option value="">添加事件码</option>
-                      {eventCodes.filter(ec => ec.enabled).map((ec) => (
-                        <option key={ec.code} value={ec.code}>
-                          {ec.code} {ec.description ? `(${ec.description})` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* 模板选择 */}
-                  <div>
-                    <label className="block mb-1 text-xs font-medium text-gray-700 dark:text-gray-300">
-                      预设模板
-                    </label>
-                    <select
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
-                      onChange={(e) => {
-                        const [type, id] = e.target.value.split(':');
-                        if (type === 'system') {
-                          applySystemTemplate(id);
-                        } else if (type === 'custom') {
-                          applyCustomTemplate(id);
-                        }
-                      }}
-                      value=""
-                    >
-                      <option value="">选择模板</option>
-                      <optgroup label="系统模板">
-                        {systemTemplates.map(t => (
-                          <option key={`system:${t.id}`} value={`system:${t.id}`}>
-                            {t.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="自定义查询模板">
-                        {customTemplates.map(t => (
-                          <option key={`custom:${t.id}`} value={`custom:${t.id}`}>
-                            {t.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    </select>
-                  </div>
-                </div>
-
-                {/* 已选事件码标签 */}
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {editingProcessor.eventCodes.map((code) => (
-                    <span
-                      key={code}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs dark:bg-blue-900/30 dark:text-blue-400"
-                    >
-                      {code}
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        自定义查询模板
+                      </label>
                       <button
-                        onClick={() => toggleEventCode(code)}
-                        className="hover:text-blue-600 dark:hover:text-blue-300"
+                        onClick={addCustomTemplate}
+                        className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                       >
-                        <i className="fa-solid fa-times"></i>
+                        <i className="fa-solid fa-plus mr-1"></i>新建模板
                       </button>
-                    </span>
-                  ))}
-                </div>
+                    </div>
 
-                {/* 描述输入 */}
-                <div className="mt-2">
-                  <input
-                    type="text"
-                    value={editingProcessor.description}
-                    onChange={(e) => handleProcessorChange('description', e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
-                    placeholder="处理器描述（可选）"
-                  />
-                </div>
-              </div>
-
-              <div
-                className="rounded-xl bg-white p-4 shadow-md dark:bg-gray-800 dark:shadow-lg"
-                onScroll={handleEditorScroll}
-              >
-                <div className="mb-2 flex items-center justify-between">
-                  <h3 className="text-md font-semibold">JavaScript 代码</h3>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(editingProcessor.code);
-                        toast.success('代码已复制到剪贴板');
-                      }}
-                      className="flex items-center gap-1 px-2 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-50 dark:bg-gray-600 dark:border-gray-500 dark:text-gray-200 dark:hover:bg-gray-500"
-                    >
-                      <i className="fa-solid fa-copy"></i> 复制
-                    </button>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          const formatted = await prettier.format(editingProcessor.code, {
-                            parser: 'babel',
-                            plugins: [parserBabel, prettierPluginEstree],
-                            semi: true,
-                            singleQuote: true,
-                            tabWidth: 2,
-                            trailingComma: 'es5',
-                          });
-                          handleProcessorChange('code', formatted.trim());
-                          toast.success('代码已格式化');
-                        } catch (error) {
-                          toast.error('格式化失败，请检查代码语法');
-                        }
-                      }}
-                      className="flex items-center gap-1 px-2 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-50 dark:bg-gray-600 dark:border-gray-500 dark:text-gray-200 dark:hover:bg-gray-500"
-                    >
-                      <i className="fa-solid fa-wand-magic-sparkles"></i> 格式化
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        try {
-                          new Function(editingProcessor.code);
-                          const processFn = new Function(editingProcessor.code + '\nreturn process;')();
-                          if (typeof processFn !== 'function') {
-                            toast.error('未找到 process 函数');
-                            return;
-                          }
-                          toast.success('语法校验通过');
-                        } catch (error) {
-                          toast.error(error instanceof Error ? error.message : '代码语法错误');
-                        }
-                      }}
-                      className="flex items-center gap-1 px-2 py-1 text-xs bg-white border border-gray-300 rounded hover:bg-gray-50 dark:bg-gray-600 dark:border-gray-500 dark:text-gray-200 dark:hover:bg-gray-500"
-                    >
-                      <i className="fa-solid fa-check-circle"></i> 校验
-                    </button>
+                    {customTemplates.length === 0 ? (
+                      <div className="text-sm text-gray-500 dark:text-gray-400 italic p-2 border border-dashed border-gray-300 rounded-lg dark:border-gray-700">
+                        暂无自定义查询模板，点击"新建模板"创建
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-60 overflow-y-auto p-2 border border-gray-200 rounded-lg dark:border-gray-700">
+                        {customTemplates.map((template) => (
+                          <div
+                            key={template.id}
+                            className={`flex items-center gap-2 p-2 rounded-lg border transition-colors ${
+                              selectedCustomTemplateId === template.id
+                                ? 'bg-blue-50 border-blue-300 dark:bg-blue-900/30 dark:border-blue-700 ring-1 ring-blue-500'
+                                : 'bg-gray-50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'
+                            }`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <input
+                                type="text"
+                                value={template.name}
+                                onChange={(e) => {
+                                  setCustomTemplates(prev =>
+                                    prev.map(t => t.id === template.id ? { ...t, name: e.target.value } : t)
+                                  );
+                                }}
+                                onBlur={(e) => {
+                                  updateCustomTemplate(template.id, { name: e.target.value });
+                                }}
+                                className={`w-full text-sm bg-transparent border-b ${
+                                  selectedCustomTemplateId === template.id
+                                    ? 'border-blue-300 dark:border-blue-700'
+                                    : 'border-transparent hover:border-gray-300 dark:hover:border-gray-600'
+                                } focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500`}
+                                placeholder="模板名称"
+                              />
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <button
+                                onClick={() => applyCustomTemplate(template.id)}
+                                className={`p-1.5 rounded-md transition-colors ${
+                                  selectedCustomTemplateId === template.id
+                                    ? 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50'
+                                    : 'text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30'
+                                }`}
+                                title="应用模板"
+                              >
+                                <i className="fa-solid fa-check text-sm"></i>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditingTemplate({
+                                    id: template.id,
+                                    name: template.name,
+                                    sql: template.sqlTemplate
+                                  });
+                                }}
+                                className="p-1.5 text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
+                                title="编辑SQL"
+                              >
+                                <i className="fa-solid fa-pen text-sm"></i>
+                              </button>
+                              <button
+                                onClick={() => deleteCustomTemplate(template.id)}
+                                className="p-1.5 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md transition-colors"
+                                title="删除模板"
+                              >
+                                <i className="fa-solid fa-trash text-sm"></i>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
 
-                <div className="rounded-lg border border-gray-300 overflow-hidden dark:border-gray-700">
-                  <div
-                    style={{ height: '600px' }}
-                    onWheel={(e) => e.stopPropagation()}
-                    onScroll={(e) => e.stopPropagation()}
-                  >
-                    <CodeMirror
-                      value={editingProcessor.code}
-                      height="600px"
-                      style={{ fontSize: `${editorFontSize}px` }}
-                      extensions={[javascript()]}
-                      theme={oneDark}
-                      onChange={(value) => handleProcessorChange('code', value)}
-               
-                      basicSetup={{
-                        lineNumbers: true,
-                        highlightActiveLineGutter: true,
-                        highlightSpecialChars: true,
-                        foldGutter: true,
-                        drawSelection: true,
-                        dropCursor: true,
-                        allowMultipleSelections: true,
-                        indentOnInput: true,
-                        syntaxHighlighting: true,
-                        bracketMatching: true,
-                        closeBrackets: true,
-                        autocompletion: true,
-                        rectangularSelection: true,
-                        crosshairCursor: true,
-                        highlightActiveLine: true,
-                        highlightSelectionMatches: true,
-                        foldKeymap: true,
-                      }}
+                  {/* 描述输入 */}
+                  <div>
+                    <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                      描述
+                    </label>
+                    <textarea
+                      value={editingProcessor.description}
+                      onChange={(e) => handleProcessorChange('description', e.target.value)}
+                      rows={3}
+                      className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
+                      placeholder="请输入处理器描述"
                     />
                   </div>
                 </div>
-              </div>
 
-              {/* 底部：SQL模板 */}
-              <div className="rounded-xl bg-white p-4 shadow-md dark:bg-gray-800 dark:shadow-lg">
-                <h3 className="mb-2 text-md font-semibold">SQL 预览</h3>
-                <div className="rounded-lg border border-gray-300 overflow-hidden dark:border-gray-700">
-                  <div style={{ height: '200px' }}>
-                    <CodeMirror
-                      style={{ fontSize: '15px' }}
-                      value={editingProcessor.sqlTemplate}
-                      height="200px"
-                      extensions={[sql()]}
-                      theme={oneDark}
-                      onChange={(value) => handleProcessorChange('sqlTemplate', value)}
-                      basicSetup={{
-                        lineNumbers: true,
-                        highlightActiveLineGutter: true,
-                        highlightSpecialChars: true,
-                        foldGutter: true,
-                        drawSelection: true,
-                        dropCursor: true,
-                        allowMultipleSelections: true,
-                        indentOnInput: true,
-                        syntaxHighlighting: true,
-                        bracketMatching: true,
-                        closeBrackets: true,
-                        autocompletion: true,
-                        rectangularSelection: true,
-                        crosshairCursor: true,
-                        highlightActiveLine: true,
-                        highlightSelectionMatches: true,
-                      }}
-                    />
+                {/* 提示区域 */}
+                <div className="mt-2 rounded-lg bg-yellow-50 p-4 text-sm text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400 flex-shrink-0">
+                  <div className="flex items-start">
+                    <i className="fa-solid fa-lightbulb mt-0.5 mr-2"></i>
+                    <div>
+                      <p className="mb-1 font-medium">提示:</p>
+                      <ul className="list-disc pl-5 space-y-1">
+                        <li>确保实现process函数作为入口点，并且保留模板process函数外的代码</li>
+                        <li>process函数data参数为sql查询结果转换为对象后注入的产物</li>
+                        <li>请按照规范返回ProcessResult对象</li>
+                        <li>可以定义辅助函数来分离复杂逻辑</li>
+                        <li>如有必要进行try catch处理</li>
+                        <li>脚本库函数全部为函数注入，添加库函数需要进行插件注册</li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          )}
+
+            {/* 右侧编辑器 */}
+            <div className="lg:col-span-2">
+              <div className="space-y-6">
+                <JSCodeEditor
+                  code={editingProcessor.code}
+                  fontSize={editorFontSize}
+                  onCodeChange={handleCodeChange}
+                  onFullscreenClick={() => setIsFullscreen(true)}
+                />
+                <SQLEditor
+                  code={editingProcessor.sqlTemplate}
+                  onCodeChange={handleSqlTemplateChange}
+                />
+              </div>
+            </div>
+          </div>
 
           {/* 编辑器内嵌调试面板 */}
           {showEditorDebug && (
@@ -1567,7 +1404,6 @@ export default function JSProcessorManager() {
               </div>
 
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                {/* 左侧输入区域 */}
                 <div className="lg:col-span-1">
                   <div className="space-y-4">
                     <div>
@@ -1604,9 +1440,6 @@ export default function JSProcessorManager() {
                           <option value="">加载中...</option>
                         )}
                       </select>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        使用处理器配置的第一个数据库类型
-                      </p>
                     </div>
 
                     <button
@@ -1627,12 +1460,9 @@ export default function JSProcessorManager() {
                         </>
                       )}
                     </button>
-
-
                   </div>
                 </div>
 
-                {/* 右侧日志输出区域 */}
                 <div className="lg:col-span-2">
                   <div className="rounded-lg border border-gray-300 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
                     <div className="flex items-center justify-between mb-2">
@@ -1680,7 +1510,6 @@ export default function JSProcessorManager() {
                       )}
                     </div>
 
-                    {/* 结果显示区域 */}
                     {editorDebugResult?.result && (
                       <div className="mt-4 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
                         <div className="text-sm font-medium mb-2">处理结果摘要:</div>
@@ -1715,7 +1544,6 @@ export default function JSProcessorManager() {
             <h3 className="mb-6 text-lg font-semibold">处理器调试</h3>
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-              {/* 调试控制面板 */}
               <div className="lg:col-span-1">
                 <div className="space-y-4">
                   <div>
@@ -1753,9 +1581,6 @@ export default function JSProcessorManager() {
                           {ec.code} {ec.description ? `(${ec.description})` : ''}
                         </option>
                       ))}
-                      {eventCodes.filter(ec => ec.enabled).length === 0 && (
-                        <option value="">暂无可用事件码</option>
-                      )}
                     </select>
                   </div>
 
@@ -1820,7 +1645,6 @@ export default function JSProcessorManager() {
                 </div>
               </div>
 
-              {/* 调试结果 */}
               <div className="lg:col-span-2">
                 <div className="rounded-lg border border-gray-300 bg-gray-50 p-4 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 mb-4">
                   <div className="font-medium mb-1">调试说明:</div>
@@ -1832,7 +1656,6 @@ export default function JSProcessorManager() {
                   </ul>
                 </div>
 
-                {/* 调试日志输出区域 */}
                 <div className="rounded-lg border border-gray-300 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -1879,7 +1702,6 @@ export default function JSProcessorManager() {
                     )}
                   </div>
 
-                  {/* 结果显示区域 */}
                   {debugResult?.result && (
                     <div className="mt-4 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
                       <div className="text-sm font-medium mb-2">处理结果摘要:</div>
@@ -1905,6 +1727,15 @@ export default function JSProcessorManager() {
           </div>
         </div>
       )}
+
+      {/* 全屏编辑器 */}
+      <FullscreenEditor
+        isOpen={isFullscreen}
+        code={editingProcessor.code}
+        fontSize={editorFontSize}
+        onClose={() => setIsFullscreen(false)}
+        onCodeChange={handleCodeChange}
+      />
 
       {/* SQL编辑器模态框 */}
       {editingTemplate && createPortal(
@@ -1932,24 +1763,7 @@ export default function JSProcessorManager() {
                   onChange={(value) => {
                     setEditingTemplate(prev => prev ? { ...prev, sql: value } : null);
                   }}
-                  basicSetup={{
-                    lineNumbers: true,
-                    highlightActiveLineGutter: true,
-                    highlightSpecialChars: true,
-                    foldGutter: true,
-                    drawSelection: true,
-                    dropCursor: true,
-                    allowMultipleSelections: true,
-                    indentOnInput: true,
-                    syntaxHighlighting: true,
-                    bracketMatching: true,
-                    closeBrackets: true,
-                    autocompletion: true,
-                    rectangularSelection: true,
-                    crosshairCursor: true,
-                    highlightActiveLine: true,
-                    highlightSelectionMatches: true,
-                  }}
+                  basicSetup={CODE_MIRROR_BASIC_SETUP}
                 />
               </div>
             </div>
