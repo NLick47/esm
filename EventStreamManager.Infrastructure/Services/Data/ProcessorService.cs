@@ -6,12 +6,15 @@ namespace EventStreamManager.Infrastructure.Services.Data;
 public class ProcessorService : IProcessorService
 {
     private readonly IDataService _dataService;
+    
+    private readonly ISqlTemplateService _sqlTemplateService;
    
     private const string FileName = "processors.json";
 
-    public ProcessorService(IDataService dataService)
+    public ProcessorService(IDataService dataService, ISqlTemplateService sqlTemplateService)
     {
         _dataService = dataService;
+        _sqlTemplateService = sqlTemplateService;
     }
 
     public async Task<List<JsProcessor>> GetAllAsync()
@@ -22,7 +25,32 @@ public class ProcessorService : IProcessorService
     public async Task<JsProcessor?> GetByIdAsync(string id)
     {
         var list = await _dataService.ReadAsync<JsProcessor>(FileName);
-        return list.FirstOrDefault(x => x.Id == id);
+        var processor = list.FirstOrDefault(x => x.Id == id);
+    
+        if (processor != null && !string.IsNullOrEmpty(processor.SqlTemplateId))
+        {
+            // 根据模板类型获取SQL模板内容
+            if (processor.SqlTemplateType == SqlTemplateType.System)
+            {
+                var systemTemplates = await _sqlTemplateService.GetSystemTemplatesAsync();
+                var template = systemTemplates.FirstOrDefault(t => t.Id == processor.SqlTemplateId);
+                if (template != null)
+                {
+                    processor.SqlTemplate = template.SqlTemplate;
+                }
+            }
+            else if (processor.SqlTemplateType == SqlTemplateType.Custom)
+            {
+                var customTemplates = await _sqlTemplateService.GetCustomTemplatesAsync();
+                var template = customTemplates.FirstOrDefault(t => t.Id == processor.SqlTemplateId);
+                if (template != null)
+                {
+                    processor.SqlTemplate = template.SqlTemplate;
+                }
+            }
+        }
+    
+        return processor;
     }
 
     public async Task<JsProcessor> CreateAsync(JsProcessor processor)

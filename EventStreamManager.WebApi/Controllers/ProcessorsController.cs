@@ -46,40 +46,27 @@ public class ProcessorsController : BaseController
         {
             return Fail($"未找到ID为 {id} 的处理器", 404);
         }
-            
+    
         var response = _mapper.Map<JsProcessorDetailResponse>(item);
-        if (!string.IsNullOrEmpty(item.SqlTemplateId))
+    
+        if (!string.IsNullOrEmpty(item.SqlTemplate))
         {
-            string? sqlTemplate = null;
-            string? templateName = null;
-
+            response.SqlTemplate = item.SqlTemplate;
+            
             if (item.SqlTemplateType == SqlTemplateType.System)
             {
                 var systemTemplates = await _sqlTemplateService.GetSystemTemplatesAsync();
                 var template = systemTemplates.FirstOrDefault(t => t.Id == item.SqlTemplateId);
-                if (template != null)
-                {
-                    sqlTemplate = template.SqlTemplate;
-                    templateName = template.Name;
-                }
+                response.SqlTemplateName = template?.Name;
             }
-                
             else if (item.SqlTemplateType == SqlTemplateType.Custom)
             {
                 var customTemplates = await _sqlTemplateService.GetCustomTemplatesAsync();
                 var template = customTemplates.FirstOrDefault(t => t.Id == item.SqlTemplateId);
-                if (template != null)
-                {
-                    sqlTemplate = template.SqlTemplate;
-                    templateName = template.Name;
-                }
+                response.SqlTemplateName = template?.Name;
             }
-                
-            response.SqlTemplate = sqlTemplate ?? string.Empty;
-            response.SqlTemplateName = templateName;
         }
-            
-            
+    
         return Ok(response, "获取处理器成功");
     }
     

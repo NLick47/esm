@@ -311,10 +311,23 @@ public class DatabaseTypeProcessor
     private async Task<List<JsProcessor>> GetMatchingProcessorsAsync(Event eventData, IProcessorService processorService)
     {
         var all = await processorService.GetAllAsync();
-        return all.Where(p => p.Enabled)
-                  .Where(p => p.DatabaseTypes.Contains(_databaseType) || p.DatabaseTypes.Count == 0)
-                  .Where(p => p.EventCodes.Count == 0 || p.EventCodes.Contains(eventData.EventCode))
-                  .ToList();
+        var ids = all.Where(p => p.Enabled)
+            .Where(p => p.DatabaseTypes.Contains(_databaseType) || p.DatabaseTypes.Count == 0)
+            .Where(p => p.EventCodes.Count == 0 || p.EventCodes.Contains(eventData.EventCode))
+            .Select(p => p.Id)
+            .ToList();
+    
+        var processors = new List<JsProcessor>();
+        foreach (var id in ids)
+        {
+            var processor = await processorService.GetByIdAsync(id);
+            if (processor != null)
+            {
+                processors.Add(processor);
+            }
+        }
+    
+        return processors;
     }
 
     private async Task<ExecutionResult> ExecuteProcessorAsync(
