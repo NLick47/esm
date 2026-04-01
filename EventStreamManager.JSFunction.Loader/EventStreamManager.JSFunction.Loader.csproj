@@ -11,6 +11,7 @@
     </ItemGroup>
     
     <ItemGroup>
+      <ProjectReference Include="..\EventStreamManager.JSFunction.Sql\EventStreamManager.JSFunction.Sql.csproj" />
       <ProjectReference Include="..\EventStreamManager.JSFunction.Standard\EventStreamManager.JSFunction.Standard.csproj" />
       <ProjectReference Include="..\EventStreamManager.JSFunction\EventStreamManager.JSFunction.csproj" />
     </ItemGroup>
