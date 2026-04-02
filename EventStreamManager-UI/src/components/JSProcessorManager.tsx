@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback,useMemo } from 'react';
 import { toast } from 'sonner';
 import CodeMirror from '@uiw/react-codemirror';
 import { javascript } from '@codemirror/lang-javascript';
@@ -43,6 +43,8 @@ import {
 
 import{getDatabaseTypesWithActiveConfig}
 from '@/services/database.service'
+import { autocompletion } from '@codemirror/autocomplete';
+import { useFunctionAutocomplete } from '@/components/AutocompleteCodeEditor';
 
 // ==================== 常量定义 ====================
 
@@ -210,7 +212,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
       {showDocButton && (
         <button
           type="button"
-          onClick={() => window.open('/src/doc/func.html', '_blank')}
+          onClick={() => window.open('/documentation', '_blank')}
           className={docButtonClass}
         >
           <i className="fa-solid fa-book"></i> 文档
@@ -296,6 +298,13 @@ const JSCodeEditor: React.FC<JSCodeEditorProps> = ({
   onCodeChange,
   onFullscreenClick,
 }) => {
+  const { functionCompletionSource } = useFunctionAutocomplete();
+  const autocompleteExtension = useMemo(() => {
+    return autocompletion({
+      override: [functionCompletionSource],
+      activateOnTyping: true
+    });
+  }, [functionCompletionSource]);
   return (
     <div
       className="rounded-xl bg-white p-6 shadow-md dark:bg-gray-800 dark:shadow-lg"
@@ -328,7 +337,7 @@ const JSCodeEditor: React.FC<JSCodeEditorProps> = ({
             value={code}
             height={height}
             style={{ fontSize: `${fontSize}px` }}
-            extensions={[javascript()]}
+            extensions={[javascript(), autocompleteExtension]}
             theme={oneDark}
             onChange={(value) => onCodeChange(value)}
             basicSetup={CODE_MIRROR_BASIC_SETUP}

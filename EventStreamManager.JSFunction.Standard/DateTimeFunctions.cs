@@ -62,7 +62,7 @@ public static class DateTimeFunctions
                 new() { Name = "format", Type = typeof(string), IsOptional = true, Description = "可选：返回格式" }
             },
             ReturnType = typeof(object),
-            Example = "var dt = datetime_combine_now('2024-01-01'); // 返回 2024-01-01 当前时间"
+            Example = "var dt = datetime_combine_now('2026-03-08'); // 返回 2026-03-08 当前时间"
         };
 
         yield return new FunctionMetadata
@@ -116,7 +116,7 @@ public static class DateTimeFunctions
                 new() { Name = "format", Type = typeof(string), Description = "输出格式" }
             },
             ReturnType = typeof(string),
-            Example = "var str = datetime_to_string(datetime_combine('2024-01-01', '13:30'), 'yyyy年MM月dd日 HH时mm分');"
+            Example = "var str = datetime_to_string(datetime_combine('2026-03-08', '13:30'), 'yyyy年MM月dd日 HH时mm分');"
         };
     }
 
@@ -153,16 +153,16 @@ public static class DateTimeFunctions
     {
         return @"
         // 返回 DateTime 对象
-        var dt1 = datetime_combine('2024-01-01', '13:30:00');
-        var dt2 = datetime_combine('2024/01/01', '14:30');
+        var dt1 = datetime_combine('2026-03-08', '13:30:00');
+        var dt2 = datetime_combine('2026/03/08', '14:30');
 
         // 返回指定格式字符串
-        var str1 = datetime_combine('2024-01-01', '13:30:00', 'yyyy-MM-dd HH:mm:ss');
-        var str2 = datetime_combine('2024-01-01', '13:30', 'yyyy年MM月dd日 HH时mm分');
+        var str1 = datetime_combine('2026-03-08', '13:30:00', 'yyyy-MM-dd HH:mm:ss');
+        var str2 = datetime_combine('2026-03-08', '13:30', 'yyyy年MM月dd日 HH时mm分');
 
         // 各种格式示例
-        var dt3 = datetime_combine('20240101', '1330');     // 2024-01-01 13:30:00
-        var dt4 = datetime_combine('01-01-2024', '13:30');   // 2024-01-01 13:30:00
+        var dt3 = datetime_combine('20260308', '1330');     // 2026-03-08 13:30:00
+        var dt4 = datetime_combine('08-03-2026', '13:30');   // 2026-03-08 13:30:00
         ";
     }
 }
