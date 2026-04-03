@@ -1,4 +1,4 @@
-import { get, post, put, del } from '@/utils/request';
+import { get, post, put, del, patch } from '@/utils/request';
 import { 
   InterfaceConfig, 
   AvailableProcessor, 
@@ -52,7 +52,7 @@ export function duplicateInterfaceConfig(id: string): Promise<InterfaceConfig> {
  * 切换接口配置状态
  */
 export function toggleInterfaceConfig(id: string): Promise<InterfaceConfig> {
-  return post<InterfaceConfig>(`/api/InterfaceConfig/${id}/toggle`);
+  return patch<InterfaceConfig>(`/api/InterfaceConfig/${id}/toggle`);
 }
 
 /**
