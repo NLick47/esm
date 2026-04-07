@@ -9,14 +9,11 @@ namespace EventStreamManager.WebApi.Controllers;
 public class ScriptController : BaseController
 {
     private readonly IJavaScriptExecutionService _scriptExecutionService;
-    private readonly ILogger<ScriptController> _logger;
 
     public ScriptController(
-        IJavaScriptExecutionService javaScriptExecutionService,
-        ILogger<ScriptController> logger)
+        IJavaScriptExecutionService javaScriptExecutionService)
     {
         _scriptExecutionService = javaScriptExecutionService;
-        _logger = logger;
     }
 
     [HttpPost("validate")]

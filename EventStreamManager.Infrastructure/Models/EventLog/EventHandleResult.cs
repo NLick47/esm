@@ -90,5 +90,5 @@ public class EventHandleResult
     /// <summary>
     /// 事件名称
     /// </summary>
-    public string EventName { get; set; }
+    public string? EventName { get; set; }
 }

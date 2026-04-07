@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.Data.Sqlite;
@@ -25,6 +26,7 @@ public class SimpleSqlJsFunctionProvider : IJsFunctionProvider
             _ = typeof(MySqlClientFactory).FullName;
             _ = typeof(NpgsqlFactory).FullName;
             _ = typeof(SqliteFactory).FullName;
+            _ = typeof(OracleClientFactory).FullName;
         }
         catch (Exception ex)
         {
@@ -34,7 +36,6 @@ public class SimpleSqlJsFunctionProvider : IJsFunctionProvider
     
     public IEnumerable<FunctionMetadata> GetFunctions()
     {
-      
         yield return new FunctionMetadata
         {
             Name = "sql_query",
@@ -160,7 +161,7 @@ public class SimpleSqlJsFunctionProvider : IJsFunctionProvider
             FunctionDelegate = new Func<string, string, string, List<object>, List<string>, int>(
                 (dbType, connectionString, tableName, data, columns) =>
                 {
-                    if (data == null || data.Count == 0)
+                    if (data.Count == 0)
                         return 0;
                     
                     using var connection = CreateConnection(dbType, connectionString);
@@ -192,7 +193,7 @@ public class SimpleSqlJsFunctionProvider : IJsFunctionProvider
                             {
                                 var param = command.CreateParameter();
                                 param.ParameterName = $"{paramPrefix}p{i}";
-                                param.Value = rowDict.ContainsKey(columns[i]) ? rowDict[columns[i]] : DBNull.Value;
+                                param.Value = rowDict.TryGetValue(columns[i], out var value) ? value : DBNull.Value;
                                 command.Parameters.Add(param);
                             }
                             
@@ -239,13 +240,13 @@ public class SimpleSqlJsFunctionProvider : IJsFunctionProvider
                     {
                         foreach (var stmt in sqlStatements)
                         {
-                            string sql = "";
+                            string sql;
                             object? parameters = null;
                             
                             if (stmt is Dictionary<string, object> dict)
                             {
-                                sql = dict["sql"]?.ToString() ?? "";
-                                parameters = dict.ContainsKey("parameters") ? dict["parameters"] : null;
+                                sql = dict.TryGetValue("sql", out var sqlValue) ? sqlValue.ToString() ?? "" : "";
+                                parameters = dict.GetValueOrDefault("parameters");
                             }
                             else if (stmt is string str)
                             {
@@ -327,7 +328,7 @@ public class SimpleSqlJsFunctionProvider : IJsFunctionProvider
             Category = "SQL",
             Description = "获取Oracle序列的下一个值",
             FunctionDelegate = new Func<string, string, string, long>(
-                (connectionString, sequenceName, dbType) =>
+                (connectionString, sequenceName, _) =>
                 {
                     using var connection = CreateConnection("oracle", connectionString);
                     connection.Open();
@@ -370,7 +371,7 @@ public class SimpleSqlJsFunctionProvider : IJsFunctionProvider
     /// <summary>
     /// 获取参数前缀
     /// </summary>
-    private string GetParameterPrefix(string dbType)
+    private static string GetParameterPrefix(string dbType)
     {
         return dbType.ToLower() switch
         {
@@ -386,7 +387,7 @@ public class SimpleSqlJsFunctionProvider : IJsFunctionProvider
     /// <summary>
     /// 标准化参数名称（根据数据库类型）
     /// </summary>
-    private string NormalizeParameterName(string paramName, string dbType)
+    private static string NormalizeParameterName(string paramName, string dbType)
     {
         if (string.IsNullOrEmpty(paramName))
             return paramName;
@@ -407,7 +408,8 @@ public class SimpleSqlJsFunctionProvider : IJsFunctionProvider
     /// <summary>
     /// 添加参数到命令对象
     /// </summary>
-    private void AddParameters(DbCommand command, object parameters, string dbType)
+    [SuppressMessage("Style", "IDE0018:内联变量声明")]
+    private void AddParameters(DbCommand command, object? parameters, string dbType)
     {
         if (parameters == null) return;
         
@@ -432,12 +434,12 @@ public class SimpleSqlJsFunctionProvider : IJsFunctionProvider
                 var dbParam = command.CreateParameter();
                 // 标准化参数名称
                 dbParam.ParameterName = NormalizeParameterName(param.Key, dbType);
-                dbParam.Value = param.Value ?? DBNull.Value;
+                dbParam.Value = param.Value;
                 
                 // Oracle特殊处理：对于VARCHAR2类型，需要指定大小
                 if (dbType.ToLower() == "oracle" && dbParam is OracleParameter oracleParam)
                 {
-                    if (param.Value is string strValue && strValue.Length > 0)
+                    if (param.Value is string { Length: > 0 } strValue)
                     {
                         oracleParam.Size = strValue.Length;
                     }

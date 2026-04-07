@@ -247,7 +247,7 @@ public class SqlSugarContext : ISqlSugarContext
             DriverType.MySql => DbType.MySql,
             DriverType.PostgreSql => DbType.PostgreSQL,
             DriverType.Oracle => DbType.Oracle,
-            DriverType.SQLite => DbType.Sqlite,
+            DriverType.SqLite => DbType.Sqlite,
             _ => throw new NotSupportedException($"不支持的数据库驱动: {driver}")
         };
     }

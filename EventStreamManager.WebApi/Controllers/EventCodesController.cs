@@ -9,15 +9,12 @@ namespace EventStreamManager.WebApi.Controllers;
 public class EventCodesController : BaseController
 {
     private readonly IDataService _dataService;
-    private readonly ILogger<EventCodesController> _logger;
     private const string FileName = "eventcodes.json";
 
     public EventCodesController(
-        IDataService dataService,
-        ILogger<EventCodesController> logger)
+        IDataService dataService)
     {
         _dataService = dataService;
-        _logger = logger;
     }
     
     [HttpGet]

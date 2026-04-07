@@ -127,7 +127,7 @@ public class ScriptExecutor
             Context = new ContextInfo
             {
                 EventId = context.Event.Id.ToString(),
-                strEventReferenceId = context.Event.StrEventReferenceId,
+                StrEventReferenceId = context.Event.StrEventReferenceId,
                 EventType = context.Event.EventType,
                 EventName = context.Event.EventName,
                 EventCode = context.Event.EventCode,

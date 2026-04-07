@@ -11,14 +11,11 @@ namespace EventStreamManager.WebApi.Controllers;
 public class EventLogController : BaseController
 {
     private readonly IEventLogService _eventLogService;
-    private readonly ILogger<EventLogController> _logger;
 
     public EventLogController(
-        IEventLogService eventLogService,
-        ILogger<EventLogController> logger)
+        IEventLogService eventLogService)
     {
         _eventLogService = eventLogService;
-        _logger = logger;
     }
 
 

@@ -5,7 +5,7 @@ export enum DriverType {
   MySql = 'MySql',
   PostgreSQL = 'PostgreSql',
   Oracle = 'Oracle',
-  SqLite = 'SQLite'
+  SqLite = 'SqLite'
 }
 
 export interface DatabaseConfig {

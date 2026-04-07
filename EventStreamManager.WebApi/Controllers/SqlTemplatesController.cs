@@ -11,14 +11,11 @@ namespace EventStreamManager.WebApi.Controllers;
 public class SqlTemplatesController : BaseController
 {
     private readonly ISqlTemplateService _sqlTemplateService;
-    private readonly ILogger<SqlTemplatesController> _logger;
     private readonly IMapper _mapper;
     public SqlTemplatesController(
-        ISqlTemplateService sqlTemplateService,
-        ILogger<SqlTemplatesController> logger, IMapper mapper)
+        ISqlTemplateService sqlTemplateService, IMapper mapper)
     {
         _sqlTemplateService = sqlTemplateService;
-        _logger = logger;
         _mapper = mapper;
     }
     

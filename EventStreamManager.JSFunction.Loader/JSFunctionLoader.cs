@@ -125,8 +125,9 @@ public class JsFunctionLoader : IDisposable
                     
                     foreach (var provider in providers)
                     {
-                        _logger?.LogDebug("  - 提供者: {ProviderName}, 版本: {Version}", 
-                            provider.Name, provider.Version ?? "未知");
+                        if (provider != null)
+                            _logger?.LogDebug("  - 提供者: {ProviderName}, 版本: {Version}",
+                                provider.Name, provider.Version);
                     }
                 }
                 else

@@ -114,7 +114,7 @@ public class JsonDataService : IDataService
         return JsonSerializer.Deserialize<List<T>>(json, _options) ?? new List<T>();
     }
 
-    public async Task<T> ReadTemplateSingleAsync<T>(string templateFileName) where T : class
+    public async Task<T?> ReadTemplateSingleAsync<T>(string templateFileName) where T : class
     {
         var filePath = Path.Combine(_templatesPath, templateFileName);
         if (!File.Exists(filePath))

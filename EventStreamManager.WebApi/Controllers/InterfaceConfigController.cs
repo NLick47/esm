@@ -50,7 +50,6 @@ namespace EventStreamManager.WebApi.Controllers
             }
 
             // 检查每个处理器是否已经被其他接口配置引用
-            var allConfigs = await _configService.GetAllConfigsAsync();
             var allProcessors = await _configService.GetAvailableProcessorsAsync();
                 
             var conflictingProcessors = new List<string>();
@@ -91,7 +90,6 @@ namespace EventStreamManager.WebApi.Controllers
                 }
 
                 // 检查每个处理器是否已经被其他接口配置引用（排除自己）
-                var allConfigs = await _configService.GetAllConfigsAsync();
                 var allProcessors = await _configService.GetAvailableProcessorsAsync();
                 
                 var conflictingProcessors = new List<string>();
@@ -169,7 +167,6 @@ namespace EventStreamManager.WebApi.Controllers
             }
 
             // 检查被复制的处理器是否已经被其他配置引用
-            var allConfigs = await _configService.GetAllConfigsAsync();
             var allProcessors = await _configService.GetAvailableProcessorsAsync();
                 
             var conflictingProcessors = new List<string>();

@@ -661,7 +661,7 @@ export default function DatabaseConnectionManager() {
                   <option value={DriverType.MySql}>MySql</option>
                   <option value={DriverType.PostgreSQL}>PostgreSql</option>
                   <option value={DriverType.Oracle}>Oracle</option>
-                  <option value={DriverType.SqLite}>SQLite</option>
+                  <option value={DriverType.SqLite}>SqLite</option>
                 </select>
               </div>
 

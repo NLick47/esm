@@ -405,7 +405,7 @@ namespace EventStreamManager.Infrastructure.Services
                 Context = new ContextInfo
                 {
                     EventId = eventData.Id.ToString(),
-                    strEventReferenceId = eventData.StrEventReferenceId,
+                    StrEventReferenceId = eventData.StrEventReferenceId,
                     EventType = eventData.EventType,
                     EventName = eventData.EventName,
                     EventCode = eventData.EventCode,
@@ -505,18 +505,18 @@ namespace EventStreamManager.Infrastructure.Services
                 var resultDebug = await _httpSendService.SendWithDebugAsync(databaseType, interfaceConfig, requestBody);
 
                 AddLog(logs, "info", $"请求耗时: {resultDebug.ExecutionTimeMs}ms");
-                AddLog(logs, "info", $"响应状态: {resultDebug.Result?.StatusCode ?? 0}");
+                AddLog(logs, "info", $"响应状态: {resultDebug.Result.StatusCode}");
 
-                if (resultDebug.Result?.Success == true)
+                if (resultDebug.Result.Success)
                 {
                     AddLog(logs, "success", "✅ 接口请求成功");
                 }
                 else
                 {
-                    AddLog(logs, "error", $"❌ 接口请求失败: {resultDebug.Result?.StatusCode} - {resultDebug.Result?.ErrorMessage}");
+                    AddLog(logs, "error", $"❌ 接口请求失败: {resultDebug.Result.StatusCode} - {resultDebug.Result.ErrorMessage}");
                 }
 
-                if (!string.IsNullOrEmpty(resultDebug.Result?.ResponseContent))
+                if (!string.IsNullOrEmpty(resultDebug.Result.ResponseContent))
                 {
                     var responsePreview = resultDebug.Result.ResponseContent.Length > 1000 
                         ? resultDebug.Result.ResponseContent.Substring(0, 1000) + "..." 
@@ -524,17 +524,6 @@ namespace EventStreamManager.Infrastructure.Services
                     AddLog(logs, "output", "响应体: " + responsePreview);
                 }
 
-        
-                if (resultDebug.RequestInfo == null)
-                {
-                    resultDebug.RequestInfo = new RequestInfo
-                    {
-                        Url = interfaceConfig.Url,
-                        Method = interfaceConfig.Method,
-                        Headers = interfaceConfig.Headers?.ToDictionary(h => h.Key, h => h.Value) ?? new Dictionary<string, string>(),
-                        Body = requestBody
-                    };
-                }
 
                 return resultDebug;
             }
@@ -555,7 +544,7 @@ namespace EventStreamManager.Infrastructure.Services
                     {
                         Url = interfaceConfig.Url,
                         Method = interfaceConfig.Method,
-                        Headers = interfaceConfig.Headers?.ToDictionary(h => h.Key, h => h.Value) ?? new Dictionary<string, string>(),
+                        Headers = interfaceConfig.Headers.ToDictionary(h => h.Key, h => h.Value),
                         Body = requestBody
                     }
                 };
@@ -578,7 +567,7 @@ namespace EventStreamManager.Infrastructure.Services
                     {
                         Url = interfaceConfig.Url,
                         Method = interfaceConfig.Method,
-                        Headers = interfaceConfig.Headers?.ToDictionary(h => h.Key, h => h.Value) ?? new Dictionary<string, string>(),
+                        Headers = interfaceConfig.Headers.ToDictionary(h => h.Key, h => h.Value),
                         Body = requestBody
                     }
                 };

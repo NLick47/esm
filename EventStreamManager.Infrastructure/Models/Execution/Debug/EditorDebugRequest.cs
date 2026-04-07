@@ -20,7 +20,7 @@ public class EditorDebugRequest
     /// <summary>
     /// 数据库类型
     /// </summary>
-    public string DatabaseType { get; set; }
+    public string DatabaseType { get; set; } = string.Empty;
 
     /// <summary>
     /// SQL模板（可选）

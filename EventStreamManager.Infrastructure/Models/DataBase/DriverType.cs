@@ -6,5 +6,5 @@ public enum DriverType : uint
     MySql = 2,
     PostgreSql = 3,
     Oracle = 4,
-    SQLite = 5,
+    SqLite = 5,
 }

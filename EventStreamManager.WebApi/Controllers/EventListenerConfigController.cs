@@ -9,14 +9,11 @@ namespace EventStreamManager.WebApi.Controllers;
 public class EventListenerConfigController : BaseController
 {
     private readonly IEventListenerConfigService _configService;
-    private readonly ILogger<EventListenerConfigController> _logger;
-    
+
     public EventListenerConfigController(
-        IEventListenerConfigService configService,
-        ILogger<EventListenerConfigController> logger)
+        IEventListenerConfigService configService)
     {
         _configService = configService;
-        _logger = logger;
     }
     
     [HttpGet]

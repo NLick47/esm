@@ -3,7 +3,7 @@ using EventStreamManager.JSFunction.Standard;
 
 namespace EventStreamManager.JSFunction.Loader;
 
-public class BuiltInProviderRegistry
+public static class BuiltInProviderRegistry
 {
     private static readonly List<Func<IJsFunctionProvider>> ProviderFactories = new();
     
@@ -13,8 +13,8 @@ public class BuiltInProviderRegistry
         Register(() => new StandardJsFunctionProvider());
         Register(() => new SimpleSqlJsFunctionProvider());
     }
-    
-    public static void Register(Func<IJsFunctionProvider> factory)
+
+    private static void Register(Func<IJsFunctionProvider> factory)
     {
         ProviderFactories.Add(factory);
     }
@@ -22,6 +22,6 @@ public class BuiltInProviderRegistry
     
     public static IEnumerable<IJsFunctionProvider> CreateAll()
     {
-        return ProviderFactories.Select(factory => factory()).Where(p => p != null);
+        return ProviderFactories.Select(factory => factory());
     }
 }

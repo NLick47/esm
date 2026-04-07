@@ -49,7 +49,7 @@ public class DatabaseConnectionService : IDatabaseConnectionService
             
             using var sqlSugarClient = new SqlSugarClient(connectionConfig);
 
-            sqlSugarClient.Aop.OnLogExecuting = (sql, parameters) =>
+            sqlSugarClient.Aop.OnLogExecuting = (sql, _) =>
             {
                 _logger.LogDebug("执行测试SQL: {sql}", sql);
             };
@@ -64,10 +64,10 @@ public class DatabaseConnectionService : IDatabaseConnectionService
                 version = request.Driver switch
                 {
                     DriverType.SqlServer => await GetSqlServerVersion(sqlSugarClient),
-                    DriverType.MySql => await GetMySQLVersion(sqlSugarClient),
-                    DriverType.PostgreSql => await GetPostgreSQLVersion(sqlSugarClient),
+                    DriverType.MySql => await GetMySqlVersion(sqlSugarClient),
+                    DriverType.PostgreSql => await GetPostgreSqlVersion(sqlSugarClient),
                     DriverType.Oracle => await GetOracleVersion(sqlSugarClient),
-                    DriverType.SQLite => await GetSQLiteVersion(sqlSugarClient),
+                    DriverType.SqLite => await GetSqLiteVersion(sqlSugarClient),
                     _ => null
                 };
             }
@@ -111,7 +111,7 @@ public class DatabaseConnectionService : IDatabaseConnectionService
             [DriverType.MySql] = "Server=localhost;Database=YourDB;User=root;Password=yourpassword;",
             [DriverType.PostgreSql] = "Host=localhost;Database=YourDB;Username=postgres;Password=yourpassword;",
             [DriverType.Oracle] = "Data Source=localhost:1521/ORCL;User Id=system;Password=yourpassword;",
-            [DriverType.SQLite] = "Data Source=app.db"
+            [DriverType.SqLite] = "Data Source=app.db"
         };
 
         return await Task.FromResult(templates);
@@ -125,13 +125,13 @@ public class DatabaseConnectionService : IDatabaseConnectionService
         return result?.Split('\n').FirstOrDefault()?.Trim();
     }
 
-    private async Task<string?> GetMySQLVersion(ISqlSugarClient client)
+    private static async Task<string?> GetMySqlVersion(ISqlSugarClient client)
     {
         var result = await client.Ado.GetStringAsync("SELECT VERSION()");
         return result;
     }
 
-    private async Task<string?> GetPostgreSQLVersion(ISqlSugarClient client)
+    private static async Task<string?> GetPostgreSqlVersion(ISqlSugarClient client)
     {
         var result = await client.Ado.GetStringAsync("SELECT VERSION()");
         return result?.Split(',').FirstOrDefault()?.Trim();
@@ -143,7 +143,7 @@ public class DatabaseConnectionService : IDatabaseConnectionService
         return result;
     }
 
-    private async Task<string?> GetSQLiteVersion(ISqlSugarClient client)
+    private static async Task<string?> GetSqLiteVersion(ISqlSugarClient client)
     {
         var result = await client.Ado.GetStringAsync("SELECT sqlite_version()");
         return $"SQLite {result}";
@@ -151,64 +151,5 @@ public class DatabaseConnectionService : IDatabaseConnectionService
 
     #endregion
 
-    #region 辅助方法
-
-    private string? ExtractDatabaseName(string connectionString, DriverType driverType)
-    {
-        try
-        {
-            return driverType switch
-            {
-                DriverType.SqlServer => ExtractSqlServerDatabaseName(connectionString),
-                DriverType.MySql => ExtractMySQLDatabaseName(connectionString),
-                DriverType.PostgreSql => ExtractPostgreSQLDatabaseName(connectionString),
-                DriverType.Oracle => ExtractOracleDatabaseName(connectionString),
-                DriverType.SQLite => ExtractSQLiteDatabaseName(connectionString),
-                _ => null
-            };
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private string? ExtractSqlServerDatabaseName(string connectionString)
-    {
-        var parts = connectionString.Split(';');
-        var dbPart = parts.FirstOrDefault(p => p.Trim().StartsWith("Database=", StringComparison.OrdinalIgnoreCase) ||
-                                               p.Trim().StartsWith("Initial Catalog=", StringComparison.OrdinalIgnoreCase));
-        return dbPart?.Split('=').LastOrDefault()?.Trim();
-    }
-
-    private string? ExtractMySQLDatabaseName(string connectionString)
-    {
-        var parts = connectionString.Split(';');
-        var dbPart = parts.FirstOrDefault(p => p.Trim().StartsWith("Database=", StringComparison.OrdinalIgnoreCase));
-        return dbPart?.Split('=').LastOrDefault()?.Trim();
-    }
-
-    private string? ExtractPostgreSQLDatabaseName(string connectionString)
-    {
-        var parts = connectionString.Split(';');
-        var dbPart = parts.FirstOrDefault(p => p.Trim().StartsWith("Database=", StringComparison.OrdinalIgnoreCase) ||
-                                               p.Trim().StartsWith("DB=", StringComparison.OrdinalIgnoreCase));
-        return dbPart?.Split('=').LastOrDefault()?.Trim();
-    }
-
-    private string? ExtractOracleDatabaseName(string connectionString)
-    {
-        var parts = connectionString.Split(';');
-        var dbPart = parts.FirstOrDefault(p => p.Trim().StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase));
-        return dbPart?.Split('=').LastOrDefault()?.Trim();
-    }
-
-    private string? ExtractSQLiteDatabaseName(string connectionString)
-    {
-        var parts = connectionString.Split(';');
-        var dbPart = parts.FirstOrDefault(p => p.Trim().StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase));
-        return dbPart?.Split('=').LastOrDefault()?.Trim();
-    }
-
-    #endregion
+   
 }
