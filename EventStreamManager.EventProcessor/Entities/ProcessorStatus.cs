@@ -3,7 +3,7 @@ namespace EventStreamManager.EventProcessor.Entities;
 /// <summary>
 /// 处理器状态
 /// </summary>
-public class ProcessorStatus
+public sealed record ProcessorStatus
 {
     public string DatabaseType { get; set; } = string.Empty;
     public bool IsRunning { get; set; }

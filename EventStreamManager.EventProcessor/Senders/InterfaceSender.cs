@@ -1,7 +1,6 @@
 using EventStreamManager.Infrastructure.Entities;
 using EventStreamManager.Infrastructure.Models.Interface;
 using EventStreamManager.Infrastructure.Services;
-using Microsoft.Extensions.Logging;
 
 namespace EventStreamManager.EventProcessor.Senders;
 
@@ -11,12 +10,10 @@ namespace EventStreamManager.EventProcessor.Senders;
 public class InterfaceSender
 {
     private readonly IHttpSendService _httpSendService;
-    private readonly ILogger<InterfaceSender> _logger;
 
-    public InterfaceSender(IHttpSendService httpSendService, ILogger<InterfaceSender> logger)
+    public InterfaceSender(IHttpSendService httpSendService)
     {
         _httpSendService = httpSendService;
-        _logger = logger;
     }
 
     /// <summary>

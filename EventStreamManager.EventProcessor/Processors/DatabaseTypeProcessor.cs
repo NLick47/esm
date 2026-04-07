@@ -142,7 +142,7 @@ public class DatabaseTypeProcessor
 
     private InterfaceSender CreateSender(IHttpSendService httpSendService)
     {
-        return new InterfaceSender(httpSendService, _loggerFactory.CreateLogger<InterfaceSender>());
+        return new InterfaceSender(httpSendService);
     }
 
     /// <summary>

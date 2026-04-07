@@ -1,5 +1,6 @@
 using EventStreamManager.EventProcessor;
 using EventStreamManager.EventProcessor.Processors;
+using EventStreamManager.EventProcessor.Services;
 using EventStreamManager.Infrastructure.Services;
 using EventStreamManager.Infrastructure.Services.Data;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
@@ -52,7 +53,11 @@ builder.Services.AddHttpClient();
 builder.Services.AddScoped<IHttpSendService, HttpSendService>();
 //事件处理器
 builder.Services.AddSingleton<ProcessorFactory>();
+builder.Services.AddSingleton<IStateManagerService, StateManagerService>();
+builder.Services.AddSingleton<IProcessorManagerService, ProcessorManagerService>();
 builder.Services.AddSingleton<EventProcessorService>();
+
+builder.Services.AddHostedService(sp => sp.GetRequiredService<EventProcessorService>());
 builder.Services.AddHostedService(sp => sp.GetRequiredService<EventProcessorService>());
 
 

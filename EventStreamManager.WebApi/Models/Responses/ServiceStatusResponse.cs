@@ -1,9 +1,6 @@
-namespace EventStreamManager.EventProcessor.Entities;
+namespace EventStreamManager.WebApi.Models.Responses;
 
-/// <summary>
-/// 服务状态概览
-/// </summary>
-public sealed record ServiceStatus
+public class ServiceStatusResponse
 {
     public bool IsEnabled { get; init; }
     public bool IsRunning { get; init; }
@@ -11,5 +8,5 @@ public sealed record ServiceStatus
     public TimeSpan RunningDuration { get; init; }
     public int ProcessorCount { get; init; }
     public int ActiveProcessorCount { get; init; }
-    public IReadOnlyList<ProcessorStatus> Processors { get; init; } = Array.Empty<ProcessorStatus>();
+    public IReadOnlyList<ProcessorStatusResponse> Processors { get; init; } = Array.Empty<ProcessorStatusResponse>();
 }
