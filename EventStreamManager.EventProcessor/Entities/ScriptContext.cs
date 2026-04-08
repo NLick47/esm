@@ -12,6 +12,5 @@ public class ScriptContext
     public string ProcessorName { get; set; } = string.Empty;
     public string DatabaseType { get; set; } = string.Empty;
     public Event Event { get; set; } = new();
-    public Dictionary<string, object>? QueryResult { get; set; }
     public JsProcessor? ProcessorConfig { get; set; }
 }

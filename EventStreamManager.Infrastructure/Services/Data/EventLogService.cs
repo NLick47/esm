@@ -288,6 +288,8 @@ public class EventLogService : IEventLogService
                 LastHandleStatus = h.LastHandleStatus ?? string.Empty,
                 LastHandleMessage = l.ExceptionMessage,
                 LastHandleDatetime = h.LastHandleDatetime,
+                NeedToSend = l.NeedToSend,
+                Reason = l.Reason,
                 LastHandleElapsedMs = l.ExecutionTimeMs,
                 IsFinished = h.IsFinished,
                 CreateDatetime = e.CreateDatetime,

@@ -1,5 +1,10 @@
 using EventStreamManager.EventProcessor;
+using EventStreamManager.EventProcessor.Executors;
+using EventStreamManager.EventProcessor.Interfaces;
 using EventStreamManager.EventProcessor.Processors;
+using EventStreamManager.EventProcessor.Recorders;
+using EventStreamManager.EventProcessor.Scanners;
+using EventStreamManager.EventProcessor.Senders;
 using EventStreamManager.EventProcessor.Services;
 using EventStreamManager.Infrastructure.Services;
 using EventStreamManager.Infrastructure.Services.Data;
@@ -13,10 +18,10 @@ using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
 
-//控制器
+// 控制器
 builder.Services.AddControllers();
 
-//JS Function 插件系统
+// JS Function 插件系统
 builder.Services.AddSingleton<JsFunctionLoader>(serviceProvider =>
 {
     var logger = serviceProvider.GetService<ILogger<JsFunctionLoader>>();
@@ -31,11 +36,11 @@ builder.Services.AddSingleton<IEnumerable<IJsFunctionProvider>>(serviceProvider 
 builder.Services.AddSingleton<JsFunctionRegistry>();
 
 
-//核心服务
+// 核心服务
 builder.Services.AddSingleton<IJavaScriptExecutionService, JavaScriptExecutionService>();
 builder.Services.AddScoped<ISqlSugarContext, SqlSugarContext>();
 
-//数据服务
+// 数据服务
 builder.Services.AddSingleton<IDatabaseConnectionService, DatabaseConnectionService>();
 builder.Services.AddSingleton<IDatabaseSchemeService, DatabaseSchemeService>();
 builder.Services.AddSingleton<IEventListenerConfigService, EventListenerConfigService>();
@@ -45,22 +50,29 @@ builder.Services.AddSingleton<IProcessorService, ProcessorService>();
 builder.Services.AddSingleton<ISqlTemplateService, SqlTemplateService>();
 builder.Services.AddScoped<ITableInitializationService, TableInitializationService>();
 builder.Services.AddScoped<IEventLogService, EventLogService>();
-//调试服务
+// 调试服务
 builder.Services.AddScoped<IDebugService, DebugService>();
 
-//请求服务
+// 请求服务
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IHttpSendService, HttpSendService>();
-//事件处理器
+// 事件处理器
 builder.Services.AddSingleton<ProcessorFactory>();
 builder.Services.AddSingleton<IStateManagerService, StateManagerService>();
 builder.Services.AddSingleton<IProcessorManagerService, ProcessorManagerService>();
 builder.Services.AddSingleton<EventProcessorService>();
 
 builder.Services.AddHostedService(sp => sp.GetRequiredService<EventProcessorService>());
-builder.Services.AddHostedService(sp => sp.GetRequiredService<EventProcessorService>());
+// 扫描器、执行器、记录器、发送器 
+builder.Services.AddScoped<IEventScanner, EventScanner>();
+builder.Services.AddScoped<IScriptExecutor, ScriptExecutor>();
+builder.Services.AddScoped<IHandleRecorder, HandleRecorder>();
+builder.Services.AddScoped<IInterfaceSender, InterfaceSender>();
 
+// 脚本数据构建服务
+builder.Services.AddScoped<IEventDataBuilderService, EventDataBuilderService>();
 
+builder.Services.AddSingleton<IProcessorFactory, ProcessorFactory>();
 
 builder.Services.AddAutoMapper(typeof(Program));
 builder.Services.AddAutoMapper(typeof(MappingProfile));
@@ -95,14 +107,14 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
     });
 
-//跨域
+// 跨域
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
         policy.SetIsOriginAllowed(_ => true).AllowAnyMethod().AllowAnyHeader());
 });
 
-//Swagger
+// Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -120,7 +132,7 @@ app.UseRouting();
 app.UseCors("AllowAll");
 app.UseAuthorization();
 
-//配置静态文件中间件，用于访问前端发布后的index.html
+// 配置静态文件中间件，用于访问前端发布后的index.html
 app.UseDefaultFiles();
 app.UseStaticFiles(); 
 app.MapControllers();

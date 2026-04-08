@@ -23,7 +23,7 @@ namespace EventStreamManager.Infrastructure.Services
         private readonly IEventListenerConfigService _eventListenerConfigService;
         private readonly IInterfaceConfigService _interfaceConfigService;
         private readonly IHttpSendService _httpSendService;
-        
+        private readonly IEventDataBuilderService _eventDataBuilderService;
         public DebugService(
             IJavaScriptExecutionService jsService,
             ILogger<DebugService> logger,
@@ -32,7 +32,8 @@ namespace EventStreamManager.Infrastructure.Services
             IDatabaseSchemeService databaseSchemeService,
             IEventListenerConfigService eventListenerConfigService,
             IInterfaceConfigService interfaceConfigService,
-            IHttpSendService httpSendService)
+            IHttpSendService httpSendService, 
+            IEventDataBuilderService eventDataBuilderService)
         {
             _jsService = jsService;
             _logger = logger;
@@ -42,6 +43,7 @@ namespace EventStreamManager.Infrastructure.Services
             _eventListenerConfigService = eventListenerConfigService;
             _interfaceConfigService = interfaceConfigService;
             _httpSendService = httpSendService;
+            _eventDataBuilderService = eventDataBuilderService;
         }
 
         #region 普通调试
@@ -79,10 +81,12 @@ namespace EventStreamManager.Infrastructure.Services
                     return CreateErrorResponse<DebugResponse>(logEntries, startTime, "获取事件数据失败");
 
                 //执行SQL查询扩展数据
-                var rows = await ExecuteSqlQueryForProcessorAsync(processor, eventData, request.DatabaseType, logEntries);
+                var enhancedData = await _eventDataBuilderService.BuildEnhancedDataAsync(
+                    request.DatabaseType, eventData, processor);
 
-                //构建增强数据对象
-                var enhancedData = BuildEnhancedData(eventData, processor, rows, request.DatabaseType);
+                AddLog(logEntries, "info", "步骤: 执行SQL查询扩展数据");
+                AddLog(logEntries, "success", $"扩展数据查询完成，共 {enhancedData.Rows.Count} 行");
+              
 
                 //执行JavaScript处理器
                 var (executionResult, _) = await ExecuteJavaScriptCodeAsync(processor.Code, enhancedData, logEntries);
@@ -137,12 +141,19 @@ namespace EventStreamManager.Infrastructure.Services
                     AddLog(logEntries, "error", "JavaScript代码不能为空");
                     return CreateErrorResponse<EditorDebugResponse>(logEntries, startTime, "JavaScript代码不能为空");
                 }
+                
+                var enhancedData = await _eventDataBuilderService.BuildEnhancedDataForExamineAsync(
+                    request.DatabaseType,
+                    request.SqlTemplate,
+                    request.ExamineId,
+                    processor);
 
-                var parameters = new { strexamineId = request.ExamineId };
-                var sql = request.SqlTemplate.Replace("${strEventReferenceId}", "@strexamineId");
-                var rows = await ExecuteSqlQueryAsync(request.DatabaseType, sql, parameters, logEntries);
-
-                var enhancedData = BuildEnhancedDataForExamine(rows, request.DatabaseType, processor);
+                AddLog(logEntries, "info", "步骤: 执行SQL查询扩展数据");
+                AddLog(logEntries, "success", $"扩展数据查询完成，共 {enhancedData.Rows.Count} 行");
+                if (enhancedData.Rows.Count > 0)
+                {
+                    AddLog(logEntries, "output", "查询结果: " + JsonSerializer.Serialize(enhancedData.Rows, new JsonSerializerOptions { WriteIndented = true }));
+                }
 
                 //执行JavaScript代码
                 var (executionResult, _) = await ExecuteJavaScriptCodeAsync(jsCode, enhancedData, logEntries);
@@ -198,11 +209,11 @@ namespace EventStreamManager.Infrastructure.Services
                 if (eventData == null)
                     return CreateErrorResponse<InterfaceDebugResponse>(logEntries, startTime, "获取事件数据失败");
 
-                //执行SQL查询扩展数据
-                var rows = await ExecuteSqlQueryForProcessorAsync(processor, eventData, request.DatabaseType, logEntries);
+                var enhancedData = await _eventDataBuilderService.BuildEnhancedDataAsync(
+                    request.DatabaseType, eventData, processor);
 
-                //构建增强数据对象
-                var enhancedData = BuildEnhancedData(eventData, processor, rows, request.DatabaseType);
+                AddLog(logEntries, "info", "步骤: 执行SQL查询扩展数据");
+                AddLog(logEntries, "success", $"扩展数据查询完成，共 {enhancedData.Rows.Count} 行");
 
                 //执行JavaScript处理器
                 var (executionResult, processorExecutionTime) = await ExecuteJavaScriptCodeAsync(processor.Code, enhancedData, logEntries);
@@ -343,106 +354,8 @@ namespace EventStreamManager.Infrastructure.Services
             }
         }
         
-        private async Task<List<Dictionary<string, object>>> ExecuteSqlQueryForProcessorAsync(
-            JsProcessor processor,
-            Event eventData,
-            string databaseType,
-            List<DebugLogEntry> logs)
-        {
-            if (string.IsNullOrEmpty(processor.SqlTemplate))
-                return new List<Dictionary<string, object>>();
-
-            var sql = processor.SqlTemplate
-                .Replace("${strEventReferenceId}", $"'{eventData.StrEventReferenceId}'")
-                .Replace("${eventId}", eventData.Id.ToString())
-                .Replace("${eventType}", $"'{eventData.EventType}'")
-                .Replace("${eventCode}", $"'{eventData.EventCode}'")
-                .Replace("${operatorCode}", $"'{eventData.OperatorCode}'");
-
-            return await ExecuteSqlQueryAsync(databaseType, sql, null, logs);
-        }
-
-        //SQL执行方法
-        private async Task<List<Dictionary<string, object>>> ExecuteSqlQueryAsync(
-            string databaseType,
-            string sql,
-            object? parameters,
-            List<DebugLogEntry> logs)
-        {
-            AddLog(logs, "info", "步骤: 执行SQL查询扩展数据");
-            AddLog(logs, "info", $"执行SQL: {sql}");
-
-            try
-            {
-                var rows = await _sqlSugarContext.ExecuteQueryAsync(databaseType, sql, parameters);
-                AddLog(logs, "success", $"扩展数据查询完成，共 {rows.Count} 行");
-
-                if (rows.Count > 0)
-                {
-                    AddLog(logs, "output", "查询结果: " + JsonSerializer.Serialize(rows, new JsonSerializerOptions { WriteIndented = true }));
-                }
-
-                return rows;
-            }
-            catch (Exception ex)
-            {
-                AddLog(logs, "warn", $"扩展数据查询失败: {ex.Message}");
-                return new List<Dictionary<string, object>>();
-            }
-        }
-
-        // 构建增强数据（用于普通/接口调试）
-        private EnhancedQueryData BuildEnhancedData(
-            Event eventData,
-            JsProcessor processor,
-            List<Dictionary<string, object>> rows,
-            string databaseType)
-        {
-            return new EnhancedQueryData
-            {
-                Rows = rows,
-                Database = new DatabaseInfo { Type = databaseType },
-                Context = new ContextInfo
-                {
-                    EventId = eventData.Id.ToString(),
-                    StrEventReferenceId = eventData.StrEventReferenceId,
-                    EventType = eventData.EventType,
-                    EventName = eventData.EventName,
-                    EventCode = eventData.EventCode,
-                    OperatorName = eventData.OperatorName,
-                    OperatorCode = eventData.OperatorCode,
-                    CreateDatetime = eventData.CreateDatetime,
-                    ExtenData = eventData.ExtenData ?? ""
-                },
-                Processor = new ProcessorInfo
-                {
-                    Id = processor.Id,
-                    Name = processor.Name,
-                    Enabled = processor.Enabled
-                }
-            };
-        }
-
-        // 构建增强数据（用于Examine调试）
-        private EnhancedQueryData BuildEnhancedDataForExamine(
-            List<Dictionary<string, object>> rows,
-            string databaseType,
-            JsProcessor? processor)
-        {
-            return new EnhancedQueryData
-            {
-                Rows = rows,
-                Database = new DatabaseInfo { Type = databaseType },
-                Context = new ContextInfo(), // 无事件上下文
-                Processor = processor == null ? new ProcessorInfo() : new ProcessorInfo
-                {
-                    Id = processor.Id,
-                    Name = processor.Name,
-                    Enabled = processor.Enabled
-                }
-            };
-        }
-
+        
+        
         // 执行JavaScript代码
         private async Task<(Infrastructure.Models.Execution.ExecutionResult Result, long ExecutionTime)> ExecuteJavaScriptCodeAsync(
             string code,

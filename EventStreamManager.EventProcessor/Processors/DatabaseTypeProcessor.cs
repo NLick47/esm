@@ -1,11 +1,7 @@
 using EventStreamManager.EventProcessor.Entities;
-using EventStreamManager.EventProcessor.Executors;
-using EventStreamManager.EventProcessor.Recorders;
-using EventStreamManager.EventProcessor.Scanners;
-using EventStreamManager.EventProcessor.Senders;
+using EventStreamManager.EventProcessor.Interfaces;
 using EventStreamManager.Infrastructure.Entities;
 using EventStreamManager.Infrastructure.Models.JSProcessor;
-using EventStreamManager.Infrastructure.Services;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -15,52 +11,68 @@ namespace EventStreamManager.EventProcessor.Processors;
 /// <summary>
 /// 数据库类型处理器
 /// </summary>
-public class DatabaseTypeProcessor
+public class DatabaseTypeProcessor 
 {
     private readonly string _databaseType;
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILoggerFactory _loggerFactory;
+    private readonly IServiceProvider _serviceProvider;
     private readonly IEventListenerConfigService _configService;
     private readonly ILogger<DatabaseTypeProcessor> _logger;
 
+    
     private readonly ProcessorStatus _status;
-    private CancellationToken _cancellationToken;
-
+    private CancellationTokenSource? _cts;
+    private Task? _processingTask;
     public string DatabaseType => _databaseType;
     public bool IsRunning => _status.IsRunning;
 
     public DatabaseTypeProcessor(
         string databaseType,
-        IServiceScopeFactory scopeFactory,
-        ILoggerFactory loggerFactory,
+        IServiceProvider serviceProvider, 
         IEventListenerConfigService configService,
         ILogger<DatabaseTypeProcessor> logger)
     {
         _databaseType = databaseType;
-        _scopeFactory = scopeFactory;
-        _loggerFactory = loggerFactory;
+        _serviceProvider = serviceProvider;
         _configService = configService;
         _logger = logger;
         _status = new ProcessorStatus { DatabaseType = databaseType };
     }
 
+
     public Task StartAsync(CancellationToken cancellationToken)
     {
         if (_status.IsRunning) return Task.CompletedTask;
 
-        _cancellationToken = cancellationToken;
+        _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _status.IsRunning = true;
         _logger.LogInformation("[{DatabaseType}] 处理器启动", _databaseType);
 
-        _ = ProcessLoopAsync();
+        _processingTask = ProcessLoopAsync(_cts.Token);
         return Task.CompletedTask;
     }
 
     public async Task StopAsync()
     {
+        if (!_status.IsRunning) return;
+
         _status.IsRunning = false;
+        _cts?.Cancel();
+
+        if (_processingTask != null)
+        {
+            try
+            {
+                await _processingTask.WaitAsync(TimeSpan.FromSeconds(10));
+            }
+            catch (TimeoutException)
+            {
+                _logger.LogWarning("[{DatabaseType}] 处理器停止超时", _databaseType);
+            }
+        }
+
+        _cts?.Dispose();
+        _cts = null;
         _logger.LogInformation("[{DatabaseType}] 处理器停止", _databaseType);
-        await Task.CompletedTask;
     }
 
     public ProcessorStatus GetStatus() => _status;
@@ -68,83 +80,63 @@ public class DatabaseTypeProcessor
     /// <summary>
     /// 处理循环
     /// </summary>
-    private async Task ProcessLoopAsync()
+     private async Task ProcessLoopAsync(CancellationToken cancellationToken)
     {
-        while (!_cancellationToken.IsCancellationRequested && _status.IsRunning)
+        while (!cancellationToken.IsCancellationRequested && _status.IsRunning)
         {
             try
             {
                 var config = await _configService.GetConfigByTypeAsync(_databaseType);
-                if (config == null || !config.Enabled)
+                if (config is not { Enabled: true })
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(30), _cancellationToken);
+                    await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
                     continue;
                 }
 
-                // 在每次循环中创建 scope 来获取 Scoped 服务
-                using var scope = _scopeFactory.CreateScope();
-                var services = scope.ServiceProvider;
+                await using var scope = _serviceProvider.CreateAsyncScope();
+                
+                var scanner = scope.ServiceProvider.GetRequiredService<IEventScanner>();
+                var executor = scope.ServiceProvider.GetRequiredService<IScriptExecutor>();
+                var recorder = scope.ServiceProvider.GetRequiredService<IHandleRecorder>();
+                var sender = scope.ServiceProvider.GetRequiredService<IInterfaceSender>();
+                var processorService = scope.ServiceProvider.GetRequiredService<IProcessorService>();
+                var interfaceService = scope.ServiceProvider.GetRequiredService<IInterfaceConfigService>();
 
-                var db = services.GetRequiredService<ISqlSugarContext>();
-                var processorService = services.GetRequiredService<IProcessorService>();
-                var interfaceService = services.GetRequiredService<IInterfaceConfigService>();
-                var jsService = services.GetRequiredService<IJavaScriptExecutionService>();
-                var httpFactory = services.GetRequiredService<IHttpSendService>();
-
-                // 创建本次循环使用的组件实例
-                var scanner = CreateScanner(db);
-                var executor = CreateExecutor(jsService, db);
-                var recorder = CreateRecorder(db);
-                var sender = CreateSender(httpFactory);
-
-                // 获取当前数据库类型所有处理器的事件码
                 var eventCodes = await GetEventCodesAsync(processorService);
-
+                
                 _status.LastScanTime = DateTime.Now;
                 var events = await scanner.ScanAsync(_databaseType, config, eventCodes);
                 _status.CurrentBatchCount = events.Count;
 
                 foreach (var eventData in events)
                 {
-                    if (_cancellationToken.IsCancellationRequested) break;
-                    await ProcessEventAsync(eventData, processorService, interfaceService, executor, recorder, sender);
+                    if (cancellationToken.IsCancellationRequested) break;
+                    await ProcessEventAsync(eventData, processorService, interfaceService, 
+                        executor, recorder, sender);
                     _status.LastProcessedEventId = eventData.Id;
                 }
-                
 
-                await Task.Delay(TimeSpan.FromSeconds(config.ScanFrequency), _cancellationToken);
+                await Task.Delay(TimeSpan.FromSeconds(config.ScanFrequency), cancellationToken);
             }
-            catch (TaskCanceledException) { break; }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "[{DatabaseType}] 处理循环异常", _databaseType);
                 _status.LastError = ex.Message;
                 _status.LastErrorTime = DateTime.Now;
-                await Task.Delay(TimeSpan.FromSeconds(10), _cancellationToken);
+                
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                }
+                catch (OperationCanceledException) { break; }
             }
         }
     }
-
-    private EventScanner CreateScanner(ISqlSugarContext db)
-    {
-        return new EventScanner(db, _loggerFactory.CreateLogger<EventScanner>());
-    }
-
-    private ScriptExecutor CreateExecutor(IJavaScriptExecutionService jsService, ISqlSugarContext db)
-    {
-        return new ScriptExecutor(jsService, db, _loggerFactory.CreateLogger<ScriptExecutor>());
-    }
-
-    private HandleRecorder CreateRecorder(ISqlSugarContext db)
-    {
-        return new HandleRecorder(db, _loggerFactory.CreateLogger<HandleRecorder>());
-    }
-
-    private InterfaceSender CreateSender(IHttpSendService httpSendService)
-    {
-        return new InterfaceSender(httpSendService);
-    }
-
+    
     /// <summary>
     /// 获取当前数据库类型所有处理器的事件码集合
     /// </summary>
@@ -165,9 +157,9 @@ public class DatabaseTypeProcessor
         Event eventData,
         IProcessorService processorService,
         IInterfaceConfigService interfaceService,
-        ScriptExecutor executor,
-        HandleRecorder recorder,
-        InterfaceSender sender)
+        IScriptExecutor executor,
+        IHandleRecorder recorder,
+        IInterfaceSender sender)
     {
         try
         {
@@ -198,9 +190,9 @@ public class DatabaseTypeProcessor
         Event eventData,
         JsProcessor processor,
         IInterfaceConfigService interfaceService,
-        ScriptExecutor executor,
-        HandleRecorder recorder,
-        InterfaceSender sender)
+        IScriptExecutor executor,
+        IHandleRecorder recorder,
+        IInterfaceSender sender)
     {
         EventHandle? handle = null;
         
@@ -331,26 +323,18 @@ public class DatabaseTypeProcessor
     }
 
     private async Task<ExecutionResult> ExecuteProcessorAsync(
-        Event eventData, JsProcessor processor, ScriptExecutor executor)
+        Event eventData, JsProcessor processor, IScriptExecutor executor)
     {
         try
         {
-            Dictionary<string, object>? extendedData = null;
-            if (!string.IsNullOrWhiteSpace(processor.SqlTemplate))
-            {
-                extendedData = await executor.QueryDataAsync(_databaseType, processor.SqlTemplate, eventData);
-            }
-
             var context = new ScriptContext
             {
                 ProcessorId = processor.Id,
                 ProcessorName = processor.Name,
                 DatabaseType = _databaseType,
                 Event = eventData,
-                QueryResult = extendedData,
                 ProcessorConfig = processor
             };
-
             return await executor.ExecuteAsync(context);
         }
         catch (Exception ex)
@@ -372,7 +356,7 @@ public class DatabaseTypeProcessor
         string processorId, 
         ExecutionResult result,
         IInterfaceConfigService interfaceService,
-        InterfaceSender sender)
+        IInterfaceSender sender)
     {
         try
         {

@@ -1,9 +1,8 @@
 using System.Diagnostics;
 using EventStreamManager.EventProcessor.Entities;
-using EventStreamManager.Infrastructure.Entities;
-using EventStreamManager.Infrastructure.Models.Execution.Parameter;
+using EventStreamManager.EventProcessor.Interfaces;
+using EventStreamManager.Infrastructure.Models.JSProcessor;
 using EventStreamManager.Infrastructure.Services;
-using EventStreamManager.Infrastructure.Services.Data.Interfaces;
 using Microsoft.Extensions.Logging;
 using ExecutionResult = EventStreamManager.Infrastructure.Entities.ExecutionResult;
 
@@ -12,20 +11,19 @@ namespace EventStreamManager.EventProcessor.Executors;
 /// <summary>
 /// 脚本执行器 - 执行JS处理器
 /// </summary>
-public class ScriptExecutor
+public class ScriptExecutor : IScriptExecutor
 {
     private readonly IJavaScriptExecutionService _jsService;
-    private readonly ISqlSugarContext _db;
     private readonly ILogger<ScriptExecutor> _logger;
-
+    private readonly IEventDataBuilderService _eventDataBuilderService;
     public ScriptExecutor(
         IJavaScriptExecutionService jsService,
-        ISqlSugarContext db,
-        ILogger<ScriptExecutor> logger)
+        ILogger<ScriptExecutor> logger, 
+        IEventDataBuilderService eventDataBuilderService)
     {
         _jsService = jsService;
-        _db = db;
         _logger = logger;
+        _eventDataBuilderService = eventDataBuilderService;
     }
 
     /// <summary>
@@ -44,13 +42,30 @@ public class ScriptExecutor
         {
             if (context.ProcessorConfig == null || !context.ProcessorConfig.Enabled)
             {
-                result.Success = true;
+                result.Success = false;
                 result.NeedToSend = false;
                 result.Reason = "处理器未配置或已禁用";
                 return result;
             }
 
-            var jsData = BuildJsData(context);
+            if (string.IsNullOrEmpty(context.ProcessorConfig.SqlTemplate))
+            {
+                result.Success = false;
+                result.NeedToSend = false;
+                result.Reason = "未设置查询语句";
+                return result;
+            }
+
+
+            var jsData = await _eventDataBuilderService.BuildEnhancedDataAsync(
+                context.DatabaseType,
+                context.Event,
+                new JsProcessor()
+                {
+                    Id = context.ProcessorId,
+                    Name = context.ProcessorName,
+                    SqlTemplate = context.ProcessorConfig.SqlTemplate,
+                });
             var execResult = await _jsService.ExecuteProcessAsync(context.ProcessorConfig.Code, jsData);
 
             stopwatch.Stop();
@@ -82,79 +97,5 @@ public class ScriptExecutor
         }
 
         return result;
-    }
-
-    /// <summary>
-    /// 查询扩展数据
-    /// </summary>
-    public async Task<Dictionary<string, object>?> QueryDataAsync(
-        string databaseType, string sqlTemplate, Event eventData)
-    {
-        try
-        {
-            var sql = ReplaceVariables(sqlTemplate, eventData);
-            var client = await _db.GetClientAsync(databaseType);
-            var result = await client.Ado.SqlQueryAsync<dynamic>(sql);
-
-            if (result?.Any() == true && result.First() is IDictionary<string, object> dict)
-            {
-                return dict.ToDictionary(k => k.Key, v => v.Value);
-            }
-            return null;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "[{DatabaseType}] 查询扩展数据失败", databaseType);
-            return null;
-        }
-    }
-
-    private EnhancedQueryData BuildJsData(ScriptContext context)
-    {
-       
-        
-        var data = new EnhancedQueryData
-        {
-            Rows = context.QueryResult != null 
-                ? new List<Dictionary<string, object>> { context.QueryResult }
-                : new List<Dictionary<string, object>>(),
-            
-            Database = new DatabaseInfo
-            {
-                Type = context.DatabaseType,
-            },
-            
-            Context = new ContextInfo
-            {
-                EventId = context.Event.Id.ToString(),
-                StrEventReferenceId = context.Event.StrEventReferenceId,
-                EventType = context.Event.EventType,
-                EventName = context.Event.EventName,
-                EventCode = context.Event.EventCode,
-                OperatorName = context.Event.OperatorName,
-                OperatorCode = context.Event.OperatorCode,
-                CreateDatetime = context.Event.CreateDatetime,
-                ExtenData = context.Event.ExtenData ?? ""
-            },
-
-        
-            Processor = new ProcessorInfo
-            {
-                Id = context.ProcessorId,
-                Name = context.ProcessorName,
-                Enabled = context.ProcessorConfig?.Enabled
-            }
-        };
-        return data;
-    }
-
-    private string ReplaceVariables(string sql, Event eventData)
-    {
-        return sql
-            .Replace("${strEventReferenceId}", $"'{eventData.StrEventReferenceId}'")
-            .Replace("${eventId}", eventData.Id.ToString())
-            .Replace("${eventType}", $"'{eventData.EventType}'")
-            .Replace("${eventCode}", $"'{eventData.EventCode}'")
-            .Replace("${operatorCode}", $"'{eventData.OperatorCode}'");
     }
 }

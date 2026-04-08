@@ -14,9 +14,7 @@ public interface IJavaScriptExecutionService
     /// <param name="inputData">要注入到data参数的数据</param>
     /// <returns>执行结果，包含process函数的返回值</returns>
     Task<ExecutionResult> ExecuteProcessAsync(string script, object? inputData = null);
-
     
-    Task<ExecutionResult> ExecuteProcessAsync(ExecutionOptions options,string script, object? inputData = null);
     /// <summary>
     /// 验证脚本是否包含有效的process函数
     /// </summary>

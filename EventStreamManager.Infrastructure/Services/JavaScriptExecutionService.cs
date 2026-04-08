@@ -186,7 +186,9 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
                     {
                         var error = obj.Get("error");
                         if (!error.IsUndefined() && !error.IsNull())
+                        {
                             result.ProcessError = ConvertJsValueToObject(error)?.ToString();
+                        }
                     }
 
                     if (obj.HasOwnProperty("requestInfo"))

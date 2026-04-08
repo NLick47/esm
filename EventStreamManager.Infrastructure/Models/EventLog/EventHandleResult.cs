@@ -66,7 +66,15 @@ public class EventHandleResult
     /// </summary>
     public string? StrEventReferenceId { get; set; }
     
+    /// <summary>
+    /// 是否需要发送
+    /// </summary>
+    public bool NeedToSend { get; set; }
     
+    /// <summary>
+    /// 不需要发送原因
+    /// </summary>
+    public string? Reason { get; set; }
     
     /// <summary>
     /// 请求数据（可考虑截断显示）

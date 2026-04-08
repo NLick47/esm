@@ -3,7 +3,7 @@ namespace EventStreamManager.Infrastructure.Entities;
 /// <summary>
 /// 处理状态常量
 /// </summary>
-public static class HandleStatus
+public class HandleStatus
 {
     public const string Success = "Success";
     public const string Fail = "Fail";

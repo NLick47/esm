@@ -1,3 +1,4 @@
+using EventStreamManager.EventProcessor.Interfaces;
 using EventStreamManager.Infrastructure.Entities;
 using EventStreamManager.Infrastructure.Models.EventListener;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
@@ -9,7 +10,7 @@ namespace EventStreamManager.EventProcessor.Scanners;
 /// <summary>
 /// 事件扫描器
 /// </summary>
-public class EventScanner
+public class EventScanner  : IEventScanner
 {
     private readonly ISqlSugarContext _db;
     private readonly ILogger<EventScanner> _logger;

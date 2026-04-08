@@ -1,3 +1,4 @@
+using EventStreamManager.EventProcessor.Interfaces;
 using EventStreamManager.Infrastructure.Entities;
 using EventStreamManager.Infrastructure.Models.Interface;
 using EventStreamManager.Infrastructure.Services;
@@ -7,7 +8,7 @@ namespace EventStreamManager.EventProcessor.Senders;
 /// <summary>
 /// 接口发送器
 /// </summary>
-public class InterfaceSender
+public class InterfaceSender :  IInterfaceSender
 {
     private readonly IHttpSendService _httpSendService;
 

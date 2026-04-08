@@ -91,4 +91,12 @@ public class EventHandleLog
     /// </summary>
     [SugarColumn(ColumnName = "HandleDatetime", IsNullable = false, ColumnDescription = "处理时间")]
     public DateTime HandleDatetime { get; set; } = DateTime.Now;
+    
+    
+    
+    /// <summary>
+    /// 不发送原因
+    /// </summary>
+    [SugarColumn(ColumnName = "Reason", Length = 500, IsNullable = true, ColumnDescription = "不发送原因")]
+    public string? Reason { get; set; }
 }

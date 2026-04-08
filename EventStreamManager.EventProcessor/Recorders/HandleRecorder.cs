@@ -1,4 +1,5 @@
 using EventStreamManager.EventProcessor.Entities;
+using EventStreamManager.EventProcessor.Interfaces;
 using EventStreamManager.Infrastructure.Entities;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
 using Microsoft.Extensions.Logging;
@@ -8,7 +9,7 @@ namespace EventStreamManager.EventProcessor.Recorders;
 /// <summary>
 /// 处理记录器
 /// </summary>
-public class HandleRecorder
+public class HandleRecorder : IHandleRecorder
 {
     private readonly ISqlSugarContext _db;
     private readonly ILogger<HandleRecorder> _logger;
@@ -78,10 +79,11 @@ public class HandleRecorder
             NeedToSend = result.NeedToSend,
             RequestData = result.RequestInfo,
             ResponseData = result.SendResult?.ResponseContent,
-            SendSuccess = result.SendResult?.Success,
+            SendSuccess = result.SendResult?.Success ?? false,
             ExceptionMessage = result.ErrorMessage,
             Status = status,
             ExecutionTimeMs = result.ExecutionTimeMs,
+            Reason = result.Reason, 
             HandleDatetime = DateTime.Now
         };
 
