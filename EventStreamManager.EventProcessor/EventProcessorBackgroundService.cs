@@ -14,6 +14,8 @@ public sealed class EventProcessorService : BackgroundService
     private readonly TimeSpan _refreshInterval = TimeSpan.FromSeconds(30);
     private readonly TimeSpan _stateSaveInterval = TimeSpan.FromMinutes(1);
 
+    private Task? _stateSaveTask;
+
     public EventProcessorService(
         IStateManagerService stateManager,
         IProcessorManagerService processorManager,
@@ -33,14 +35,14 @@ public sealed class EventProcessorService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _stateManager.UpdateStartTime(DateTime.Now);
+        await _stateManager.UpdateStartTimeAsync(DateTime.Now);
         _logger.LogInformation("========== 事件处理器服务启动 ==========");
 
         // 启动后台刷新循环
-        _processorManager.StartBackgroundRefresh(_refreshInterval);
+        _processorManager.StartBackgroundRefresh(_refreshInterval, stoppingToken);
 
         // 启动状态保存循环
-        _ = StateSaveLoopAsync(stoppingToken);
+        _stateSaveTask = StateSaveLoopAsync(stoppingToken);
 
         try
         {
@@ -66,7 +68,14 @@ public sealed class EventProcessorService : BackgroundService
         
         while (await timer.WaitForNextTickAsync(ct))
         {
-            await _stateManager.SaveStateAsync();
+            try
+            {
+                await _stateManager.SaveStateAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "自动保存服务状态失败");
+            }
         }
     }
 
@@ -74,13 +83,30 @@ public sealed class EventProcessorService : BackgroundService
     {
         _logger.LogInformation("========== 事件处理器服务停止 ==========");
         await _processorManager.StopAllAsync();
+
+        // 等待状态保存循环完成，避免与最后的 SaveStateAsync 并发写文件
+        if (_stateSaveTask != null)
+        {
+            try
+            {
+                await _stateSaveTask.WaitAsync(TimeSpan.FromSeconds(10));
+            }
+            catch (TimeoutException)
+            {
+                _logger.LogWarning("等待状态保存循环完成超时");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "等待状态保存循环完成时发生异常");
+            }
+        }
+
         await _stateManager.SaveStateAsync();
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("EventProcessorService 正在停止...");
-        await _stateManager.SaveStateAsync();
         await base.StopAsync(cancellationToken);
     }
 

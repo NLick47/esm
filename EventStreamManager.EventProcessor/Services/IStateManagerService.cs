@@ -15,5 +15,5 @@ public interface IStateManagerService
     
     Task LoadStateAsync();
     Task SaveStateAsync();
-    void UpdateStartTime(DateTime startTime);
+    Task UpdateStartTimeAsync(DateTime startTime);
 }

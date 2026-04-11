@@ -15,7 +15,11 @@ public sealed class ProcessorManagerService : IProcessorManagerService, IDisposa
 
     private readonly ConcurrentDictionary<string, DatabaseTypeProcessor> _processors = new();
     private readonly CancellationTokenSource _refreshCts = new();
+    private readonly object _refreshLock = new();
+    private readonly SemaphoreSlim _processorOpsLock = new(1, 1);
     private Task? _refreshTask;
+    private CancellationTokenSource? _linkedRefreshCts;
+    private bool _disposed;
 
     public ProcessorManagerService(
         ProcessorFactory factory,
@@ -50,45 +54,54 @@ public sealed class ProcessorManagerService : IProcessorManagerService, IDisposa
 
     public async Task StartProcessorAsync(string dbType, CancellationToken ct)
     {
+        await _processorOpsLock.WaitAsync(ct);
         try
         {
-            var processor = _factory.Create(dbType);
-            
-            if (_processors.TryAdd(dbType, processor))
-            {
-                await processor.StartAsync(ct);
-                _logger.LogInformation("处理器已启动: {DatabaseType}", dbType);
-            }
+            await StartProcessorCoreAsync(dbType, ct);
         }
-        catch (Exception ex)
+        finally
         {
-            _logger.LogError(ex, "启动处理器失败: {DatabaseType}", dbType);
-            _processors.TryRemove(dbType, out _);
+            _processorOpsLock.Release();
         }
     }
 
     public async Task StopProcessorAsync(string dbType)
     {
-        if (_processors.TryRemove(dbType, out var processor))
+        await _processorOpsLock.WaitAsync();
+        try
         {
-            await processor.StopAsync();
-            _logger.LogInformation("处理器已停止: {DatabaseType}", dbType);
+            await StopProcessorCoreAsync(dbType);
+        }
+        finally
+        {
+            _processorOpsLock.Release();
         }
     }
 
     public async Task StopAllAsync()
     {
-        var tasks = _processors.Values.Select(p => p.StopAsync()).ToList();
-        await Task.WhenAll(tasks);
-        _processors.Clear();
+        await _processorOpsLock.WaitAsync();
+        try
+        {
+            var keys = _processors.Keys.ToList();
+            foreach (var dbType in keys)
+            {
+                await StopProcessorCoreAsync(dbType);
+            }
+        }
+        finally
+        {
+            _processorOpsLock.Release();
+        }
     }
 
     public async Task RefreshConfigurationAsync(CancellationToken ct)
     {
-        if (!_stateManager.IsEnabled) return;
-
+        await _processorOpsLock.WaitAsync(ct);
         try
         {
+            if (_disposed || !_stateManager.IsEnabled) return;
+
             var types = await _factory.GetConfiguredTypesAsync();
             var configs = await _configService.GetAllConfigsAsync();
 
@@ -97,7 +110,18 @@ public sealed class ProcessorManagerService : IProcessorManagerService, IDisposa
             foreach (var dbType in newTypes)
             {
                 _logger.LogInformation("新增处理器: {DatabaseType}", dbType);
-                await StartProcessorAsync(dbType, ct);
+                try
+                {
+                    await StartProcessorCoreAsync(dbType, ct);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "刷新配置时启动处理器失败: {DatabaseType}", dbType);
+                }
             }
 
             // 移除已删除的
@@ -105,7 +129,7 @@ public sealed class ProcessorManagerService : IProcessorManagerService, IDisposa
             foreach (var dbType in removedTypes)
             {
                 _logger.LogInformation("移除处理器: {DatabaseType}", dbType);
-                await StopProcessorAsync(dbType);
+                await StopProcessorCoreAsync(dbType);
             }
 
             // 状态变更
@@ -128,15 +152,34 @@ public sealed class ProcessorManagerService : IProcessorManagerService, IDisposa
                 }
             }
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "刷新处理器配置失败");
         }
+        finally
+        {
+            _processorOpsLock.Release();
+        }
     }
 
-    public void StartBackgroundRefresh(TimeSpan interval)
+    public void StartBackgroundRefresh(TimeSpan interval, CancellationToken externalCt = default)
     {
-        _refreshTask = BackgroundRefreshLoopAsync(interval, _refreshCts.Token);
+        lock (_refreshLock)
+        {
+            if (_refreshTask is { IsCompleted: false })
+            {
+                _logger.LogWarning("后台配置刷新循环已经在运行，忽略重复启动请求");
+                return;
+            }
+
+            _linkedRefreshCts?.Dispose();
+            _linkedRefreshCts = CancellationTokenSource.CreateLinkedTokenSource(_refreshCts.Token, externalCt);
+            _refreshTask = BackgroundRefreshLoopAsync(interval, _linkedRefreshCts.Token);
+        }
     }
 
     private async Task BackgroundRefreshLoopAsync(TimeSpan interval, CancellationToken ct)
@@ -145,11 +188,22 @@ public sealed class ProcessorManagerService : IProcessorManagerService, IDisposa
         
         while (await timer.WaitForNextTickAsync(ct))
         {
-            await RefreshConfigurationAsync(ct);
+            try
+            {
+                await RefreshConfigurationAsync(ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "后台刷新配置时发生异常");
+            }
         }
     }
 
-    public async Task TriggerScanAsync(string dbType)
+    public async Task TriggerScanAsync(string dbType, CancellationToken ct = default)
     {
         if (!_stateManager.IsEnabled)
         {
@@ -157,11 +211,30 @@ public sealed class ProcessorManagerService : IProcessorManagerService, IDisposa
             return;
         }
 
-        if (_processors.TryGetValue(dbType, out var processor))
+        await _processorOpsLock.WaitAsync(ct);
+        try
         {
-            await processor.StopAsync();
-            await processor.StartAsync(CancellationToken.None);
-            _logger.LogInformation("手动触发扫描完成: {DatabaseType}", dbType);
+            if (_processors.TryGetValue(dbType, out var processor))
+            {
+                try
+                {
+                    await processor.StopAsync();
+                    await processor.StartAsync(ct);
+                    _logger.LogInformation("手动触发扫描完成: {DatabaseType}", dbType);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "手动触发扫描失败: {DatabaseType}", dbType);
+                }
+            }
+        }
+        finally
+        {
+            _processorOpsLock.Release();
         }
     }
 
@@ -171,10 +244,94 @@ public sealed class ProcessorManagerService : IProcessorManagerService, IDisposa
     public ProcessorStatus? GetStatus(string databaseType) 
         => _processors.TryGetValue(databaseType, out var p) ? p.GetStatus() : null;
 
+    private async Task StartProcessorCoreAsync(string dbType, CancellationToken ct)
+    {
+        if (_disposed) return;
+        if (_processors.ContainsKey(dbType)) return;
+
+        var processor = _factory.Create(dbType);
+        
+        if (_processors.TryAdd(dbType, processor))
+        {
+            try
+            {
+                await processor.StartAsync(ct);
+                _logger.LogInformation("处理器已启动: {DatabaseType}", dbType);
+            }
+            catch
+            {
+                _processors.TryRemove(dbType, out _);
+                throw;
+            }
+        }
+        else
+        {
+            // 如果 TryAdd 失败，释放创建的 processor 实例（如果实现了 IDisposable）
+            if (processor is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
+        }
+    }
+
+    private async Task StopProcessorCoreAsync(string dbType)
+    {
+        if (_processors.TryRemove(dbType, out var processor))
+        {
+            try
+            {
+                await processor.StopAsync();
+                _logger.LogInformation("处理器已停止: {DatabaseType}", dbType);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "停止处理器时发生异常: {DatabaseType}", dbType);
+            }
+        }
+    }
+
     public void Dispose()
     {
-        _refreshCts.Cancel();
-        _refreshTask?.Wait(TimeSpan.FromSeconds(5));
-        _refreshCts.Dispose();
+        if (_disposed) return;
+        _disposed = true;
+
+        try
+        {
+            _refreshCts.Cancel();
+        }
+        catch (ObjectDisposedException) { }
+
+        lock (_refreshLock)
+        {
+            if (_refreshTask != null && !_refreshTask.IsCompleted)
+            {
+                try
+                {
+                    if (!_refreshTask.Wait(TimeSpan.FromSeconds(5)))
+                    {
+                        _logger.LogWarning("ProcessorManagerService 后台刷新任务停止超时");
+                    }
+                }
+                catch (AggregateException aex)
+                {
+                    _logger.LogError(aex, "ProcessorManagerService 后台刷新任务异常");
+                }
+                catch (ObjectDisposedException) { }
+            }
+        }
+
+        try
+        {
+            _refreshCts.Dispose();
+        }
+        catch (ObjectDisposedException) { }
+
+        try
+        {
+            _linkedRefreshCts?.Dispose();
+        }
+        catch (ObjectDisposedException) { }
+
+        _processorOpsLock.Dispose();
     }
 }

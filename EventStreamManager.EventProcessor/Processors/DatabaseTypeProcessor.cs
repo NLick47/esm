@@ -20,8 +20,11 @@ public class DatabaseTypeProcessor
 
     
     private readonly ProcessorStatus _status;
+    private readonly object _lifecycleLock = new();
     private CancellationTokenSource? _cts;
     private Task? _processingTask;
+    private int _consecutiveErrors;
+
     public string DatabaseType => _databaseType;
     public bool IsRunning => _status.IsRunning;
 
@@ -41,41 +44,76 @@ public class DatabaseTypeProcessor
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        if (_status.IsRunning) return Task.CompletedTask;
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Task.CompletedTask;
+        }
 
-        _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        _status.IsRunning = true;
-        _logger.LogInformation("[{DatabaseType}] 处理器启动", _databaseType);
+        lock (_lifecycleLock)
+        {
+            if (_status.IsRunning) return Task.CompletedTask;
 
-        _processingTask = ProcessLoopAsync(_cts.Token);
-        return Task.CompletedTask;
+            _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _status.IsRunning = true;
+            _consecutiveErrors = 0;
+            _logger.LogInformation("[{DatabaseType}] 处理器启动", _databaseType);
+
+            _processingTask = ProcessLoopAsync(_cts.Token);
+            return Task.CompletedTask;
+        }
     }
 
     public async Task StopAsync()
     {
-        if (!_status.IsRunning) return;
+        Task? taskToWait;
+        lock (_lifecycleLock)
+        {
+            if (!_status.IsRunning) return;
 
-        _status.IsRunning = false;
-        _cts?.Cancel();
+            _status.IsRunning = false;
+            _cts?.Cancel();
+            taskToWait = _processingTask;
+            _processingTask = null;
+        }
 
-        if (_processingTask != null)
+        if (taskToWait != null)
         {
             try
             {
-                await _processingTask.WaitAsync(TimeSpan.FromSeconds(10));
+                await taskToWait.WaitAsync(TimeSpan.FromSeconds(10));
             }
             catch (TimeoutException)
             {
                 _logger.LogWarning("[{DatabaseType}] 处理器停止超时", _databaseType);
             }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[{DatabaseType}] 处理器停止时，后台任务发生异常", _databaseType);
+            }
         }
 
-        _cts?.Dispose();
-        _cts = null;
+        lock (_lifecycleLock)
+        {
+            _cts?.Dispose();
+            _cts = null;
+        }
         _logger.LogInformation("[{DatabaseType}] 处理器停止", _databaseType);
     }
 
-    public ProcessorStatus GetStatus() => _status;
+    public ProcessorStatus GetStatus() => new()
+    {
+        DatabaseType = _status.DatabaseType,
+        IsRunning = _status.IsRunning,
+        IsEnabled = _status.IsEnabled,
+        LastScanTime = _status.LastScanTime,
+        LastProcessedEventId = _status.LastProcessedEventId,
+        TotalProcessedCount = _status.TotalProcessedCount,
+        SuccessCount = _status.SuccessCount,
+        FailedCount = _status.FailedCount,
+        CurrentBatchCount = _status.CurrentBatchCount,
+        LastError = _status.LastError,
+        LastErrorTime = _status.LastErrorTime
+    };
 
     /// <summary>
     /// 处理循环
@@ -116,6 +154,7 @@ public class DatabaseTypeProcessor
                     _status.LastProcessedEventId = eventData.Id;
                 }
 
+                _consecutiveErrors = 0;
                 await Task.Delay(TimeSpan.FromSeconds(config.ScanFrequency), cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -127,10 +166,15 @@ public class DatabaseTypeProcessor
                 _logger.LogError(ex, "[{DatabaseType}] 处理循环异常", _databaseType);
                 _status.LastError = ex.Message;
                 _status.LastErrorTime = DateTime.Now;
+                _consecutiveErrors++;
+
+                var delay = TimeSpan.FromSeconds(Math.Min(10 * _consecutiveErrors, 300));
+                _logger.LogWarning("[{DatabaseType}] 连续异常次数: {Count}，退避延迟: {Delay}s",
+                    _databaseType, _consecutiveErrors, delay.TotalSeconds);
                 
                 try
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                    await Task.Delay(delay, cancellationToken);
                 }
                 catch (OperationCanceledException) { break; }
             }
@@ -143,6 +187,7 @@ public class DatabaseTypeProcessor
     private async Task<List<string>?> GetEventCodesAsync(IProcessorService processorService)
     {
         var all = await processorService.GetAllAsync();
+
         return all
             .Where(p => p.Enabled && (p.DatabaseTypes.Contains(_databaseType) || p.DatabaseTypes.Count == 0))
             .SelectMany(p => p.EventCodes)
@@ -205,7 +250,7 @@ public class DatabaseTypeProcessor
                 processor.Id,
                 processor.Name);
 
-            // 如果已完成，跳过
+            // 如果记录创建失败或已完成，跳过
             if (handle.IsFinished)
             {
                 _logger.LogDebug("[{DatabaseType}] 处理器 {ProcessorName} 已完成事件 {EventId}，跳过",
@@ -303,12 +348,13 @@ public class DatabaseTypeProcessor
     private async Task<List<JsProcessor>> GetMatchingProcessorsAsync(Event eventData, IProcessorService processorService)
     {
         var all = await processorService.GetAllAsync();
-        var ids = all.Where(p => p.Enabled)
+        var ids = all
+            .Where(p => p.Enabled)
             .Where(p => p.DatabaseTypes.Contains(_databaseType) || p.DatabaseTypes.Count == 0)
             .Where(p => p.EventCodes.Count == 0 || p.EventCodes.Contains(eventData.EventCode))
             .Select(p => p.Id)
             .ToList();
-    
+
         var processors = new List<JsProcessor>();
         foreach (var id in ids)
         {
@@ -318,7 +364,7 @@ public class DatabaseTypeProcessor
                 processors.Add(processor);
             }
         }
-    
+
         return processors;
     }
 

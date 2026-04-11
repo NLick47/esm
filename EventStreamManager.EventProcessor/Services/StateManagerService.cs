@@ -13,7 +13,7 @@ public sealed class StateManagerService : IStateManagerService, IDisposable
     
     private readonly object _lock = new();
     private ServiceStateSnapshot _state;
-    private readonly Channel<Func<ServiceStateSnapshot, ServiceStateSnapshot>> _stateUpdates;
+    private readonly Channel<(Func<ServiceStateSnapshot, ServiceStateSnapshot?> Updater, TaskCompletionSource Tcs)> _stateUpdates;
     private readonly CancellationTokenSource _cts = new();
     private readonly Task? _processingTask;
 
@@ -27,7 +27,7 @@ public sealed class StateManagerService : IStateManagerService, IDisposable
         _stateFile = stateFile;
         _state = CreateDefaultState();
         
-        _stateUpdates = Channel.CreateUnbounded<Func<ServiceStateSnapshot, ServiceStateSnapshot>>();
+        _stateUpdates = Channel.CreateUnbounded<(Func<ServiceStateSnapshot, ServiceStateSnapshot?>, TaskCompletionSource)>();
         _processingTask = ProcessStateUpdatesAsync(_cts.Token);
     }
 
@@ -44,7 +44,13 @@ public sealed class StateManagerService : IStateManagerService, IDisposable
     DateTime IStateManagerService.StartTime 
     { 
         get => StartTime;
-        init => UpdateStartTime(value);  
+        init
+        {
+            lock (_lock)
+            {
+                _state = _state with { StartTime = value };
+            }
+        }
     }
 
     public TimeSpan GetRunningDuration()
@@ -119,9 +125,9 @@ public sealed class StateManagerService : IStateManagerService, IDisposable
         return true;
     }
 
-    public void UpdateStartTime(DateTime startTime)
+    public async Task UpdateStartTimeAsync(DateTime startTime)
     {
-        UpdateState(current => current with { StartTime = startTime });
+        await UpdateStateAsync(current => current with { StartTime = startTime });
     }
 
     public async Task LoadStateAsync()
@@ -193,46 +199,68 @@ public sealed class StateManagerService : IStateManagerService, IDisposable
         LastUpdated = DateTime.Now
     };
 
-    private void UpdateState(Func<ServiceStateSnapshot, ServiceStateSnapshot?> updater)
-    {
-        lock (_lock)
-        {
-            var result = updater(_state);
-            if (result != null) _state = result;
-        }
-    }
-
     private async Task UpdateStateAsync(Func<ServiceStateSnapshot, ServiceStateSnapshot?> updater)
     {
-        var tcs = new TaskCompletionSource();
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         
-        await _stateUpdates.Writer.WriteAsync(current =>
-        {
-            var result = updater(current);
-            tcs.SetResult();
-            return result ?? current;
-        });
+        await _stateUpdates.Writer.WriteAsync((updater, tcs));
 
         await tcs.Task;
     }
 
     private async Task ProcessStateUpdatesAsync(CancellationToken ct)
     {
-        await foreach (var updater in _stateUpdates.Reader.ReadAllAsync(ct))
+        await foreach (var (updater, tcs) in _stateUpdates.Reader.ReadAllAsync(ct))
         {
+            ServiceStateSnapshot result;
+            try
+            {
+                result = updater(_state) ?? _state;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "处理状态更新时发生异常");
+                tcs.SetException(ex);
+                continue;
+            }
+
             lock (_lock)
             {
-                var result = updater(_state);
                 _state = result;
             }
+            tcs.SetResult();
         }
     }
 
     public void Dispose()
     {
-        _cts.Cancel();
-        _stateUpdates.Writer.Complete();
-        _processingTask?.Wait(TimeSpan.FromSeconds(5));
-        _cts.Dispose();
+        try
+        {
+            _cts.Cancel();
+            _stateUpdates.Writer.TryComplete();
+        }
+        catch (ObjectDisposedException) { }
+
+        if (_processingTask is { IsCompleted: false })
+        {
+            try
+            {
+                if (!_processingTask.Wait(TimeSpan.FromSeconds(5)))
+                {
+                    _logger.LogWarning("StateManagerService 后台任务停止超时");
+                }
+            }
+            catch (AggregateException aex)
+            {
+                _logger.LogError(aex, "StateManagerService 后台任务异常");
+            }
+            catch (ObjectDisposedException) { }
+        }
+
+        try
+        {
+            _cts.Dispose();
+        }
+        catch (ObjectDisposedException) { }
     }
 }

@@ -13,9 +13,9 @@ public interface IProcessorManagerService
     Task StopProcessorAsync(string dbType);
     Task StopAllAsync();
     Task RefreshConfigurationAsync(CancellationToken ct);
-    Task TriggerScanAsync(string dbType);
+    Task TriggerScanAsync(string dbType, CancellationToken ct = default);
     
     IReadOnlyList<ProcessorStatus> GetAllStatus();
     ProcessorStatus? GetStatus(string databaseType);
-    void StartBackgroundRefresh(TimeSpan refreshInterval);
+    void StartBackgroundRefresh(TimeSpan refreshInterval, CancellationToken ct = default);
 }
