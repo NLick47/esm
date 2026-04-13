@@ -23,13 +23,13 @@ public class EventHandle
     /// <summary>
     /// 处理器ID
     /// </summary>
-    [SugarColumn(ColumnName = "ProcessorId", ColumnDataType = "nvarchar", Length = 100, IsNullable = false, ColumnDescription = "处理器ID")]
+    [SugarColumn(ColumnName = "ProcessorId", Length = 100, IsNullable = false, ColumnDescription = "处理器ID")]
     public string ProcessorId { get; set; } = string.Empty;
 
     /// <summary>
     /// 处理器名称
     /// </summary>
-    [SugarColumn(ColumnName = "ProcessorName", ColumnDataType = "nvarchar", Length = 200, IsNullable = false, ColumnDescription = "处理器名称")]
+    [SugarColumn(ColumnName = "ProcessorName", Length = 200, IsNullable = false, ColumnDescription = "处理器名称")]
     public string ProcessorName { get; set; } = string.Empty;
 
     /// <summary>
@@ -47,7 +47,7 @@ public class EventHandle
     /// <summary>
     /// 最后处理状态：Success/Fail/Exception
     /// </summary>
-    [SugarColumn(ColumnName = "LastHandleStatus", ColumnDataType = "nvarchar", Length = 20, IsNullable = true, ColumnDescription = "最后处理状态")]
+    [SugarColumn(ColumnName = "LastHandleStatus", Length = 20, IsNullable = true, ColumnDescription = "最后处理状态")]
     public string? LastHandleStatus { get; set; }
 
     /// <summary>

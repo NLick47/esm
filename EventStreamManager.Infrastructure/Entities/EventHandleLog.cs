@@ -29,13 +29,13 @@ public class EventHandleLog
     /// <summary>
     /// 处理器ID
     /// </summary>
-    [SugarColumn(ColumnName = "ProcessorId", ColumnDataType = "nvarchar", Length = 100, IsNullable = false, ColumnDescription = "处理器ID")]
+    [SugarColumn(ColumnName = "ProcessorId", Length = 100, IsNullable = false, ColumnDescription = "处理器ID")]
     public string ProcessorId { get; set; } = string.Empty;
 
     /// <summary>
     /// 处理器名称
     /// </summary>
-    [SugarColumn(ColumnName = "ProcessorName", ColumnDataType = "nvarchar", Length = 200, IsNullable = false, ColumnDescription = "处理器名称")]
+    [SugarColumn(ColumnName = "ProcessorName", Length = 200, IsNullable = false, ColumnDescription = "处理器名称")]
     public string ProcessorName { get; set; } = string.Empty;
 
     /// <summary>
@@ -53,13 +53,13 @@ public class EventHandleLog
     /// <summary>
     /// 请求信息
     /// </summary>
-    [SugarColumn(ColumnName = "RequestData", ColumnDataType = "nvarchar", Length = int.MaxValue, IsNullable = true, ColumnDescription = "请求信息")]
+    [SugarColumn(ColumnName = "RequestData",Length = int.MaxValue, IsNullable = true, ColumnDescription = "请求信息")]
     public string? RequestData { get; set; }
 
     /// <summary>
     /// 响应信息
     /// </summary>
-    [SugarColumn(ColumnName = "ResponseData", ColumnDataType = "nvarchar", Length = int.MaxValue, IsNullable = true, ColumnDescription = "响应信息")]
+    [SugarColumn(ColumnName = "ResponseData", Length = int.MaxValue, IsNullable = true, ColumnDescription = "响应信息")]
     public string? ResponseData { get; set; }
 
     /// <summary>
@@ -71,13 +71,13 @@ public class EventHandleLog
     /// <summary>
     /// 异常信息
     /// </summary>
-    [SugarColumn(ColumnName = "ExceptionMessage", ColumnDataType = "nvarchar", Length = int.MaxValue, IsNullable = true, ColumnDescription = "异常信息")]
+    [SugarColumn(ColumnName = "ExceptionMessage", Length = int.MaxValue, IsNullable = true, ColumnDescription = "异常信息")]
     public string? ExceptionMessage { get; set; }
 
     /// <summary>
     /// 状态：Success/Fail/Exception
     /// </summary>
-    [SugarColumn(ColumnName = "Status", ColumnDataType = "nvarchar", Length = 20, IsNullable = false, ColumnDescription = "状态")]
+    [SugarColumn(ColumnName = "Status", Length = 20, IsNullable = false, ColumnDescription = "状态")]
     public string Status { get; set; } = "Unhandled";
 
     /// <summary>
