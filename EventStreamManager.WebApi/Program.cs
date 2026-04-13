@@ -1,15 +1,5 @@
 using EventStreamManager.EventProcessor;
-using EventStreamManager.EventProcessor.Executors;
-using EventStreamManager.EventProcessor.Interfaces;
-using EventStreamManager.EventProcessor.Processors;
-using EventStreamManager.EventProcessor.Recorders;
-using EventStreamManager.EventProcessor.Scanners;
-using EventStreamManager.EventProcessor.Senders;
-using EventStreamManager.EventProcessor.Services;
-using EventStreamManager.Infrastructure.Services;
-using EventStreamManager.Infrastructure.Services.Data;
-using EventStreamManager.Infrastructure.Services.Data.Interfaces;
-using EventStreamManager.JSFunction;
+using EventStreamManager.Infrastructure;
 using EventStreamManager.JSFunction.Loader;
 using EventStreamManager.WebApi.Mappings;
 using EventStreamManager.WebApi.Middleware;
@@ -22,60 +12,17 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 
 // JS Function 插件系统
-builder.Services.AddSingleton<JsFunctionLoader>(serviceProvider =>
-{
-    var logger = serviceProvider.GetService<ILogger<JsFunctionLoader>>();
-    return new JsFunctionLoader(logger);
-});
+builder.Services.AddJsFunctionLoader();
 
-builder.Services.AddSingleton<IEnumerable<IJsFunctionProvider>>(serviceProvider =>
-{
-    var loader = serviceProvider.GetRequiredService<JsFunctionLoader>();
-    return loader.LoadAllProviders().ToList();
-});
-builder.Services.AddSingleton<JsFunctionRegistry>();
+// 基础设施服务
+builder.Services.AddInfrastructureServices();
 
-
-// 核心服务
-builder.Services.AddSingleton<IJavaScriptExecutionService, JavaScriptExecutionService>();
-builder.Services.AddScoped<ISqlSugarContext, SqlSugarContext>();
-
-// 数据服务
-builder.Services.AddSingleton<IDatabaseConnectionService, DatabaseConnectionService>();
-builder.Services.AddSingleton<IDatabaseSchemeService, DatabaseSchemeService>();
-builder.Services.AddSingleton<IEventListenerConfigService, EventListenerConfigService>();
-builder.Services.AddSingleton<IInterfaceConfigService, InterfaceConfigService>();
-builder.Services.AddSingleton<IDataService, JsonDataService>();
-builder.Services.AddSingleton<IProcessorService, ProcessorService>();
-builder.Services.AddSingleton<ISqlTemplateService, SqlTemplateService>();
-builder.Services.AddScoped<ITableInitializationService, TableInitializationService>();
-builder.Services.AddScoped<IEventLogService, EventLogService>();
-// 调试服务
-builder.Services.AddScoped<IDebugService, DebugService>();
-
-// 请求服务
-builder.Services.AddHttpClient();
-builder.Services.AddScoped<IHttpSendService, HttpSendService>();
-// 事件处理器
-builder.Services.AddSingleton<ProcessorFactory>();
-builder.Services.AddSingleton<IStateManagerService, StateManagerService>();
-builder.Services.AddSingleton<IProcessorManagerService, ProcessorManagerService>();
-builder.Services.AddSingleton<EventProcessorService>();
-
-builder.Services.AddHostedService(sp => sp.GetRequiredService<EventProcessorService>());
-// 扫描器、执行器、记录器、发送器 
-builder.Services.AddScoped<IEventScanner, EventScanner>();
-builder.Services.AddScoped<IScriptExecutor, ScriptExecutor>();
-builder.Services.AddScoped<IHandleRecorder, HandleRecorder>();
-builder.Services.AddScoped<IInterfaceSender, InterfaceSender>();
-
-// 脚本数据构建服务
-builder.Services.AddScoped<IEventDataBuilderService, EventDataBuilderService>();
-
-builder.Services.AddSingleton<IProcessorFactory, ProcessorFactory>();
+// 事件处理器服务
+builder.Services.AddEventProcessorServices();
 
 builder.Services.AddAutoMapper(typeof(Program));
 builder.Services.AddAutoMapper(typeof(MappingProfile));
+
 // 配置 API 行为选项
 builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options =>
@@ -101,7 +48,7 @@ builder.Services.AddControllers()
 
             return new OkObjectResult(response);
         };
-    }) .AddJsonOptions(options =>
+    }).AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
@@ -134,7 +81,7 @@ app.UseAuthorization();
 
 // 配置静态文件中间件，用于访问前端发布后的index.html
 app.UseDefaultFiles();
-app.UseStaticFiles(); 
+app.UseStaticFiles();
 app.MapControllers();
 app.MapFallbackToFile("index.html");
 app.Run();
