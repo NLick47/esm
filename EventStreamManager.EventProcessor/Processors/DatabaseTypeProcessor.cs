@@ -141,9 +141,17 @@ public class DatabaseTypeProcessor
                 var interfaceService = scope.ServiceProvider.GetRequiredService<IInterfaceConfigService>();
 
                 var eventCodes = await GetEventCodesAsync(processorService);
+                var processorIds = await GetProcessorIdsAsync(processorService);
+                
+                if (processorIds.Count == 0)
+                {
+                    _logger.LogInformation("[{DatabaseType}] 没有启用的处理器，跳过本次扫描", _databaseType);
+                    await Task.Delay(TimeSpan.FromSeconds(config.ScanFrequency), cancellationToken);
+                    continue;
+                }
                 
                 _status.LastScanTime = DateTime.Now;
-                var events = await scanner.ScanAsync(_databaseType, config, eventCodes);
+                var events = await scanner.ScanAsync(_databaseType, config, eventCodes, processorIds);
                 _status.CurrentBatchCount = events.Count;
 
                 foreach (var eventData in events)
@@ -191,6 +199,20 @@ public class DatabaseTypeProcessor
         return all
             .Where(p => p.Enabled && (p.DatabaseTypes.Contains(_databaseType) || p.DatabaseTypes.Count == 0))
             .SelectMany(p => p.EventCodes)
+            .Distinct()
+            .ToList();
+    }
+
+    /// <summary>
+    /// 获取当前数据库类型所有启用的处理器ID集合
+    /// </summary>
+    private async Task<List<string>> GetProcessorIdsAsync(IProcessorService processorService)
+    {
+        var all = await processorService.GetAllAsync();
+
+        return all
+            .Where(p => p.Enabled && (p.DatabaseTypes.Contains(_databaseType) || p.DatabaseTypes.Count == 0))
+            .Select(p => p.Id)
             .Distinct()
             .ToList();
     }

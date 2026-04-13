@@ -26,7 +26,7 @@ public class EventScanner  : IEventScanner
     /// <summary>
     /// 扫描未被处理的新事件
     /// </summary>
-    public async Task<List<Event>> ScanAsync(string databaseType, EventConfig config, List<string>? eventCodes)
+    public async Task<List<Event>> ScanAsync(string databaseType, EventConfig config, List<string>? eventCodes, List<string> processorIds)
     {
         try
         {
@@ -50,13 +50,13 @@ public class EventScanner  : IEventScanner
                 }
             }
 
-            // 使用 SqlSugar 查询，自动适配多数据库
-            // NOT EXISTS: 筛选没有处理记录的新事件
+            // 按处理器维度判断是否已处理：只有当所有匹配的处理器都已处理完毕(IsFinished)时才跳过该事件
             var query = client.Queryable<Event>()
                 .AS(config.TableName)
-                .Where(e => !SqlFunc.Subqueryable<EventHandle>()
-                    .Where(h => h.EventId == e.Id)
-                    .Any())
+                .WhereIF(processorIds.Count > 0, e =>
+                        SqlFunc.Subqueryable<EventHandle>()
+                        .Where(h => h.EventId == e.Id && h.IsFinished && processorIds.Contains(h.ProcessorId))
+                        .Count() < processorIds.Count)
                 // 起始条件 - ID
                 .WhereIF(startId.HasValue, e => e.Id >= startId!.Value)
                 // 起始条件 - 时间
