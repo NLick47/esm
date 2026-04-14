@@ -39,19 +39,25 @@ public class HttpSendService : IHttpSendService
             
             var content = new StringContent(data, Encoding.UTF8, contentType);
             
+            var request = new HttpRequestMessage
+            {
+                RequestUri = new Uri(config.Url),
+                Method = new HttpMethod(config.Method.ToUpper()),
+                Content = config.Method.ToUpper() switch
+                {
+                    "GET" => null,
+                    _ => content
+                }
+            };
+            
             foreach (var header in config.Headers.Where(h => 
                          !string.IsNullOrWhiteSpace(h.Key) && 
                          !h.Key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase)))
             {
-                client.DefaultRequestHeaders.TryAddWithoutValidation(header.Key, header.Value);
+                request.Headers.TryAddWithoutValidation(header.Key, header.Value);
             }
-            
-            HttpResponseMessage response = config.Method.ToUpper() switch
-            {
-                "GET" => await client.GetAsync(config.Url),
-                "PUT" => await client.PutAsync(config.Url, content),
-                _ => await client.PostAsync(config.Url, content)
-            };
+
+            HttpResponseMessage response = await client.SendAsync(request);
 
             stopwatch.Stop();
             result.StatusCode = (int)response.StatusCode;
