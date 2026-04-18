@@ -1,0 +1,11 @@
+{
+  "Probe": {
+    "TargetUrl": "http://localhost:7138",
+    "CheckIntervalSeconds": 30,
+    "FailureThreshold": 3,
+    "RestartCommand": "EventStreamManager.WebApi.exe",
+    "RestartArguments": "",
+    "WorkingDirectory": ".",
+    "LogPath": "logs/probe-.txt"
+  }
+}
