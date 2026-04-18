@@ -158,7 +158,7 @@ public class DatabaseTypeProcessor : IDisposable
                 {
                     if (cancellationToken.IsCancellationRequested) break;
                     await ProcessEventAsync(eventData, processorService, interfaceService, 
-                        executor, recorder, sender);
+                        executor, recorder, sender, config.MaxRetryCount);
                     _status.LastProcessedEventId = eventData.Id;
                 }
 
@@ -226,7 +226,8 @@ public class DatabaseTypeProcessor : IDisposable
         IInterfaceConfigService interfaceService,
         IScriptExecutor executor,
         IHandleRecorder recorder,
-        IInterfaceSender sender)
+        IInterfaceSender sender,
+        int maxRetryCount)
     {
         try
         {
@@ -236,7 +237,7 @@ public class DatabaseTypeProcessor : IDisposable
             // 遍历每个处理器，单独处理并记录
             foreach (var processor in processors)
             {
-                await ProcessSingleProcessorAsync(eventData, processor, interfaceService, executor, recorder, sender);
+                await ProcessSingleProcessorAsync(eventData, processor, interfaceService, executor, recorder, sender, maxRetryCount);
             }
 
             _status.TotalProcessedCount += processors.Count;
@@ -259,7 +260,8 @@ public class DatabaseTypeProcessor : IDisposable
         IInterfaceConfigService interfaceService,
         IScriptExecutor executor,
         IHandleRecorder recorder,
-        IInterfaceSender sender)
+        IInterfaceSender sender,
+        int maxRetryCount)
     {
         EventHandle? handle = null;
         
@@ -306,11 +308,25 @@ public class DatabaseTypeProcessor : IDisposable
             }
             else
             {
-                await recorder.MarkFailedAsync(_databaseType, handle, HandleStatus.Fail, log.Id);
-                _status.FailedCount++;
-                _logger.LogWarning(
-                    "[{DatabaseType}] 处理器 {ProcessorName} 处理事件 {EventId}: 失败, 错误: {Error}, 耗时 {Time}ms",
-                    _databaseType, processor.Name, eventData.Id, result.ErrorMessage ?? "未知错误", result.ExecutionTimeMs);
+                // 判断是否超过最大重试次数（MaxRetryCount = 0 表示无限重试）
+                bool retryExhausted = maxRetryCount > 0 && handle.HandleTimes + 1 >= maxRetryCount;
+                
+                if (retryExhausted)
+                {
+                    await recorder.MarkRetryExhaustedAsync(_databaseType, handle, HandleStatus.Fail, log.Id);
+                    _status.FailedCount++;
+                    _logger.LogError(
+                        "[{DatabaseType}] 处理器 {ProcessorName} 处理事件 {EventId}: 失败且重试次数耗尽({Times}/{Max}), 标记为死信, 错误: {Error}",
+                        _databaseType, processor.Name, eventData.Id, handle.HandleTimes, maxRetryCount, result.ErrorMessage ?? "未知错误");
+                }
+                else
+                {
+                    await recorder.MarkFailedAsync(_databaseType, handle, HandleStatus.Fail, log.Id);
+                    _status.FailedCount++;
+                    _logger.LogWarning(
+                        "[{DatabaseType}] 处理器 {ProcessorName} 处理事件 {EventId}: 失败, 错误: {Error}, 耗时 {Time}ms",
+                        _databaseType, processor.Name, eventData.Id, result.ErrorMessage ?? "未知错误", result.ExecutionTimeMs);
+                }
             }
         }
         catch (Exception ex)
@@ -332,7 +348,17 @@ public class DatabaseTypeProcessor : IDisposable
                     };
                     
                     var log = await recorder.LogAsync(_databaseType, handle, errorResult);
-                    await recorder.MarkFailedAsync(_databaseType, handle, HandleStatus.Fail, log.Id);
+                    
+                    // 判断是否超过最大重试次数
+                    bool retryExhausted = maxRetryCount > 0 && handle.HandleTimes + 1 >= maxRetryCount;
+                    if (retryExhausted)
+                    {
+                        await recorder.MarkRetryExhaustedAsync(_databaseType, handle, HandleStatus.Fail, log.Id);
+                    }
+                    else
+                    {
+                        await recorder.MarkFailedAsync(_databaseType, handle, HandleStatus.Fail, log.Id);
+                    }
                 }
                 catch (Exception recordEx)
                 {

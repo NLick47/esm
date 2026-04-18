@@ -23,6 +23,7 @@ export default function EventListenerConfig() {
         ultrasound: {
             scanFrequency: 60,
             batchSize: 50,
+            maxRetryCount: 3,
             enabled: true,
             tableName: 'event_log',
             primaryKey: 'event_id',
@@ -31,6 +32,7 @@ export default function EventListenerConfig() {
         radiology: {
             scanFrequency: 30,
             batchSize: 100,
+            maxRetryCount: 3,
             enabled: false,
             tableName: 'rad_event_log',
             primaryKey: 'event_id',
@@ -39,6 +41,7 @@ export default function EventListenerConfig() {
         endoscopy: {
             scanFrequency: 45,
             batchSize: 75,
+            maxRetryCount: 3,
             enabled: true,
             tableName: 'endo_event_log',
             primaryKey: 'id',
@@ -315,6 +318,25 @@ export default function EventListenerConfig() {
                                     />
                                     <span className="w-12 text-center font-medium">{currentConfig.batchSize}</span>
                                 </div>
+                            </div>
+                            
+                            <div>
+                                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    最大重试次数
+                                </label>
+                                <div className="flex items-center gap-3">
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="10"
+                                        step="1"
+                                        value={currentConfig.maxRetryCount}
+                                        onChange={(e) => handleConfigChange('maxRetryCount', Number(e.target.value))}
+                                        className="h-2 flex-1 appearance-none rounded-lg bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700"
+                                    />
+                                    <span className="w-12 text-center font-medium">{currentConfig.maxRetryCount === 0 ? '无限' : currentConfig.maxRetryCount}</span>
+                                </div>
+                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">0 表示无限重试</p>
                             </div>
                             
                             <div>

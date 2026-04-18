@@ -32,4 +32,9 @@ public interface IEventLogService
         DateTime? startDate = null,
         DateTime? endDate = null,
         int maxRows = 10000);
+
+    /// <summary>
+    /// 重置死信状态，允许重新处理
+    /// </summary>
+    Task<bool> ResetDeadLetterAsync(string databaseType, int handleId);
 }

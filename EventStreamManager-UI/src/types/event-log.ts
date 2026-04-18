@@ -13,6 +13,7 @@ export interface EventHandle {
   scriptSuccess?: boolean;
   sendSuccess?: boolean;
   needToSend?: boolean;
+  isDeadLetter?: boolean;
   requestData?: string;
   isFinished: boolean;
   createDatetime: string;

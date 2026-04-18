@@ -63,6 +63,12 @@ public class EventHandle
     public int? LastHandleLogId { get; set; }
 
     /// <summary>
+    /// 是否已进入死信（超过最大重试次数）
+    /// </summary>
+    [SugarColumn(ColumnName = "IsDeadLetter", IsNullable = false, ColumnDescription = "是否死信")]
+    public bool IsDeadLetter { get; set; }
+
+    /// <summary>
     /// 创建时间
     /// </summary>
     [SugarColumn(ColumnName = "CreateDatetime", IsNullable = false, ColumnDescription = "创建时间")]

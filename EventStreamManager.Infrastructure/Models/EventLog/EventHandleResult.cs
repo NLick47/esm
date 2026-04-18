@@ -87,6 +87,11 @@ public class EventHandleResult
     public bool? SendSuccess { get; set; }
     
     /// <summary>
+    /// 是否死信（超过最大重试次数）
+    /// </summary>
+    public bool IsDeadLetter { get; set; }
+    
+    /// <summary>
     /// 请求数据（可考虑截断显示）
     /// </summary>
     public string? RequestData { get; set; }

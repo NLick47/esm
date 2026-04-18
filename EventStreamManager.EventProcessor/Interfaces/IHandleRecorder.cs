@@ -10,4 +10,5 @@ public interface IHandleRecorder
     Task<EventHandleLog> LogAsync(string databaseType, EventHandle handle, ExecutionResult result);
     Task MarkFinishedAsync(string databaseType, int handleId, string status, int logId);
     Task MarkFailedAsync(string databaseType, EventHandle handle, string status, int logId);
+    Task MarkRetryExhaustedAsync(string databaseType, EventHandle handle, string status, int logId);
 }

@@ -184,6 +184,7 @@ namespace EventStreamManager.Infrastructure.Services.Data
             // 更新可配置的字段
             existingConfig.ScanFrequency = config.ScanFrequency;
             existingConfig.BatchSize = config.BatchSize;
+            existingConfig.MaxRetryCount = config.MaxRetryCount;
             existingConfig.Enabled = config.Enabled;
             existingConfig.TableName = config.TableName;
             existingConfig.PrimaryKey = config.PrimaryKey;
@@ -255,6 +256,7 @@ namespace EventStreamManager.Infrastructure.Services.Data
             {
                 ScanFrequency = 60,
                 BatchSize = 100,
+                MaxRetryCount = 1,
                 Enabled = true,
                 TableName = "tblevent",
                 PrimaryKey = "Id",

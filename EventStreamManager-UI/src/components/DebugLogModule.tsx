@@ -29,6 +29,7 @@ export default function DebugLogModule() {
   const [loading, setLoading] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [exporting, setExporting] = useState(false);
+  const [retryingId, setRetryingId] = useState<number | null>(null);
 
   const [databaseTypes, setDatabaseTypes] = useState<Array<{value: string; label: string}>>([]);
   const [processors, setProcessors] = useState<Array<{id: string; name: string}>>([]);
@@ -135,6 +136,22 @@ export default function DebugLogModule() {
     }
   };
 
+  const handleRetryDeadLetter = async (handleId: number) => {
+    if (!databaseType) return;
+    setRetryingId(handleId);
+    try {
+      await eventLogService.retryDeadLetter(databaseType, handleId);
+      toast.success('死信已重置，将在下次扫描时重新处理');
+      // 刷新当前列表
+      await fetchHandles();
+    } catch (error) {
+      toast.error('重置死信失败');
+      console.error(error);
+    } finally {
+      setRetryingId(null);
+    }
+  };
+
   const toggleRowExpand = (id: number) => {
     const newExpanded = new Set(expandedRows);
     if (newExpanded.has(id)) {
@@ -155,7 +172,10 @@ export default function DebugLogModule() {
     return colors[status] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
   };
 
-  const getScriptStatusBadge = (scriptSuccess?: boolean) => {
+  const getScriptStatusBadge = (scriptSuccess?: boolean, isDeadLetter?: boolean) => {
+    if (isDeadLetter) {
+      return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400';
+    }
     if (scriptSuccess === true) {
       return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
     }
@@ -379,8 +399,8 @@ export default function DebugLogModule() {
                     <div className="text-xs text-gray-500">{handle.processorId}</div>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2 py-1 rounded text-xs ${getScriptStatusBadge(handle.scriptSuccess)}`}>
-                      {handle.scriptSuccess === true ? '成功' : handle.scriptSuccess === false ? '失败' : '-'}
+                    <span className={`inline-flex items-center px-2 py-1 rounded text-xs ${getScriptStatusBadge(handle.scriptSuccess, handle.isDeadLetter)}`}>
+                      {handle.isDeadLetter ? '死信' : handle.scriptSuccess === true ? '成功' : handle.scriptSuccess === false ? '失败' : '-'}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -410,6 +430,20 @@ export default function DebugLogModule() {
                       >
                         {expandedRows.has(handle.id) ? '收起' : '消息'}
                       </button>
+                      {handle.isDeadLetter && (
+                        <button
+                          onClick={() => handleRetryDeadLetter(handle.id)}
+                          disabled={retryingId === handle.id}
+                          className="text-purple-600 hover:text-purple-700 text-sm whitespace-nowrap disabled:opacity-50"
+                        >
+                          {retryingId === handle.id ? (
+                            <i className="fa-solid fa-spinner fa-spin mr-1"></i>
+                          ) : (
+                            <i className="fa-solid fa-rotate-right mr-1"></i>
+                          )}
+                          重试
+                        </button>
+                      )}
                     </div>
                     {expandedRows.has(handle.id) && handle.lastHandleMessage && (
                       <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-800 rounded text-xs max-w-md">

@@ -10,6 +10,8 @@ public class EventConfig
     public string TimestampField { get; set; } = "create_time";
   
     public int TotalEventsProcessed { get; set; }
+
+    public int MaxRetryCount { get; set; } = 1;
     
     public StartCondition? StartCondition { get; set; }
 }

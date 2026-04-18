@@ -1,6 +1,5 @@
 using ClosedXML.Excel;
 using EventStreamManager.Infrastructure.Entities;
-using EventStreamManager.Infrastructure.Models;
 using EventStreamManager.Infrastructure.Models.EventLog;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
 using Microsoft.Extensions.Logging;
@@ -104,6 +103,53 @@ public class EventLogService : IEventLogService
                 databaseType, eventId, strEventReferenceId, processorId,
                 status, eventCode, startDate, endDate
             });
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// 重置死信状态
+    /// </summary>
+    public async Task<bool> ResetDeadLetterAsync(string databaseType, int handleId)
+    {
+        try
+        {
+            var client = await _db.GetClientAsync(databaseType);
+            var handle = await client.Queryable<EventHandle>()
+                .Where(h => h.Id == handleId)
+                .FirstAsync();
+
+            if (handle == null)
+            {
+                _logger.LogWarning("[{DatabaseType}] 重置死信失败: HandleId={HandleId} 不存在",
+                    databaseType, handleId);
+                return false;
+            }
+
+            if (!handle.IsDeadLetter)
+            {
+                _logger.LogWarning("[{DatabaseType}] 重置死信失败: HandleId={HandleId} 不是死信状态",
+                    databaseType, handleId);
+                return false;
+            }
+
+            handle.IsDeadLetter = false;
+            handle.IsFinished = false;
+            handle.HandleTimes = 0;
+            handle.LastHandleStatus = HandleStatus.Unhandled;
+            handle.LastHandleDatetime = null;
+            handle.LastHandleLogId = null;
+
+            await client.Updateable(handle).ExecuteCommandAsync();
+
+            _logger.LogInformation("[{DatabaseType}] 死信已重置: HandleId={HandleId}, Processor={ProcessorName}",
+                databaseType, handleId, handle.ProcessorName);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[{DatabaseType}] 重置死信异常: HandleId={HandleId}",
+                databaseType, handleId);
             throw;
         }
     }
@@ -250,6 +296,7 @@ public class EventLogService : IEventLogService
                 NeedToSend = l.NeedToSend,
                 ScriptSuccess = l.ScriptSuccess,
                 SendSuccess = l.SendSuccess,
+                IsDeadLetter = h.IsDeadLetter,
                 Reason = l.Reason,
                 LastHandleElapsedMs = l.ExecutionTimeMs,
                 IsFinished = h.IsFinished,

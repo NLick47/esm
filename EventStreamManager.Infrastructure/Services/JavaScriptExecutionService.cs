@@ -213,15 +213,7 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
             // 设置脚本执行状态：如果脚本返回了 error，则视为脚本执行失败
             if (processResult.IsObject())
             {
-                var obj = processResult.AsObject();
-                if (!string.IsNullOrEmpty(result.ProcessError))
-                {
-                    result.Success = false;
-                }
-                else
-                {
-                    result.Success = true;
-                }
+                result.Success = string.IsNullOrEmpty(result.ProcessError);
             }
             else
             {

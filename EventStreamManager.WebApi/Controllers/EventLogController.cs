@@ -57,4 +57,18 @@ public class EventLogController : BaseController
         var fileName = $"{request.DatabaseType}事件处理记录_{DateTime.Now:yyyyMMddHHmmss}.xlsx";
         return File(excelBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
     }
+
+    /// <summary>
+    /// 重置死信状态，允许重新处理
+    /// </summary>
+    [HttpPost("{handleId}/retry")]
+    public async Task<IActionResult> RetryDeadLetter(string databaseType, int handleId)
+    {
+        var result = await _eventLogService.ResetDeadLetterAsync(databaseType, handleId);
+        if (result)
+        {
+            return OkMessage("死信已重置，将在下次扫描时重新处理");
+        }
+        return Fail("重置失败，该记录不存在或不是死信状态");
+    }
 }

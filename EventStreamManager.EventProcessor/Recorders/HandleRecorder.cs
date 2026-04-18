@@ -167,4 +167,26 @@ public class HandleRecorder : IHandleRecorder
         _logger.LogWarning("[{DatabaseType}] 处理失败: HandleId={HandleId}, Processor={ProcessorName}, Times={Times}",
             databaseType, handle.Id, handle.ProcessorName, handle.HandleTimes);
     }
+
+    /// <summary>
+    /// 标记重试次数耗尽（死信）
+    /// </summary>
+    public async Task MarkRetryExhaustedAsync(string databaseType, EventHandle handle, string status, int logId)
+    {
+        ArgumentNullException.ThrowIfNull(databaseType);
+        ArgumentNullException.ThrowIfNull(handle);
+        ArgumentNullException.ThrowIfNull(status);
+
+        var client = await _db.GetClientAsync(databaseType);
+        handle.HandleTimes++;
+        handle.IsFinished = true;
+        handle.IsDeadLetter = true;
+        handle.LastHandleStatus = status;
+        handle.LastHandleDatetime = DateTime.Now;
+        handle.LastHandleLogId = logId;
+
+        await client.Updateable(handle).ExecuteCommandAsync();
+        _logger.LogError("[{DatabaseType}] 重试次数耗尽，标记为死信: HandleId={HandleId}, Processor={ProcessorName}, Times={Times}",
+            databaseType, handle.Id, handle.ProcessorName, handle.HandleTimes);
+    }
 }

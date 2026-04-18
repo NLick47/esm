@@ -50,12 +50,12 @@ public class EventScanner  : IEventScanner
                 }
             }
 
-            // 按处理器维度判断是否已处理：只有当所有匹配的处理器都已处理完毕(IsFinished)时才跳过该事件
+            // 按处理器维度判断是否已处理：只有当所有匹配的处理器都已处理完毕(IsFinished 或 IsDeadLetter)时才跳过该事件
             var query = client.Queryable<Event>()
                 .AS(config.TableName)
                 .WhereIF(processorIds.Count > 0, e =>
                         SqlFunc.Subqueryable<EventHandle>()
-                        .Where(h => h.EventId == e.Id && h.IsFinished && processorIds.Contains(h.ProcessorId))
+                        .Where(h => h.EventId == e.Id && (h.IsFinished || h.IsDeadLetter) && processorIds.Contains(h.ProcessorId))
                         .Count() < processorIds.Count)
                 // 起始条件 - ID
                 .WhereIF(startId.HasValue, e => e.Id >= startId!.Value)

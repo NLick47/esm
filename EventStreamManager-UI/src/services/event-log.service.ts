@@ -1,4 +1,4 @@
-import { get } from '@/utils/request';
+import { get, post } from '@/utils/request';
 import { getApiUrl } from '@/config/api.config';
 import type { 
   EventHandle, 
@@ -57,4 +57,8 @@ export function downloadExportFile(params: ExportEventHandlesRequest): void {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+}
+
+export function retryDeadLetter(databaseType: string, handleId: number): Promise<{ success: boolean; message: string }> {
+  return post(`${BASE_PATH}/${handleId}/retry`, null, { params: { databaseType } });
 }

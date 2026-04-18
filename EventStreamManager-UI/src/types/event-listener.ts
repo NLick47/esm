@@ -9,6 +9,7 @@ export interface StartCondition {
 export interface EventConfig {
   scanFrequency: number;
   batchSize: number;
+  maxRetryCount: number;
   enabled: boolean;
   tableName: string;
   primaryKey: string;
