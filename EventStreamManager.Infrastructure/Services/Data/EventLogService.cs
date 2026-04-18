@@ -24,16 +24,13 @@ public class EventLogService : IEventLogService
     /// <summary>
     /// 获取事件处理记录列表
     /// </summary>
-    public async Task<PagedResult<EventHandleResult>> GetEventHandlesAsync(
+    public async Task<(List<EventHandleResult> Items, int Total)> GetEventHandlesAsync(
         string databaseType,
         int? eventId = null,
         string? strEventReferenceId = null,
         string? processorId = null,
-        string? processorName = null,
         string? status = null,
-        bool? isFinished = null,
         string? eventCode = null,
-        string? requestDataKeyword = null,
         DateTime? startDate = null,
         DateTime? endDate = null,
         int page = 1,
@@ -43,11 +40,11 @@ public class EventLogService : IEventLogService
         {
             var client = await _db.GetClientAsync(databaseType);
 
-            var query = BuildQuery(client, eventId, strEventReferenceId, processorId, processorName,
-                status, isFinished, eventCode, requestDataKeyword, startDate, endDate);
+            var query = BuildQuery(client, eventId, strEventReferenceId, processorId,
+                status, eventCode, startDate, endDate);
 
-            var total = await BuildCountQuery(client, eventId, strEventReferenceId, processorId, processorName,
-                    status, isFinished, eventCode, requestDataKeyword, startDate, endDate)
+            var total = await BuildCountQuery(client, eventId, strEventReferenceId, processorId,
+                    status, eventCode, startDate, endDate)
                 .CountAsync();
 
             var list = await query
@@ -55,31 +52,14 @@ public class EventLogService : IEventLogService
                 .Take(pageSize)
                 .ToListAsync();
 
-            return new PagedResult<EventHandleResult>
-            {
-                List = list,
-                Total = total,
-                Page = page,
-                PageSize = pageSize
-            };
+            return (list, total);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "获取处理记录列表失败，参数: {@Params}", new
             {
-                databaseType,
-                eventId,
-                strEventReferenceId,
-                processorId,
-                processorName,
-                status,
-                isFinished,
-                eventCode,
-                requestDataKeyword,
-                startDate,
-                endDate,
-                page,
-                pageSize
+                databaseType, eventId, strEventReferenceId, processorId,
+                status, eventCode, startDate, endDate, page, pageSize
             });
             throw;
         }
@@ -94,11 +74,8 @@ public class EventLogService : IEventLogService
         int? eventId = null,
         string? strEventReferenceId = null,
         string? processorId = null,
-        string? processorName = null,
         string? status = null,
-        bool? isFinished = null,
         string? eventCode = null,
-        string? requestDataKeyword = null,
         DateTime? startDate = null,
         DateTime? endDate = null,
         int maxRows = 10000)
@@ -106,14 +83,12 @@ public class EventLogService : IEventLogService
         try
         {
             var client = await _db.GetClientAsync(databaseType);
-            var query = BuildQuery(client, eventId, strEventReferenceId, processorId, processorName,
-                status, isFinished, eventCode, requestDataKeyword, startDate, endDate);
-
+            var query = BuildQuery(client, eventId, strEventReferenceId, processorId,
+                status, eventCode, startDate, endDate);
 
             var exportList = await query
                 .Take(maxRows)
                 .ToListAsync();
-
 
             if (exportList.Count >= maxRows)
             {
@@ -126,17 +101,8 @@ public class EventLogService : IEventLogService
         {
             _logger.LogError(ex, "导出处理记录到Excel失败，参数: {@Params}", new
             {
-                databaseType,
-                eventId,
-                strEventReferenceId,
-                processorId,
-                processorName,
-                status,
-                isFinished,
-                eventCode,
-                requestDataKeyword,
-                startDate,
-                endDate
+                databaseType, eventId, strEventReferenceId, processorId,
+                status, eventCode, startDate, endDate
             });
             throw;
         }
@@ -253,11 +219,8 @@ public class EventLogService : IEventLogService
         int? eventId,
         string? strEventReferenceId,
         string? processorId,
-        string? processorName,
         string? status,
-        bool? isFinished,
         string? eventCode,
-        string? requestDataKeyword,
         DateTime? startDate,
         DateTime? endDate)
     {
@@ -268,12 +231,8 @@ public class EventLogService : IEventLogService
             .WhereIF(!string.IsNullOrEmpty(strEventReferenceId),
                 (h, l, e) => e.StrEventReferenceId == strEventReferenceId)
             .WhereIF(!string.IsNullOrEmpty(processorId), (h, l, e) => h.ProcessorId == processorId)
-            .WhereIF(!string.IsNullOrEmpty(processorName), (h, l, e) => h.ProcessorName.Contains(processorName!))
             .WhereIF(!string.IsNullOrEmpty(status), (h, l, e) => h.LastHandleStatus == status)
-            .WhereIF(isFinished.HasValue, (h, l, e) => h.IsFinished == isFinished)
             .WhereIF(!string.IsNullOrEmpty(eventCode), (h, l, e) => e.EventCode == eventCode)
-            .WhereIF(!string.IsNullOrEmpty(requestDataKeyword), (h, l, e) =>
-                l.RequestData != null && SqlFunc.Contains(l.RequestData, requestDataKeyword!))
             .WhereIF(startDate.HasValue, (h, l, e) => e.CreateDatetime >= startDate)
             .WhereIF(endDate.HasValue, (h, l, e) => e.CreateDatetime <= endDate)
             .OrderByDescending((h, l, e) => h.LastHandleDatetime)
@@ -310,11 +269,8 @@ public class EventLogService : IEventLogService
         int? eventId,
         string? strEventReferenceId,
         string? processorId,
-        string? processorName,
         string? status,
-        bool? isFinished,
         string? eventCode,
-        string? requestDataKeyword,
         DateTime? startDate,
         DateTime? endDate)
     {
@@ -325,12 +281,8 @@ public class EventLogService : IEventLogService
             .WhereIF(!string.IsNullOrEmpty(strEventReferenceId),
                 (h, l, e) => e.StrEventReferenceId == strEventReferenceId)
             .WhereIF(!string.IsNullOrEmpty(processorId), (h, l, e) => h.ProcessorId == processorId)
-            .WhereIF(!string.IsNullOrEmpty(processorName), (h, l, e) => h.ProcessorName.Contains(processorName!))
             .WhereIF(!string.IsNullOrEmpty(status), (h, l, e) => h.LastHandleStatus == status)
-            .WhereIF(isFinished.HasValue, (h, l, e) => h.IsFinished == isFinished)
             .WhereIF(!string.IsNullOrEmpty(eventCode), (h, l, e) => e.EventCode == eventCode)
-            .WhereIF(!string.IsNullOrEmpty(requestDataKeyword), (h, l, e) =>
-                l.RequestData != null && SqlFunc.Contains(l.RequestData, requestDataKeyword!))
             .WhereIF(startDate.HasValue, (h, l, e) => e.CreateDatetime >= startDate)
             .WhereIF(endDate.HasValue, (h, l, e) => e.CreateDatetime <= endDate)
             .Select(h => h);

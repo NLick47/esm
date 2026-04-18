@@ -3,7 +3,7 @@ using EventStreamManager.Infrastructure;
 using EventStreamManager.JSFunction.Loader;
 using EventStreamManager.WebApi.Mappings;
 using EventStreamManager.WebApi.Middleware;
-using EventStreamManager.WebApi.Models.Common.Models;
+using EventStreamManager.WebApi.Models.Common;
 using Microsoft.AspNetCore.Mvc;
 using Serilog;
 

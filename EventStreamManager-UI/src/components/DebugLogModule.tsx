@@ -11,12 +11,9 @@ export default function DebugLogModule() {
   const [databaseType, setDatabaseType] = useState<string>('');
   const [eventId, setEventId] = useState<string>('');
   const [processorId, setProcessorId] = useState<string>('');
-  const [processorName, setProcessorName] = useState<string>('');
   const [status, setStatus] = useState<StatusType>('');
   const [eventCode, setEventCode] = useState<string>('');
-  const [requestDataKeyword, setRequestDataKeyword] = useState<string>('');
   const [strEventReferenceId, setStrEventReferenceId] = useState<string>('');
-  const [isFinished, setIsFinished] = useState<string>('');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   
@@ -92,12 +89,9 @@ export default function DebugLogModule() {
   const resetFilters = () => {
     setEventId('');
     setProcessorId('');
-    setProcessorName('');
     setStatus('');
     setEventCode('');
-    setRequestDataKeyword('');
     setStrEventReferenceId('');
-    setIsFinished('');
     setStartDate('');
     setEndDate('');
   };
@@ -107,25 +101,22 @@ export default function DebugLogModule() {
     
     setLoading(true);
     try {
-      const params: eventLogService.GetEventHandlesParams = {
+      const params: eventLogService.GetEventHandlesRequest = {
         databaseType,
         page,
         pageSize,
         eventId: eventId ? parseInt(eventId) : undefined,
         processorId: processorId || undefined,
-        processorName: processorName || undefined,
         status: status || undefined,
         eventCode: eventCode || undefined,
-        requestDataKeyword: requestDataKeyword || undefined,
         strEventReferenceId: strEventReferenceId || undefined,
-        isFinished: isFinished === '' ? undefined : isFinished === 'true',
         startDate: startDate || undefined,
         endDate: endDate || undefined
       };
       
       const result = await eventLogService.getEventHandles(params);
       
-      setHandles(result.list || []);
+      setHandles(result.items || []);
       setTotal(result.total || 0);
     } catch (error) {
       toast.error('获取处理记录失败');
@@ -208,16 +199,13 @@ export default function DebugLogModule() {
     
     setExporting(true);
     try {
-      const params: eventLogService.ExportEventHandlesParams = {
+      const params: eventLogService.ExportEventHandlesRequest = {
         databaseType,
         eventId: eventId ? parseInt(eventId) : undefined,
         processorId: processorId || undefined,
-        processorName: processorName || undefined,
         status: status || undefined,
         eventCode: eventCode || undefined,
-        requestDataKeyword: requestDataKeyword || undefined,
         strEventReferenceId: strEventReferenceId || undefined,
-        isFinished: isFinished === '' ? undefined : isFinished === 'true',
         startDate: startDate || undefined,
         endDate: endDate || undefined
       };
@@ -290,17 +278,6 @@ export default function DebugLogModule() {
             </div>
 
             <div>
-              <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">处理器名称</label>
-              <input
-                type="text"
-                value={processorName}
-                onChange={(e) => setProcessorName(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-800"
-                placeholder="输入处理器名称"
-              />
-            </div>
-
-            <div>
               <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">处理状态</label>
               <select
                 value={status}
@@ -316,19 +293,6 @@ export default function DebugLogModule() {
             </div>
 
             <div>
-              <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">是否完成</label>
-              <select
-                value={isFinished}
-                onChange={(e) => setIsFinished(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-800"
-              >
-                <option value="">全部</option>
-                <option value="true">已完成</option>
-                <option value="false">未完成</option>
-              </select>
-            </div>
-
-            <div>
               <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">事件码</label>
               <select
                 value={eventCode}
@@ -340,17 +304,6 @@ export default function DebugLogModule() {
                   <option key={code.value} value={code.value}>{code.label}</option>
                 ))}
               </select>
-            </div>
-
-            <div>
-              <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">请求数据关键字</label>
-              <input
-                type="text"
-                value={requestDataKeyword}
-                onChange={(e) => setRequestDataKeyword(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-800"
-                placeholder="输入关键字"
-              />
             </div>
 
             <div>

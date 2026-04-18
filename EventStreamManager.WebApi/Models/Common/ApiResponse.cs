@@ -1,4 +1,4 @@
-namespace EventStreamManager.WebApi.Models.Common.Models;
+namespace EventStreamManager.WebApi.Models.Common;
 
 
 public class ApiResponse

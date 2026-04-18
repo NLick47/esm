@@ -20,38 +20,33 @@ export interface EventHandle {
 }
 
 export interface PagedResult<T> {
-  list: T[];
+  items: T[];
   total: number;
   page: number;
   pageSize: number;
+  totalPages: number;
 }
 
-export interface GetEventHandlesParams {
+export interface GetEventHandlesRequest {
   databaseType: string;
   eventId?: number;
   strEventReferenceId?: string;
   processorId?: string;
-  processorName?: string;
   status?: string;
-  isFinished?: boolean;
   eventCode?: string;
-  requestDataKeyword?: string;
   startDate?: string;
   endDate?: string;
   page?: number;
   pageSize?: number;
 }
 
-export interface ExportEventHandlesParams {
+export interface ExportEventHandlesRequest {
   databaseType: string;
   eventId?: number;
   strEventReferenceId?: string;
   processorId?: string;
-  processorName?: string;
   status?: string;
-  isFinished?: boolean;
   eventCode?: string;
-  requestDataKeyword?: string;
   startDate?: string;
   endDate?: string;
 }

@@ -1,4 +1,4 @@
-using EventStreamManager.WebApi.Models.Common.Models;
+using EventStreamManager.WebApi.Models.Common;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventStreamManager.WebApi.Controllers;
@@ -52,13 +52,13 @@ public class BaseController : ControllerBase
     /// </summary>
     protected IActionResult PageData<T>(IEnumerable<T> items, int total, int page, int pageSize, string message = "获取成功")
     {
-        var data = new
+        var data = new PagedResult<T>
         {
-            items,
-            total,
-            page,
-            pageSize,
-            totalPages = (int)Math.Ceiling(total / (double)pageSize)
+            Items = items,
+            Total = total,
+            Page = page,
+            PageSize = pageSize,
+            TotalPages = (int)Math.Ceiling(total / (double)pageSize)
         };
         return Ok(data, message);
     }

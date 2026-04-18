@@ -3,24 +3,24 @@ import { getApiUrl } from '@/config/api.config';
 import type { 
   EventHandle, 
   PagedResult, 
-  GetEventHandlesParams, 
-  ExportEventHandlesParams 
+  GetEventHandlesRequest, 
+  ExportEventHandlesRequest 
 } from '@/types/event-log';
 
 export type { 
   EventHandle, 
   PagedResult, 
-  GetEventHandlesParams, 
-  ExportEventHandlesParams 
+  GetEventHandlesRequest, 
+  ExportEventHandlesRequest 
 };
 
 const BASE_PATH = '/api/EventLog';
 
-export function getEventHandles(params: GetEventHandlesParams): Promise<PagedResult<EventHandle>> {
+export function getEventHandles(params: GetEventHandlesRequest): Promise<PagedResult<EventHandle>> {
   return get(`${BASE_PATH}/handles`, { params });
 }
 
-export function exportEventHandles(params: ExportEventHandlesParams): string {
+export function exportEventHandles(params: ExportEventHandlesRequest): string {
   const queryParams = new URLSearchParams();
   queryParams.append('databaseType', params.databaseType);
   
@@ -33,20 +33,11 @@ export function exportEventHandles(params: ExportEventHandlesParams): string {
   if (params.processorId) {
     queryParams.append('processorId', params.processorId);
   }
-  if (params.processorName) {
-    queryParams.append('processorName', params.processorName);
-  }
   if (params.status) {
     queryParams.append('status', params.status);
   }
-  if (params.isFinished !== undefined) {
-    queryParams.append('isFinished', params.isFinished.toString());
-  }
   if (params.eventCode) {
     queryParams.append('eventCode', params.eventCode);
-  }
-  if (params.requestDataKeyword) {
-    queryParams.append('requestDataKeyword', params.requestDataKeyword);
   }
   if (params.startDate) {
     queryParams.append('startDate', params.startDate);
@@ -58,7 +49,7 @@ export function exportEventHandles(params: ExportEventHandlesParams): string {
   return getApiUrl(`${BASE_PATH}/export?${queryParams.toString()}`);
 }
 
-export function downloadExportFile(params: ExportEventHandlesParams): void {
+export function downloadExportFile(params: ExportEventHandlesRequest): void {
   const url = exportEventHandles(params);
   const link = document.createElement('a');
   link.href = url;

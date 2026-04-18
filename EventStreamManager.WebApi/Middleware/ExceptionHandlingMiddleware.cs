@@ -1,6 +1,6 @@
 using System.Net;
 using System.Text.Json;
-using EventStreamManager.WebApi.Models.Common.Models;
+using EventStreamManager.WebApi.Models.Common;
 
 namespace EventStreamManager.WebApi.Middleware;
 
