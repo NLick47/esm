@@ -5,6 +5,7 @@ import EventListenerConfig from '@/components/EventListenerConfig';
 import JSProcessorManager from '@/components/JSProcessorManager';
 import InterfaceSendConfig from '@/components/InterfaceSendConfig';
 import DebugLogModule from '@/components/DebugLogModule';
+import SystemVariableManager from '@/components/SystemVariableManager';
 import { toast } from 'sonner';
 import * as systemService from '@/services/system.service';
 import { ServiceStatus, ProcessorStatus } from '@/types';
@@ -243,7 +244,8 @@ const formatDuration = useCallback((durationStr: string): string => {
         return <InterfaceSendConfig />;
       case 'debug':
         return <DebugLogModule />;
-    
+      case 'systemvar':
+        return <SystemVariableManager />;
       default:
         return <DatabaseConnectionManager />;
     }
@@ -306,6 +308,12 @@ const formatDuration = useCallback((durationStr: string): string => {
               label="数据库连接管理" 
               active={activeModule === 'database'} 
               onClick={() => setActiveModule('database')} 
+            />
+            <ModuleNavItem 
+              icon="fa-sliders" 
+              label="系统变量管理" 
+              active={activeModule === 'systemvar'} 
+              onClick={() => setActiveModule('systemvar')} 
             />
             <ModuleNavItem 
               icon="fa-sitemap" 

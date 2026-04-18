@@ -12,6 +12,7 @@ public static class BuiltInProviderRegistry
         // 注册内置提供者
         Register(() => new StandardJsFunctionProvider());
         Register(() => new SimpleSqlJsFunctionProvider());
+        Register(() => new SystemVariableJsFunctionProvider());
     }
 
     private static void Register(Func<IJsFunctionProvider> factory)
