@@ -1,15 +1,11 @@
 using System.Diagnostics;
 using System.Text;
-using EventStreamManager.Infrastructure.Models.Execution;
-using EventStreamManager.JSFunction;
 using Jint;
 using Jint.Native;
 using Jint.Runtime;
 using Microsoft.Extensions.Logging;
-using OutputMessage = EventStreamManager.Infrastructure.Models.Execution.OutputMessage;
 
-
-namespace EventStreamManager.Infrastructure.Services;
+namespace EventStreamManager.JSFunction.Runtime;
 
 public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposable
 {

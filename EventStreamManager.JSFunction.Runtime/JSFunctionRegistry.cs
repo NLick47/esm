@@ -1,9 +1,7 @@
-using EventStreamManager.Infrastructure.Models.Execution;
-using EventStreamManager.JSFunction;
 using Jint;
 using Microsoft.Extensions.Logging;
 
-namespace EventStreamManager.Infrastructure.Services;
+namespace EventStreamManager.JSFunction.Runtime;
 
 /// <summary>
 /// JS函数注册服务
@@ -162,4 +160,3 @@ public class JsFunctionRegistry
         LoadFunctions();
     }
 }
-

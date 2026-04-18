@@ -1,3 +1,5 @@
+using EventStreamManager.JSFunction.Runtime;
+
 namespace EventStreamManager.Infrastructure.Models.Execution;
 
 public class BatchExecutionResult

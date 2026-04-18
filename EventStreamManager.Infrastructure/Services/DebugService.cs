@@ -1,8 +1,8 @@
 using System.Text.Json;
+using EventStreamManager.JSFunction.Runtime;
 using EventStreamManager.Infrastructure.Entities;
 using EventStreamManager.Infrastructure.Models.EventListener;
 using EventStreamManager.Infrastructure.Models.Execution.Debug;
-using EventStreamManager.Infrastructure.Models.Execution.Parameter;
 using EventStreamManager.Infrastructure.Models.Interface;
 using EventStreamManager.Infrastructure.Models.JSProcessor;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
@@ -357,7 +357,7 @@ namespace EventStreamManager.Infrastructure.Services
         
         
         // 执行JavaScript代码
-        private async Task<(Infrastructure.Models.Execution.ExecutionResult Result, long ExecutionTime)> ExecuteJavaScriptCodeAsync(
+        private async Task<(JSFunction.Runtime.ExecutionResult Result, long ExecutionTime)> ExecuteJavaScriptCodeAsync(
             string code,
             EnhancedQueryData enhancedData,
             List<DebugLogEntry> logs)
@@ -402,7 +402,7 @@ namespace EventStreamManager.Infrastructure.Services
         private async Task<HttpSendDebugInfo> SendHttpRequestAsync(
             InterfaceConfig interfaceConfig,
             string databaseType,
-            Infrastructure.Models.Execution.ExecutionResult executionResult,
+            JSFunction.Runtime.ExecutionResult executionResult,
             Event eventData,
             List<DebugLogEntry> logs)
         {
@@ -489,7 +489,7 @@ namespace EventStreamManager.Infrastructure.Services
 
         private string BuildRequestBody(
             InterfaceConfig interfaceConfig,
-            Infrastructure.Models.Execution.ExecutionResult executionResult,
+            JSFunction.Runtime.ExecutionResult executionResult,
             Event eventData,
             List<DebugLogEntry> logs)
         {
@@ -541,7 +541,7 @@ namespace EventStreamManager.Infrastructure.Services
         private T BuildDebugResponse<T>(
             List<DebugLogEntry> logs,
             DateTime startTime,
-            Infrastructure.Models.Execution.ExecutionResult executionResult,
+            JSFunction.Runtime.ExecutionResult executionResult,
             EnhancedQueryData enhancedData) where T : class, IDebugResponse, new()
         {
             var response = new T
@@ -571,7 +571,7 @@ namespace EventStreamManager.Infrastructure.Services
             List<DebugLogEntry> logs,
             DateTime startTime,
             long processorExecutionTime,
-            Infrastructure.Models.Execution.ExecutionResult executionResult)
+            JSFunction.Runtime.ExecutionResult executionResult)
         {
             return new InterfaceDebugResponse
             {
@@ -595,7 +595,7 @@ namespace EventStreamManager.Infrastructure.Services
             List<DebugLogEntry> logs,
             DateTime startTime,
             long processorExecutionTime,
-            Infrastructure.Models.Execution.ExecutionResult executionResult)
+            JSFunction.Runtime.ExecutionResult executionResult)
         {
             return new InterfaceDebugResponse
             {
@@ -618,7 +618,7 @@ namespace EventStreamManager.Infrastructure.Services
             DateTime startTime,
             long processorExecutionTime,
             long interfaceExecutionTime,
-            Infrastructure.Models.Execution.ExecutionResult executionResult,
+            JSFunction.Runtime.ExecutionResult executionResult,
             RequestInfo requestInfo,
             ResponseInfo? responseInfo)
         {

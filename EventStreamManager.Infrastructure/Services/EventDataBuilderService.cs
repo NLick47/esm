@@ -1,5 +1,5 @@
 using EventStreamManager.Infrastructure.Entities;
-using EventStreamManager.Infrastructure.Models.Execution.Parameter;
+using EventStreamManager.JSFunction.Runtime;
 using EventStreamManager.Infrastructure.Models.JSProcessor;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
 using Microsoft.Extensions.Logging;

@@ -1,4 +1,4 @@
-namespace EventStreamManager.Infrastructure.Models.Execution;
+namespace EventStreamManager.JSFunction.Runtime;
 
 public class ParameterInfo
 {

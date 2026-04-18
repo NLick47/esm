@@ -1,6 +1,4 @@
-using EventStreamManager.Infrastructure.Models.Execution;
-
-namespace EventStreamManager.Infrastructure.Services;
+namespace EventStreamManager.JSFunction.Runtime;
 
 /// <summary>
 /// JavaScript执行服务接口

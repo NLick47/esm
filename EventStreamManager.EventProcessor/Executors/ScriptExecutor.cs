@@ -3,6 +3,7 @@ using EventStreamManager.EventProcessor.Entities;
 using EventStreamManager.EventProcessor.Interfaces;
 using EventStreamManager.Infrastructure.Models.JSProcessor;
 using EventStreamManager.Infrastructure.Services;
+using EventStreamManager.JSFunction.Runtime;
 using Microsoft.Extensions.Logging;
 using ExecutionResult = EventStreamManager.Infrastructure.Entities.ExecutionResult;
 

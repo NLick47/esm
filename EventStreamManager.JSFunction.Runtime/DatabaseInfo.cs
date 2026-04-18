@@ -1,4 +1,4 @@
-namespace EventStreamManager.Infrastructure.Models.Execution.Parameter;
+namespace EventStreamManager.JSFunction.Runtime;
 
 public class DatabaseInfo
 {

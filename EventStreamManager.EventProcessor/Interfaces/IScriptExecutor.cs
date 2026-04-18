@@ -1,5 +1,5 @@
 using EventStreamManager.EventProcessor.Entities;
-using EventStreamManager.Infrastructure.Entities;
+using ExecutionResult = EventStreamManager.Infrastructure.Entities.ExecutionResult;
 
 namespace EventStreamManager.EventProcessor.Interfaces;
 

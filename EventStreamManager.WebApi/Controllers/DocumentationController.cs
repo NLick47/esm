@@ -1,4 +1,4 @@
-using EventStreamManager.Infrastructure.Services;
+using EventStreamManager.JSFunction.Runtime;
 using EventStreamManager.JSFunction;
 using Microsoft.AspNetCore.Mvc;
 

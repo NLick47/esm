@@ -1,4 +1,4 @@
-using EventStreamManager.Infrastructure.Services;
+using EventStreamManager.JSFunction.Runtime;
 using EventStreamManager.WebApi.Models.Requests;
 using Microsoft.AspNetCore.Mvc;
 

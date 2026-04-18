@@ -18,6 +18,7 @@
         <ProjectReference Include="..\EventStreamManager.Infrastructure\EventStreamManager.Infrastructure.csproj" />
         <ProjectReference Include="..\EventStreamManager.JSFunction.Standard\EventStreamManager.JSFunction.Standard.csproj" />
         <ProjectReference Include="..\EventStreamManager.JSFunction.Loader\EventStreamManager.JSFunction.Loader.csproj" />
+        <ProjectReference Include="..\EventStreamManager.JSFunction.Runtime\EventStreamManager.JSFunction.Runtime.csproj" />
         <ProjectReference Include="..\EventStreamManager.JSFunction\EventStreamManager.JSFunction.csproj" />
     </ItemGroup>
 

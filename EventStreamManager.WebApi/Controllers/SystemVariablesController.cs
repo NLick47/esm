@@ -1,4 +1,3 @@
-using EventStreamManager.Infrastructure.Models.SystemVariable;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
 using EventStreamManager.WebApi.Models.Requests;
 using Microsoft.AspNetCore.Mvc;
