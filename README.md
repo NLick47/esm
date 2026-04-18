@@ -11,7 +11,7 @@
 - 自动把处理后的数据推送到外部 HTTP 接口
 - 自带重试机制，失败自动重发
 
-技术栈是 .NET 6 + Jint（JavaScript 引擎）+ React 前端。前后端打包在一起，部署比较简单。
+技术栈是 .NET 10 + Jint（JavaScript 引擎）+ React 前端。前后端打包在一起，部署比较简单。
 
 ## 项目现状
 
@@ -39,6 +39,7 @@ EventStreamManager/
 ├── EventStreamManager.JSFunction.Loader/    # 插件加载器
 ├── EventStreamManager.JSFunction.Sql/       # SQL操作插件
 ├── EventStreamManager.JSFunction.Standard/  # 标准工具函数
+├── EventStreamManager.Probe/           # 服务探针（看门狗，可选）
 └── EventStreamManager-UI/             # React前端
 ```
 
@@ -53,7 +54,7 @@ EventStreamManager/
 
 ### 环境要求
 
-- .NET 6.0 SDK
+- .NET 10.0 SDK
 - Node.js 16+（开发前端需要）
 - pnpm（或者 npm/yarn 也行）
 
@@ -88,9 +89,11 @@ pnpm run build
 # 复制到后端 wwwroot
 cp -r dist/* ../EventStreamManager.WebApi/wwwroot/
 
-# 启动后端即可
+# 发布后端（独立发布，无需目标机安装 .NET 运行时）
 cd ../EventStreamManager.WebApi
-dotnet run
+dotnet publish -c Release -r win-x64 --self-contained
+
+# 发布后执行文件在 bin/Release/net10.0/win-x64/publish/EventStreamManager.WebApi.exe
 ```
 
 然后直接访问 http://localhost:7138 就行。
@@ -263,16 +266,21 @@ ProcessStatus 字段用来标记处理状态：
 
 ```json
 {
-  "Logging": {
-    "LogLevel": {
+  "Serilog": {
+    "MinimumLevel": {
       "Default": "Information",
-      "Microsoft.AspNetCore": "Warning"
+      "Override": {
+        "Microsoft.AspNetCore": "Warning",
+        "System": "Warning"
+      }
     }
   },
   "AllowedHosts": "*",
   "urls": "http://localhost:7138;"
 }
 ```
+
+日志同时输出到控制台和 `logs/log-YYYYMMDD.txt`，保留 30 天。
 
 ## 扩展开发
 
@@ -303,6 +311,83 @@ public class MyFunctions : IJsFunctionProvider
     }
 }
 ```
+
+## 服务探针（可选）
+
+`EventStreamManager.Probe` 是一个独立的看门狗进程，用于监控主服务（WebApi）的健康状态，发现服务无响应后自动重启。适用于长期无人值守的生产服务器。
+
+### 探针能做什么
+
+- 每隔一段时间 HTTP 探测主服务
+- 连续多次失败后自动 kill 并重启主服务
+- 自身也支持日志持久化（`logs/probe-YYYYMMDD.txt`）
+
+### 部署结构
+
+探针和主服务发布到同一目录下：
+
+```
+C:\EventStreamManager\
+├── EventStreamManager.WebApi.exe    # 主服务
+├── EventStreamManager.Probe.exe     # 探针
+├── probeSettings.json               # 探针配置
+└── Scripts\
+    ├── start-service.bat            # 手动启动主服务
+    ├── run-probe.bat                # 手动启动探针
+    ├── install-service.bat          # 注册主服务为 Windows 服务
+    ├── install-probe-service.bat    # 注册探针为 Windows 服务
+    └── ...
+```
+
+### 发布探针
+
+```bash
+cd EventStreamManager.Probe
+dotnet publish -c Release -r win-x64 --self-contained -o <你的部署目录>
+```
+
+### 使用方式
+
+**手动控制台运行（调试用）：**
+```bash
+Scripts\start-service.bat    # 窗口1：启动主服务
+Scripts\run-probe.bat        # 窗口2：启动探针
+```
+
+**注册为 Windows 服务（生产推荐）：**
+```bash
+# 以管理员身份运行
+Scripts\install-service.bat        # 注册主服务，开机自启
+Scripts\install-probe-service.bat  # 注册探针，开机自启
+
+# 然后启动
+net start EventStreamManager
+net start EventStreamManagerProbe
+```
+
+### 探针配置
+
+`probeSettings.json`：
+
+```json
+{
+  "Probe": {
+    "TargetUrl": "http://localhost:7138",
+    "CheckIntervalSeconds": 30,
+    "FailureThreshold": 3,
+    "RestartCommand": "EventStreamManager.WebApi.exe",
+    "RestartArguments": "",
+    "WorkingDirectory": "."
+  }
+}
+```
+
+| 配置项 | 说明 |
+|---|---|
+| `TargetUrl` | 探测目标地址 |
+| `CheckIntervalSeconds` | 探测间隔（秒） |
+| `FailureThreshold` | 连续失败几次后触发重启 |
+| `RestartCommand` | 重启时执行的命令 |
 
 ## License
 
