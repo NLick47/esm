@@ -39,7 +39,7 @@ try
 
     while (true)
     {
-        bool isHealthy = false;
+        bool isHealthy;
         try
         {
             var response = await httpClient.GetAsync(probeConfig.TargetUrl);

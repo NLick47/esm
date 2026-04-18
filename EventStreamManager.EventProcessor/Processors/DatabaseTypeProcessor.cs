@@ -11,7 +11,7 @@ namespace EventStreamManager.EventProcessor.Processors;
 /// <summary>
 /// 数据库类型处理器
 /// </summary>
-public class DatabaseTypeProcessor 
+public class DatabaseTypeProcessor : IDisposable  
 {
     private readonly string _databaseType;
     private readonly IServiceProvider _serviceProvider;
@@ -468,6 +468,24 @@ public class DatabaseTypeProcessor
                 Success = false, 
                 ErrorMessage = result.ErrorMessage 
             };
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_cts != null)
+        {
+            _cts.Cancel();
+            _cts.Dispose();
+        }
+        
+        if (_processingTask is { IsCompleted: false })
+        {
+            try 
+            { 
+                _processingTask.Wait(TimeSpan.FromSeconds(5)); 
+            }
+            catch { /* ignore */ }
         }
     }
 }

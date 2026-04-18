@@ -1,6 +1,5 @@
 using System.Text.Json;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
-using Microsoft.Extensions.Logging;
 
 namespace EventStreamManager.Infrastructure.Services.Data;
 

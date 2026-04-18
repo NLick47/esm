@@ -1,4 +1,3 @@
-using EventStreamManager.JSFunction;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 

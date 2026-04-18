@@ -266,11 +266,7 @@ public sealed class ProcessorManagerService : IProcessorManagerService, IDisposa
         }
         else
         {
-            // 如果 TryAdd 失败，释放创建的 processor 实例（如果实现了 IDisposable）
-            if (processor is IDisposable disposable)
-            {
-                disposable.Dispose();
-            }
+            processor.Dispose(); 
         }
     }
 
@@ -332,6 +328,20 @@ public sealed class ProcessorManagerService : IProcessorManagerService, IDisposa
         }
         catch (ObjectDisposedException) { }
 
+        foreach (var processor in _processors.Values)
+        {
+            try 
+            { 
+                processor.StopAsync().Wait(TimeSpan.FromSeconds(5)); 
+            }
+            catch
+            {
+                // ignored
+            }
+
+            processor.Dispose();  
+        }
+        
         _processorOpsLock.Dispose();
     }
 }
