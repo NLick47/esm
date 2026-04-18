@@ -28,15 +28,7 @@
       </None>
     </ItemGroup>
 
-    <ItemGroup>
-      <_ContentIncludedByDefault Remove="Data\customtemplates.json" />
-      <_ContentIncludedByDefault Remove="Data\database-configs.json" />
-      <_ContentIncludedByDefault Remove="Data\event-listener-config.json" />
-      <_ContentIncludedByDefault Remove="Data\interfaceConfigs.json" />
-      <_ContentIncludedByDefault Remove="Data\processors.json" />
-      <_ContentIncludedByDefault Remove="Data\service-state.json" />
-    </ItemGroup>
-
+    
     <ItemGroup>
       <Folder Include="wwwroot\" />
     </ItemGroup>

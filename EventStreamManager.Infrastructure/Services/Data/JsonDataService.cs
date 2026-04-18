@@ -22,8 +22,8 @@ public class JsonDataService : IDataService, IDisposable
         var path = "Data";
         var templatesPath = "Templates";
 
-        _dataPath = Path.Combine(Directory.GetCurrentDirectory(), path);
-        _templatesPath = Path.Combine(Directory.GetCurrentDirectory(), templatesPath);
+        _dataPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, path);
+        _templatesPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, templatesPath);
         if (!Directory.Exists(_dataPath)) Directory.CreateDirectory(_dataPath);
         if (!Directory.Exists(_templatesPath)) Directory.CreateDirectory(_templatesPath);
     }
