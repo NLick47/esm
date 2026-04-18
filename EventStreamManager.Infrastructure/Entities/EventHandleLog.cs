@@ -95,6 +95,12 @@ public class EventHandleLog
     
     
     /// <summary>
+    /// 脚本执行是否成功
+    /// </summary>
+    [SugarColumn(ColumnName = "ScriptSuccess", IsNullable = true, ColumnDescription = "脚本执行是否成功")]
+    public bool? ScriptSuccess { get; set; }
+    
+    /// <summary>
     /// 不发送原因
     /// </summary>
     [SugarColumn(ColumnName = "Reason", Length = 500, IsNullable = true, ColumnDescription = "不发送原因")]

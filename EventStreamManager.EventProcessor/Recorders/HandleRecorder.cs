@@ -107,6 +107,7 @@ public class HandleRecorder : IHandleRecorder
             RequestData = result.RequestInfo,
             ResponseData = result.SendResult?.ResponseContent,
             SendSuccess = result.SendResult?.Success ?? false,
+            ScriptSuccess = result.Success,
             ExceptionMessage = result.ErrorMessage,
             Status = status,
             ExecutionTimeMs = result.ExecutionTimeMs,

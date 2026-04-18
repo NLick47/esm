@@ -164,6 +164,42 @@ export default function DebugLogModule() {
     return colors[status] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
   };
 
+  const getScriptStatusBadge = (scriptSuccess?: boolean) => {
+    if (scriptSuccess === true) {
+      return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
+    }
+    if (scriptSuccess === false) {
+      return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
+    }
+    return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+  };
+
+  const getSendStatusBadge = (needToSend?: boolean, sendSuccess?: boolean) => {
+    if (needToSend === false) {
+      return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+    }
+    if (sendSuccess === true) {
+      return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
+    }
+    if (sendSuccess === false) {
+      return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
+    }
+    return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+  };
+
+  const getSendStatusLabel = (needToSend?: boolean, sendSuccess?: boolean) => {
+    if (needToSend === false) {
+      return '无需发送';
+    }
+    if (sendSuccess === true) {
+      return '发送成功';
+    }
+    if (sendSuccess === false) {
+      return '发送失败';
+    }
+    return '-';
+  };
+
   const handleExport = async () => {
     if (!databaseType) {
       toast.error('请先选择数据库类型');
@@ -370,10 +406,10 @@ export default function DebugLogModule() {
                 <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">事件ID</th>
                 <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">事件码</th>
                 <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">处理器</th>
-                <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">状态</th>
+                <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">脚本状态</th>
+                <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">发送状态</th>
                 <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">处理次数</th>
                 <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">耗时(ms)</th>
-                <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">是否完成</th>
                 <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">最后处理时间</th>
                 <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">事件创建时间</th>
                 <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">操作</th>
@@ -390,17 +426,17 @@ export default function DebugLogModule() {
                     <div className="text-xs text-gray-500">{handle.processorId}</div>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2 py-1 rounded text-xs ${getStatusBadge(handle.lastHandleStatus)}`}>
-                      {handle.lastHandleStatus}
+                    <span className={`inline-flex items-center px-2 py-1 rounded text-xs ${getScriptStatusBadge(handle.scriptSuccess)}`}>
+                      {handle.scriptSuccess === true ? '成功' : handle.scriptSuccess === false ? '失败' : '-'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center px-2 py-1 rounded text-xs ${getSendStatusBadge(handle.needToSend, handle.sendSuccess)}`}>
+                      {getSendStatusLabel(handle.needToSend, handle.sendSuccess)}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm">{handle.handleTimes}</td>
                   <td className="px-4 py-3 text-sm">{handle.lastHandleElapsedMs || '-'}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2 py-1 rounded text-xs ${handle.isFinished ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                      {handle.isFinished ? '已完成' : '未完成'}
-                    </span>
-                  </td>
                   <td className="px-4 py-3 text-sm whitespace-nowrap">
                     {handle.lastHandleDatetime ? new Date(handle.lastHandleDatetime).toLocaleString() : '-'}
                   </td>

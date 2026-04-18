@@ -10,6 +10,9 @@ export interface EventHandle {
   lastHandleDatetime?: string;
   lastHandleElapsedMs?: number;
   strEventReferenceId?: string;
+  scriptSuccess?: boolean;
+  sendSuccess?: boolean;
+  needToSend?: boolean;
   requestData?: string;
   isFinished: boolean;
   createDatetime: string;

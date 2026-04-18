@@ -77,6 +77,16 @@ public class EventHandleResult
     public string? Reason { get; set; }
     
     /// <summary>
+    /// 脚本执行是否成功
+    /// </summary>
+    public bool? ScriptSuccess { get; set; }
+    
+    /// <summary>
+    /// 发送是否成功
+    /// </summary>
+    public bool? SendSuccess { get; set; }
+    
+    /// <summary>
     /// 请求数据（可考虑截断显示）
     /// </summary>
     public string? RequestData { get; set; }

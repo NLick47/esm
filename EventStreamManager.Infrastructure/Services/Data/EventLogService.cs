@@ -289,6 +289,8 @@ public class EventLogService : IEventLogService
                 LastHandleMessage = l.ExceptionMessage,
                 LastHandleDatetime = h.LastHandleDatetime,
                 NeedToSend = l.NeedToSend,
+                ScriptSuccess = l.ScriptSuccess,
+                SendSuccess = l.SendSuccess,
                 Reason = l.Reason,
                 LastHandleElapsedMs = l.ExecutionTimeMs,
                 IsFinished = h.IsFinished,

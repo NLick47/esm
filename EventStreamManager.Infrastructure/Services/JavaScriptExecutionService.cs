@@ -210,7 +210,23 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
                 }).ToList();
             }
 
-            result.Success = true;
+            // 设置脚本执行状态：如果脚本返回了 error，则视为脚本执行失败
+            if (processResult.IsObject())
+            {
+                var obj = processResult.AsObject();
+                if (!string.IsNullOrEmpty(result.ProcessError))
+                {
+                    result.Success = false;
+                }
+                else
+                {
+                    result.Success = true;
+                }
+            }
+            else
+            {
+                result.Success = true;
+            }
         }
         catch (JavaScriptException ex)
         {

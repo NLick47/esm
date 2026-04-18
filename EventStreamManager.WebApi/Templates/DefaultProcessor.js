@@ -22,7 +22,6 @@ class ProcessResult {
         return this;
     }
 
-
     setNoSend(reason = '') {
         this.needToSend = false;
         this.reason = reason || '仅执行脚本，无需发送';

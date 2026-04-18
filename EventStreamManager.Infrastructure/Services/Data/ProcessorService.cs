@@ -139,6 +139,14 @@ public class ProcessorService : IProcessorService
     this.requestInfo = null;
     return this;
   }
+  
+  setNoSend(reason = '') {
+    this.needToSend = false;
+    this.reason = reason || '仅执行脚本，无需发送';
+    this.error = null;
+    this.requestInfo = null;
+    return this;
+  }
 }
 
 function process(data) {
