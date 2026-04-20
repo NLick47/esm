@@ -26,6 +26,7 @@ import {
   executeDebug,
   executeExamineDebug,
 } from '@/services/processor.service';
+import VersionHistoryModal from '@/components/VersionHistoryModal';
 
 import { 
   JSProcessor,
@@ -427,6 +428,7 @@ export default function JSProcessorManager() {
   
   // 全屏编辑状态
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showVersionModal, setShowVersionModal] = useState(false);
 
   const [editingProcessor, setEditingProcessor] = useState<JSProcessorDetailResponse>({
     id: '',
@@ -1110,6 +1112,14 @@ export default function JSProcessorManager() {
                 <i className="fa-solid fa-bug mr-1"></i>
                 {showEditorDebug ? '隐藏调试' : '显示调试'}
               </button>
+              {!isNewProcessor && selectedProcessor && (
+                <button
+                  onClick={() => setShowVersionModal(true)}
+                  className="rounded-md border border-purple-300 bg-purple-50 px-4 py-2 text-sm font-medium text-purple-700 transition-colors hover:bg-purple-100 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/50"
+                >
+                  <i className="fa-solid fa-code-branch mr-1"></i> 版本历史
+                </button>
+              )}
               <button
                 onClick={saveProcessor}
                 className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
@@ -1744,6 +1754,28 @@ export default function JSProcessorManager() {
         fontSize={editorFontSize}
         onClose={() => setIsFullscreen(false)}
         onCodeChange={handleCodeChange}
+      />
+
+      {/* 版本历史弹窗 */}
+      <VersionHistoryModal
+        processorId={selectedProcessor || ''}
+        processorName={editingProcessor.name || '未命名处理器'}
+        currentCode={editingProcessor.code}
+        isOpen={showVersionModal}
+        onClose={() => setShowVersionModal(false)}
+        onRollbackSuccess={async () => {
+          if (selectedProcessor) {
+            const detail = await getProcessor(selectedProcessor);
+            setEditingProcessor({
+              ...detail,
+              code: detail.code || defaultTemplate,
+              sqlTemplate: detail.sqlTemplate || '',
+            });
+            setProcessors(prev => prev.map(p =>
+              p.id === selectedProcessor ? { ...p, name: detail.name } : p
+            ));
+          }
+        }}
       />
 
       {/* SQL编辑器模态框 */}
