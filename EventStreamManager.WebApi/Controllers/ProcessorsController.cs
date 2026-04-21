@@ -1,6 +1,6 @@
-using AutoMapper;
 using EventStreamManager.Infrastructure.Models.JSProcessor;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
+using EventStreamManager.WebApi.Mappings;
 using EventStreamManager.WebApi.Models.Requests;
 using EventStreamManager.WebApi.Models.Responses;
 using Microsoft.AspNetCore.Mvc;
@@ -15,19 +15,16 @@ public class ProcessorsController : BaseController
     private readonly IInterfaceConfigService _interfaceConfigService;
     private readonly ILogger<ProcessorsController> _logger;
     private readonly ISqlTemplateService _sqlTemplateService; 
-    private readonly IMapper _mapper;
 
     public ProcessorsController(
         IProcessorService processorService,
         IInterfaceConfigService interfaceConfigService,
         ILogger<ProcessorsController> logger, 
-        IMapper mapper,
         ISqlTemplateService sqlTemplateService)
     {
         _processorService = processorService;
         _interfaceConfigService = interfaceConfigService;
         _logger = logger;
-        _mapper = mapper;
         _sqlTemplateService = sqlTemplateService;
     }
     
@@ -47,7 +44,7 @@ public class ProcessorsController : BaseController
             return Fail($"未找到ID为 {id} 的处理器", 404);
         }
     
-        var response = _mapper.Map<JsProcessorDetailResponse>(item);
+        var response = item.ToDetailResponse();
     
         if (!string.IsNullOrEmpty(item.SqlTemplate))
         {
@@ -83,7 +80,7 @@ public class ProcessorsController : BaseController
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] ProcessorRequest request)
     {
-        var processor = _mapper.Map<JsProcessor>(request);
+        var processor = request.ToEntity();
         var created = await _processorService.CreateAsync(processor);
         return Ok(created, "创建处理器成功");
     }
@@ -91,7 +88,7 @@ public class ProcessorsController : BaseController
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(string id, [FromBody] ProcessorRequest request)
     {
-        var processor = _mapper.Map<JsProcessor>(request);
+        var processor = request.ToEntity();
         var updated = await _processorService.UpdateAsync(id, processor);
         if (!updated)
         {

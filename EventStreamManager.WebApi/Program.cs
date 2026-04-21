@@ -1,7 +1,6 @@
 using EventStreamManager.EventProcessor;
 using EventStreamManager.Infrastructure;
 using EventStreamManager.JSFunction.Loader;
-using EventStreamManager.WebApi.Mappings;
 using EventStreamManager.WebApi.Middleware;
 using EventStreamManager.WebApi.Models.Common;
 using Microsoft.AspNetCore.Mvc;
@@ -39,9 +38,6 @@ builder.Services.AddInfrastructureServices();
 
 // 事件处理器服务
 builder.Services.AddEventProcessorServices();
-
-builder.Services.AddAutoMapper(typeof(Program));
-builder.Services.AddAutoMapper(typeof(MappingProfile));
 
 // 配置 API 行为选项
 builder.Services.AddControllers()

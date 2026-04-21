@@ -1,6 +1,6 @@
-using AutoMapper;
 using EventStreamManager.Infrastructure.Models.JSProcessor;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
+using EventStreamManager.WebApi.Mappings;
 using EventStreamManager.WebApi.Models.Requests;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,12 +11,10 @@ namespace EventStreamManager.WebApi.Controllers;
 public class SqlTemplatesController : BaseController
 {
     private readonly ISqlTemplateService _sqlTemplateService;
-    private readonly IMapper _mapper;
     public SqlTemplatesController(
-        ISqlTemplateService sqlTemplateService, IMapper mapper)
+        ISqlTemplateService sqlTemplateService)
     {
         _sqlTemplateService = sqlTemplateService;
-        _mapper = mapper;
     }
     
     [HttpGet("system")]
@@ -36,7 +34,7 @@ public class SqlTemplatesController : BaseController
     [HttpPost("custom")]
     public async Task<IActionResult> CreateCustom([FromBody] CustomSqlTemplateRequest  request)
     {
-        var template = _mapper.Map<CustomSqlTemplate>(request);
+        var template = request.ToEntity();
         var created = await _sqlTemplateService.CreateCustomAsync(template);
         return Ok(created, "创建自定义模板成功");
     }
@@ -44,7 +42,7 @@ public class SqlTemplatesController : BaseController
     [HttpPut("custom/{id}")]
     public async Task<IActionResult> UpdateCustom(string id, [FromBody] CustomSqlTemplateRequest request)
     {
-        var template = _mapper.Map<CustomSqlTemplate>(request);
+        var template = request.ToEntity();
         var updated = await _sqlTemplateService.UpdateCustomAsync(id, template);
         if (!updated)
         {
