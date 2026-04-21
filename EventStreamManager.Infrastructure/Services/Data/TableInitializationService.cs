@@ -126,7 +126,6 @@ public class TableInitializationService : ITableInitializationService
         }
         catch (Exception ex)
         {
-            // 记录警告日志，但不要抛出异常
             _logger.LogDebug(ex, "获取表名失败，使用实体类型名称: {EntityType}", entityType.Name);
             return entityType.Name;
         }
@@ -137,7 +136,6 @@ public class TableInitializationService : ITableInitializationService
     {
         var parts = new List<string>();
 
-        // 添加成功消息
         if (successMessages.Any())
         {
             parts.Add(successMessages.Count == 1
@@ -145,7 +143,6 @@ public class TableInitializationService : ITableInitializationService
                 : $"成功 ({successMessages.Count} 个表): {string.Join("; ", successMessages)}");
         }
 
-        // 添加失败消息
         if (errorMessages.Any())
         {
             parts.Add(errorMessages.Count == 1
@@ -153,7 +150,6 @@ public class TableInitializationService : ITableInitializationService
                 : $"失败 ({errorMessages.Count} 个表): {string.Join("; ", errorMessages)}");
         }
 
-        // 如果没有任何消息（理论上不会发生）
         if (!parts.Any())
         {
             return "没有表需要初始化";

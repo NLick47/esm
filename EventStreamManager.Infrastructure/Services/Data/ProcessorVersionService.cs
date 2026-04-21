@@ -76,11 +76,9 @@ public class ProcessorVersionService : IProcessorVersionService
             return null;
         }
 
-        // Update processor to the version's state
         processor.Code = version.Code;
         processor.SqlTemplateId = version.SqlTemplateId;
         processor.SqlTemplateType = version.SqlTemplateType;
-        // Note: SqlTemplate is loaded dynamically, so we don't persist it directly
         
         await _processorService.UpdateAsync(processorId, processor);
         return version;

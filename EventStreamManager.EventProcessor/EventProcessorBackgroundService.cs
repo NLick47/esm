@@ -95,6 +95,10 @@ public sealed class EventProcessorService : BackgroundService
             {
                 _logger.LogWarning("等待状态保存循环完成超时");
             }
+            catch (OperationCanceledException)
+            {
+                // 任务因服务停止而正常取消，无需处理
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "等待状态保存循环完成时发生异常");
