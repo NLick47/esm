@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Text;
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using Jint;
 using Jint.Native;
 using Jint.Runtime;
@@ -29,19 +31,14 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
         return await ExecuteProcessInternalAsync(script, inputData, new ExecutionOptions());
     }
 
-    public async Task<ExecutionResult> ExecuteProcessAsync(ExecutionOptions options, string script, object? inputData = null)
-    {
-        return await ExecuteProcessInternalAsync(script, inputData, options);
-    }
-
-
+    
     public ValidationResult ValidateScript(string script)
     {
         var result = new ValidationResult();
 
         try
         {
-            var engine = CreateEngine(new ExecutionOptions { CaptureConsoleOutput = true }, new ScriptOutput());
+            using var engine = CreateEngine(new ExecutionOptions { CaptureConsoleOutput = true }, new ScriptOutput());
             engine.Execute(script);
 
             var hasProcessFunction = engine.Evaluate("typeof process === 'function'").AsBoolean();
@@ -141,10 +138,10 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
             engine = CreateEngine(options, output);
 
             // 执行用户脚本（加载函数定义）
-            engine.Execute(script);
+            await engine.ExecuteAsync(script);
 
             // 检查 process 函数是否存在
-            var hasProcess = engine.Evaluate("typeof process === 'function'").AsBoolean();
+            var hasProcess = (await engine.EvaluateAsync("typeof process === 'function'")).AsBoolean();
             if (!hasProcess)
             {
                 throw new InvalidOperationException("脚本中未定义process函数");
@@ -152,7 +149,7 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
 
             // 准备输入数据并调用 process
             var jsValue = ConvertToJsValue(engine, inputData);
-            var processResult = engine.Invoke("process", jsValue);
+            var processResult = await engine.InvokeAsync("process", jsValue);
 
             // 处理返回值
             result.ReturnValue = ConvertJsValueToObject(processResult);
@@ -207,14 +204,7 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
             }
 
             // 设置脚本执行状态：如果脚本返回了 error，则视为脚本执行失败
-            if (processResult.IsObject())
-            {
-                result.Success = string.IsNullOrEmpty(result.ProcessError);
-            }
-            else
-            {
-                result.Success = true;
-            }
+            result.Success = !processResult.IsObject() || string.IsNullOrEmpty(result.ProcessError);
         }
         catch (JavaScriptException ex)
         {
@@ -240,9 +230,7 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
             _semaphore.Release();
             stopwatch.Stop();
             result.ExecutionTimeMs = stopwatch.ElapsedMilliseconds;
-
-            if (engine is IDisposable disposableEngine)
-                disposableEngine.Dispose();
+            engine?.Dispose();
         }
 
         return result;
@@ -338,12 +326,12 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
             {
                 try
                 {
-                    var options = new System.Text.Json.JsonSerializerOptions
+                    var options = new JsonSerializerOptions
                     {
-                        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+                        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
                         WriteIndented = false
                     };
-                    var json = System.Text.Json.JsonSerializer.Serialize(arg, options);
+                    var json = JsonSerializer.Serialize(arg, options);
                     sb.Append(json);
                 }
                 catch
