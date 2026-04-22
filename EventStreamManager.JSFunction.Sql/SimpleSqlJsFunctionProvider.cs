@@ -193,7 +193,7 @@ public class SimpleSqlJsFunctionProvider : IJsFunctionProvider
                             {
                                 var param = command.CreateParameter();
                                 param.ParameterName = $"{paramPrefix}p{i}";
-                                param.Value = rowDict.TryGetValue(columns[i], out var value) ? value : DBNull.Value;
+                                param.Value = rowDict.TryGetValue(columns[i], out var value) ? ConvertParameterValue(value) : DBNull.Value;
                                 command.Parameters.Add(param);
                             }
                             
@@ -434,12 +434,13 @@ public class SimpleSqlJsFunctionProvider : IJsFunctionProvider
                 var dbParam = command.CreateParameter();
                 // 标准化参数名称
                 dbParam.ParameterName = NormalizeParameterName(param.Key, dbType);
-                dbParam.Value = param.Value;
+                var convertedValue = ConvertParameterValue(param.Value);
+                dbParam.Value = convertedValue;
                 
                 // Oracle特殊处理：对于VARCHAR2类型，需要指定大小
                 if (dbType.ToLower() == "oracle" && dbParam is OracleParameter oracleParam)
                 {
-                    if (param.Value is string { Length: > 0 } strValue)
+                    if (convertedValue is string { Length: > 0 } strValue)
                     {
                         oracleParam.Size = strValue.Length;
                     }
@@ -448,5 +449,29 @@ public class SimpleSqlJsFunctionProvider : IJsFunctionProvider
                 command.Parameters.Add(dbParam);
             }
         }
+    }
+    
+    /// <summary>
+    /// 将参数值转换为数据库驱动可识别的本机类型（处理 JsonElement 等包装类型）
+    /// </summary>
+    private static object? ConvertParameterValue(object? value)
+    {
+        if (value == null)
+            return DBNull.Value;
+    
+        if (value is JsonElement jsonElement)
+        {
+            return jsonElement.ValueKind switch
+            {
+                JsonValueKind.Null => DBNull.Value,
+                JsonValueKind.String => jsonElement.GetString(),
+                JsonValueKind.Number => jsonElement.TryGetInt64(out var longVal) ? longVal : jsonElement.GetDouble(),
+                JsonValueKind.True => true,
+                JsonValueKind.False => false,
+                _ => jsonElement.GetRawText()
+            };
+        }
+    
+        return value;
     }
 }
