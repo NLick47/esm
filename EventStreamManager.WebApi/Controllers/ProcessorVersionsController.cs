@@ -1,3 +1,4 @@
+using EventStreamManager.Infrastructure.Models.JSProcessor;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
 using EventStreamManager.WebApi.Models.Requests;
 using Microsoft.AspNetCore.Mvc;
@@ -53,17 +54,23 @@ public class ProcessorVersionsController : BaseController
     }
 
     [HttpPost("{processorId}/rollback/{versionId}")]
-    public async Task<IActionResult> Rollback(string processorId, string versionId)
+    public async Task<IActionResult> Rollback(string processorId, string versionId, [FromBody] RollbackOptions? options = null)
     {
-        var version = await _versionService.RollbackAsync(processorId, versionId);
-        if (version == null)
+        var result = await _versionService.RollbackAsync(processorId, versionId, options);
+        if (result == null)
         {
             return Fail("回退失败，版本或处理器不存在", 404);
         }
 
-        _logger.LogInformation("处理器已回退到版本 - ProcessorId: {ProcessorId}, Version: {Version}, VersionId: {VersionId}",
-            processorId, version.Version, versionId);
+        _logger.LogInformation("处理器已回退 - ProcessorId: {ProcessorId}, Version: {Version}, Recovered: {Recovered}, MissingCodes: {Missing}",
+            processorId, result.Version.Version, result.RecoveredTemplates.Count, result.MissingEventCodes.Count);
 
-        return Ok(version, $"已回退到版本 v{version.Version}: {version.CommitMessage}");
+        var message = $"已回退到版本 v{result.Version.Version}: {result.Version.CommitMessage}";
+        if (result.HasWarnings)
+        {
+            message += "（回滚成功，但存在需要关注的事项）";
+        }
+
+        return Ok(result, message);
     }
 }

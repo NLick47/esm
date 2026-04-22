@@ -1,5 +1,5 @@
 import { get, post } from '@/utils/request';
-import { ProcessorVersion } from '@/types/processor-version';
+import { ProcessorVersion, RollbackResult, RollbackOptions } from '@/types/processor-version';
 
 const BASE_PATH = '/api/processorversions';
 
@@ -27,6 +27,6 @@ export function commitProcessorVersion(processorId: string, commitMessage: strin
 /**
  * 回退到指定版本 (rollback)
  */
-export function rollbackProcessorVersion(processorId: string, versionId: string): Promise<ProcessorVersion> {
-  return post<ProcessorVersion>(`${BASE_PATH}/${processorId}/rollback/${versionId}`, {});
+export function rollbackProcessorVersion(processorId: string, versionId: string, options?: RollbackOptions): Promise<RollbackResult> {
+  return post<RollbackResult>(`${BASE_PATH}/${processorId}/rollback/${versionId}`, options ?? {});
 }

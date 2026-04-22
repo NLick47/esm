@@ -2,7 +2,6 @@ using EventStreamManager.Infrastructure.Models.JSProcessor;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
 using EventStreamManager.WebApi.Mappings;
 using EventStreamManager.WebApi.Models.Requests;
-using EventStreamManager.WebApi.Models.Responses;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventStreamManager.WebApi.Controllers;

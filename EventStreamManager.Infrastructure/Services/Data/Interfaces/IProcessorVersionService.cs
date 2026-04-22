@@ -7,5 +7,5 @@ public interface IProcessorVersionService
     Task<List<JsProcessorVersion>> GetVersionsAsync(string processorId);
     Task<JsProcessorVersion?> GetVersionAsync(string versionId);
     Task<JsProcessorVersion?> CommitAsync(string processorId, string commitMessage);
-    Task<JsProcessorVersion?> RollbackAsync(string processorId, string versionId);
+    Task<RollbackResult?> RollbackAsync(string processorId, string versionId, RollbackOptions? options = null);
 }

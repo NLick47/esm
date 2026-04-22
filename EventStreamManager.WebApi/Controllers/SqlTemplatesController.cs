@@ -1,4 +1,3 @@
-using EventStreamManager.Infrastructure.Models.JSProcessor;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
 using EventStreamManager.WebApi.Mappings;
 using EventStreamManager.WebApi.Models.Requests;
