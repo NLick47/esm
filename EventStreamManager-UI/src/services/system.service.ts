@@ -5,6 +5,13 @@ import { ServiceStatus, ProcessorStatus } from '@/types/system';
 const BASE_PATH = '/api/EventProcessor';
 
 /**
+ * 获取后端版本号
+ */
+export function getVersion(): Promise<{ version: string }> {
+  return get(`${BASE_PATH}/version`);
+}
+
+/**
  * 获取服务状态
  */
 export function getServiceStatus(): Promise<ServiceStatus> {

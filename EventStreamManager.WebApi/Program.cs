@@ -97,7 +97,23 @@ app.UseAuthorization();
 
 // 配置静态文件中间件，用于访问前端发布后的index.html
 app.UseDefaultFiles();
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        var path = ctx.File.Name;
+        if (path.Equals("index.html", StringComparison.OrdinalIgnoreCase))
+        {
+            ctx.Context.Response.Headers.Append("Cache-Control", "no-cache, no-store, must-revalidate");
+            ctx.Context.Response.Headers.Append("Pragma", "no-cache");
+            ctx.Context.Response.Headers.Append("Expires", "0");
+        }
+        else if (ctx.Context.Request.Path.StartsWithSegments("/assets"))
+        {
+            ctx.Context.Response.Headers.Append("Cache-Control", "public, max-age=31536000, immutable");
+        }
+    }
+});
 app.MapControllers();
 app.MapFallbackToFile("index.html");
     app.Run();

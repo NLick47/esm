@@ -29,6 +29,16 @@ public class EventProcessorController : BaseController
     #region 服务状态
 
     /// <summary>
+    /// 获取版本号
+    /// </summary>
+    [HttpGet("version")]
+    public IActionResult GetVersion()
+    {
+        var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "unknown";
+        return Ok(new { version }, "获取版本号成功");
+    }
+
+    /// <summary>
     /// 获取服务状态
     /// </summary>
     [HttpGet("status")]

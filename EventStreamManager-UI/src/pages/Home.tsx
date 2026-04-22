@@ -40,6 +40,7 @@ export default function Home() {
   const [serviceStatus, setServiceStatus] = useState<ServiceStatus | null>(null);
   const [processorStatuses, setProcessorStatuses] = useState<ProcessorStatus[]>([]);
   const [loading, setLoading] = useState(false);
+  const [version, setVersion] = useState<string>('');
   
   const mountedRef = useRef(true);
   const timerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -200,6 +201,18 @@ const formatDuration = useCallback((durationStr: string): string => {
     setLoading(false);
     toast.success('状态已刷新');
   };
+  // 获取版本号
+  const fetchVersion = useCallback(async () => {
+    try {
+      const data = await systemService.getVersion();
+      if (mountedRef.current) {
+        setVersion(data.version);
+      }
+    } catch (error: any) {
+      console.error('获取版本号失败:', error);
+    }
+  }, []);
+
   // 初始化加载
   useEffect(() => {
     mountedRef.current = true;
@@ -207,14 +220,15 @@ const formatDuration = useCallback((durationStr: string): string => {
     // 初始化加载所有数据
     Promise.all([
       fetchServiceStatus(),
-      fetchProcessorStatuses()
+      fetchProcessorStatuses(),
+      fetchVersion()
     ]);
     
     return () => {
       mountedRef.current = false;
       stopPolling();
     };
-  }, [fetchServiceStatus, fetchProcessorStatuses, stopPolling]);
+  }, [fetchServiceStatus, fetchProcessorStatuses, fetchVersion, stopPolling]);
 
   // 轮询控制 - 只在系统启用时轮询
   useEffect(() => {
@@ -349,7 +363,10 @@ const formatDuration = useCallback((durationStr: string): string => {
       </div>
 
       {/* 底部状态栏 */}
-      <footer className="flex items-center justify-end border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 px-6 py-3 shadow-inner">
+      <footer className="flex items-center justify-between border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 px-6 py-3 shadow-inner">
+        <div className="text-sm font-medium text-gray-500 dark:text-gray-400">
+          {version ? `v${version}` : ''}
+        </div>
         <div className="flex items-center gap-3">
           <button
             onClick={handleRefresh}
