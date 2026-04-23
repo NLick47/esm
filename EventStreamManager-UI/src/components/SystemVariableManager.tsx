@@ -227,7 +227,11 @@ export default function SystemVariableManager() {
                 </tr>
               ) : (
                 filteredVariables.map(variable => (
-                  <tr key={variable.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                  <tr
+                    key={variable.id}
+                    onClick={() => handleEdit(variable)}
+                    className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer"
+                  >
                     <td className="px-4 py-3 font-mono text-blue-600 dark:text-blue-400 font-medium">
                       {variable.key}
                     </td>
@@ -250,21 +254,30 @@ export default function SystemVariableManager() {
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={() => handleCopyValue(variable.value, variable.key)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCopyValue(variable.value, variable.key);
+                          }}
                           className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
                           title="复制值"
                         >
                           <i className="fa-regular fa-copy"></i>
                         </button>
                         <button
-                          onClick={() => handleEdit(variable)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEdit(variable);
+                          }}
                           className="rounded p-1.5 text-blue-500 hover:bg-blue-50 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-blue-900/20 dark:hover:text-blue-300"
                           title="编辑"
                         >
                           <i className="fa-solid fa-pen-to-square"></i>
                         </button>
                         <button
-                          onClick={() => handleDelete(variable)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(variable);
+                          }}
                           className="rounded p-1.5 text-red-500 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300"
                           title="删除"
                         >
@@ -283,91 +296,107 @@ export default function SystemVariableManager() {
         </div>
       </div>
 
-      {/* 新增/编辑表单 */}
+      {/* 新增/编辑弹窗 */}
       {showForm && (
-        <div className="rounded-xl bg-white p-6 shadow-md dark:bg-gray-800 dark:shadow-lg">
-          <h3 className="mb-4 text-lg font-semibold">
-            {editingVariable ? '编辑变量' : '新增变量'}
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                键名 <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={formData.key}
-                onChange={(e) => handleChange('key', e.target.value)}
-                disabled={!!editingVariable}
-                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed font-mono"
-                placeholder="例如：mysql_connection"
-              />
-              {editingVariable && (
-                <p className="mt-1 text-xs text-gray-500">键名不可修改</p>
-              )}
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div
+            className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-lg mx-4 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold">
+                {editingVariable ? '编辑变量' : '新增变量'}
+              </h3>
+              <button
+                onClick={handleCancel}
+                className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
+              >
+                <i className="fa-solid fa-times text-lg"></i>
+              </button>
             </div>
-            <div>
-              <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                分类
-              </label>
-              <input
-                type="text"
-                value={formData.category}
-                onChange={(e) => handleChange('category', e.target.value)}
-                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
-                placeholder="例如：Database"
-                list="category-options"
-              />
-              <datalist id="category-options">
-                {categories.map(cat => (
-                  <option key={cat} value={cat} />
-                ))}
-              </datalist>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  键名 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  autoFocus={!editingVariable}
+                  value={formData.key}
+                  onChange={(e) => handleChange('key', e.target.value)}
+                  disabled={!!editingVariable}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed font-mono"
+                  placeholder="例如：mysql_connection"
+                />
+                {editingVariable && (
+                  <p className="mt-1 text-xs text-gray-500">键名不可修改</p>
+                )}
+              </div>
+              <div>
+                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  分类
+                </label>
+                <input
+                  type="text"
+                  value={formData.category}
+                  onChange={(e) => handleChange('category', e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
+                  placeholder="例如：Database"
+                  list="category-options"
+                />
+                <datalist id="category-options">
+                  {categories.map(cat => (
+                    <option key={cat} value={cat} />
+                  ))}
+                </datalist>
+              </div>
+              <div className="md:col-span-2">
+                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  值 <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  autoFocus={!!editingVariable}
+                  value={formData.value}
+                  onChange={(e) => handleChange('value', e.target.value)}
+                  rows={3}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white font-mono text-sm"
+                  placeholder="变量值..."
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  描述
+                </label>
+                <input
+                  type="text"
+                  value={formData.description}
+                  onChange={(e) => handleChange('description', e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
+                  placeholder="变量用途描述..."
+                />
+              </div>
             </div>
-            <div className="md:col-span-2">
-              <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                值 <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                value={formData.value}
-                onChange={(e) => handleChange('value', e.target.value)}
-                rows={3}
-                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white font-mono text-sm"
-                placeholder="变量值..."
-              />
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={handleCancel}
+                className="rounded-lg border border-gray-300 px-6 py-2 text-gray-700 hover:bg-gray-100 transition-colors dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={isLoading || !formData.key.trim()}
+                className={`rounded-lg px-6 py-2 text-white font-medium transition-colors ${
+                  isLoading || !formData.key.trim()
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700'
+                }`}
+              >
+                <i className="fa-solid fa-save mr-1"></i>
+                {isLoading ? '保存中...' : '保存'}
+              </button>
             </div>
-            <div className="md:col-span-2">
-              <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                描述
-              </label>
-              <input
-                type="text"
-                value={formData.description}
-                onChange={(e) => handleChange('description', e.target.value)}
-                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
-                placeholder="变量用途描述..."
-              />
-            </div>
-          </div>
-          <div className="mt-6 flex justify-end gap-3">
-            <button
-              onClick={handleCancel}
-              className="rounded-lg border border-gray-300 px-6 py-2 text-gray-700 hover:bg-gray-100 transition-colors dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
-            >
-              取消
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={isLoading || !formData.key.trim()}
-              className={`rounded-lg px-6 py-2 text-white font-medium transition-colors ${
-                isLoading || !formData.key.trim()
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-green-600 hover:bg-green-700'
-              }`}
-            >
-              <i className="fa-solid fa-save mr-1"></i>
-              {isLoading ? '保存中...' : '保存'}
-            </button>
           </div>
         </div>
       )}

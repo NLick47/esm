@@ -1004,7 +1004,8 @@ export default function JSProcessorManager() {
                     processors.map((processor) => (
                       <tr
                         key={processor.id}
-                        className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150"
+                        onClick={() => editProcessor(processor.id)}
+                        className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150 cursor-pointer"
                       >
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="font-medium">{processor.name}</div>
@@ -1044,7 +1045,10 @@ export default function JSProcessorManager() {
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex justify-end gap-2">
                             <button
-                              onClick={() => toggleProcessorStatus(processor.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleProcessorStatus(processor.id);
+                              }}
                               className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 transition-colors duration-150"
                             >
                               {processor.enabled ? (
@@ -1054,13 +1058,19 @@ export default function JSProcessorManager() {
                               )}
                             </button>
                             <button
-                              onClick={() => editProcessor(processor.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                editProcessor(processor.id);
+                              }}
                               className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors duration-150"
                             >
                               <i className="fa-solid fa-edit"></i>
                             </button>
                             <button
-                              onClick={() => deleteProcessor(processor.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteProcessor(processor.id);
+                              }}
                               className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transition-colors duration-150"
                             >
                               <i className="fa-solid fa-trash"></i>

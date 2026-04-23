@@ -12,6 +12,49 @@ export default function DatabaseConnectionManager() {
   const [isAddingType, setIsAddingType] = useState(false);
   const [newTypeName, setNewTypeName] = useState('');
   const [newTypeLabel, setNewTypeLabel] = useState('');
+  const [typeNameError, setTypeNameError] = useState('');
+
+  // 将类型标识自动转换为显示名称
+  const autoGenerateLabel = (name: string): string => {
+    if (!name) return '';
+    return name
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b\w/g, c => c.toUpperCase());
+  };
+
+  // 校验类型标识格式
+  const validateTypeName = (name: string): string => {
+    if (!name) return '';
+    if (!/^[a-zA-Z0-9_]+$/.test(name)) {
+      return '只能包含字母、数字和下划线';
+    }
+    if (databaseTypes.some(t => t.value === name)) {
+      return '该类型标识已存在';
+    }
+    return '';
+  };
+
+  const handleTypeNameChange = (value: string) => {
+    setNewTypeName(value);
+    setTypeNameError(validateTypeName(value));
+    // 如果显示名称为空，自动生成
+    if (!newTypeLabel.trim()) {
+      setNewTypeLabel(autoGenerateLabel(value));
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && newTypeName.trim() && newTypeLabel.trim() && !typeNameError && !isLoading) {
+      addDatabaseType();
+    }
+  };
+
+  const closeAddTypeModal = () => {
+    setIsAddingType(false);
+    setNewTypeName('');
+    setNewTypeLabel('');
+    setTypeNameError('');
+  };
 
   // 数据库配置数据 - 使用动态对象，key是数据库类型标识
   const [databaseConfigs, setDatabaseConfigs] = useState<Record<string, DatabaseConfig[]>>({});
@@ -108,32 +151,35 @@ export default function DatabaseConnectionManager() {
 
   // 添加新的数据库类型
   const addDatabaseType = async () => {
-    if (!newTypeName.trim() || !newTypeLabel.trim()) {
+    const name = newTypeName.trim();
+    const label = newTypeLabel.trim();
+
+    if (!name || !label) {
       toast.error('请输入类型标识和名称');
       return;
     }
 
-    if (databaseTypes.some(t => t.value === newTypeName)) {
-      toast.error('该类型标识已存在');
+    const error = validateTypeName(name);
+    if (error) {
+      toast.error(error);
+      setTypeNameError(error);
       return;
     }
 
     setIsLoading(true);
     try {
-      const newType = await databaseService.addDatabaseType(newTypeName, newTypeLabel);
+      const newType = await databaseService.addDatabaseType(name, label);
 
       setDatabaseTypes(prev => [...prev, newType]);
       setDatabaseConfigs(prev => ({
         ...prev,
-        [newTypeName]: []
+        [name]: []
       }));
 
-      setActiveDatabase(newTypeName);
+      setActiveDatabase(name);
       createNewConfig();
 
-      setIsAddingType(false);
-      setNewTypeName('');
-      setNewTypeLabel('');
+      closeAddTypeModal();
 
       toast.success('数据库类型添加成功');
     } catch (error) {
@@ -270,13 +316,13 @@ export default function DatabaseConnectionManager() {
 
   // 初始化表结构
   const initializeTables = async () => {
-    if (connectionStatus !== 'connected') {
-      toast.error('请先测试连接成功后再初始化表结构');
+    if (!currentConfig.id) {
+      toast.error('请先保存配置');
       return;
     }
 
-    if (!currentConfig.id) {
-      toast.error('请先保存配置');
+    if (!currentConfig.connectionString) {
+      toast.error('请输入连接字符串');
       return;
     }
 
@@ -493,58 +539,106 @@ export default function DatabaseConnectionManager() {
         </button>
       </div>
 
-      {/* 添加新类型的表单 */}
+      {/* 添加新类型的弹窗 */}
       {isAddingType && (
-        <div className="rounded-xl bg-gray-50 dark:bg-gray-700 p-4 border border-gray-200 dark:border-gray-600">
-          <h3 className="text-lg font-medium mb-4">新增数据库连接类型</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                类型标识 <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={newTypeName}
-                onChange={(e) => setNewTypeName(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                placeholder="例如：mri"
-              />
-              <p className="mt-1 text-xs text-gray-500">唯一标识，只能包含字母、数字和下划线</p>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div
+            className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-lg mx-4 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <i className="fa-solid fa-database text-blue-600"></i>
+                新增数据库连接类型
+              </h3>
+              <button
+                onClick={closeAddTypeModal}
+                className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
+              >
+                <i className="fa-solid fa-times text-lg"></i>
+              </button>
             </div>
-            <div>
-              <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                显示名称 <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={newTypeLabel}
-                onChange={(e) => setNewTypeLabel(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                placeholder="例如：核磁共振数据库"
-              />
+
+            <div className="space-y-5">
+              <div>
+                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  类型标识 <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <i className="fa-solid fa-tag absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                  <input
+                    type="text"
+                    autoFocus
+                    value={newTypeName}
+                    onChange={(e) => handleTypeNameChange(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    className={`w-full rounded-lg border bg-white pl-10 pr-4 py-2.5 shadow-sm focus:outline-none focus:ring-2 dark:bg-gray-800 dark:text-white transition-colors ${
+                      typeNameError
+                        ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20 dark:border-red-700'
+                        : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500/20 dark:border-gray-600'
+                    }`}
+                    placeholder="例如：mri"
+                  />
+                </div>
+                {typeNameError ? (
+                  <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                    <i className="fa-solid fa-circle-exclamation"></i>
+                    {typeNameError}
+                  </p>
+                ) : (
+                  <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    唯一标识，只能包含字母、数字和下划线
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  显示名称 <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <i className="fa-solid fa-font absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                  <input
+                    type="text"
+                    value={newTypeLabel}
+                    onChange={(e) => setNewTypeLabel(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    className="w-full rounded-lg border border-gray-300 bg-white pl-10 pr-4 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                    placeholder="例如：核磁共振数据库"
+                  />
+                </div>
+                <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  用于界面展示的名称
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="flex justify-end gap-3 mt-4">
-            <button
-              onClick={() => {
-                setIsAddingType(false);
-                setNewTypeName('');
-                setNewTypeLabel('');
-              }}
-              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-600"
-            >
-              取消
-            </button>
-            <button
-              onClick={addDatabaseType}
-              disabled={!newTypeName || !newTypeLabel || isLoading}
-              className={`px-4 py-2 rounded-lg text-white ${!newTypeName || !newTypeLabel || isLoading
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700'
+
+            <div className="flex justify-end gap-3 mt-8">
+              <button
+                onClick={closeAddTypeModal}
+                className="px-5 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700 transition-colors text-sm font-medium"
+              >
+                取消
+              </button>
+              <button
+                onClick={addDatabaseType}
+                disabled={!newTypeName.trim() || !newTypeLabel.trim() || !!typeNameError || isLoading}
+                className={`px-5 py-2.5 rounded-lg text-white text-sm font-medium transition-colors ${
+                  !newTypeName.trim() || !newTypeLabel.trim() || !!typeNameError || isLoading
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-blue-600 hover:bg-blue-700'
                 }`}
-            >
-              添加
-            </button>
+              >
+                {isLoading ? (
+                  <>
+                    <i className="fa-solid fa-spinner fa-spin mr-1"></i>
+                    添加中...
+                  </>
+                ) : (
+                  <>添加</>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -683,7 +777,7 @@ export default function DatabaseConnectionManager() {
 
               <div>
                 <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  连接超时 (秒)
+                  SQL 执行超时 (秒)
                 </label>
                 <input
                   type="number"
@@ -693,6 +787,9 @@ export default function DatabaseConnectionManager() {
                   min="1"
                   max="300"
                 />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  单条 SQL 查询的最大执行等待时间，默认 30 秒
+                </p>
               </div>
 
               {currentConfig.id && (
@@ -743,9 +840,9 @@ export default function DatabaseConnectionManager() {
               {currentConfig.id && (
                 <button
                   onClick={initializeTables}
-                  disabled={connectionStatus !== 'connected' || isInitializing || isLoading}
+                  disabled={!currentConfig.connectionString || isInitializing || isLoading}
                   className={`flex items-center gap-2 rounded-lg px-6 py-3 font-medium transition-colors ${
-                    connectionStatus !== 'connected' || isInitializing || isLoading
+                    !currentConfig.connectionString || isInitializing || isLoading
                       ? 'bg-gray-400 text-white cursor-not-allowed'
                       : 'bg-orange-600 text-white hover:bg-orange-700'
                   }`}

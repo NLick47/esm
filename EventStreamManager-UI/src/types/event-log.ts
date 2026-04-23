@@ -15,6 +15,8 @@ export interface EventHandle {
   needToSend?: boolean;
   isDeadLetter?: boolean;
   requestData?: string;
+  responseData?: string;
+  reason?: string;
   isFinished: boolean;
   createDatetime: string;
   eventName: string;

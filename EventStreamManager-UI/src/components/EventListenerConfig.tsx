@@ -52,6 +52,7 @@ export default function EventListenerConfig() {
     const [databaseTypes, setDatabaseTypes] = useState<DatabaseTypeWithActiveConfig[]>([]);
     const [activeDatabaseConfig, setActiveDatabaseConfig] = useState<DatabaseConfig | null>(null);
     const [statistics, setStatistics] = useState<StatisticsResponse | null>(null);
+    const [lastSavedAt, setLastSavedAt] = useState<string>('');
 
     const currentConfig = activeDatabase ? eventConfigs[activeDatabase] : null;
 
@@ -180,6 +181,7 @@ export default function EventListenerConfig() {
             }));
             await eventListenerService.setStartCondition(activeDatabase, startCondition);
             toast.success(`${getDatabaseTypeLabel(activeDatabase)}数据库事件监听配置已更新`);
+            setLastSavedAt(new Date().toLocaleString());
             loadStatistics();
         } catch (error) {
             console.error('保存配置失败:', error);
@@ -461,6 +463,13 @@ export default function EventListenerConfig() {
                         </div>
                     </div>
                     
+                    {lastSavedAt && (
+                        <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                            <i className="fa-solid fa-check-circle"></i>
+                            <span>配置已保存，上次更新时间：{lastSavedAt}</span>
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
                         <div className="rounded-xl bg-white p-6 shadow-md dark:bg-gray-800 dark:shadow-lg">
                             <h4 className="mb-2 text-sm font-medium text-gray-500 dark:text-gray-400">监听状态</h4>

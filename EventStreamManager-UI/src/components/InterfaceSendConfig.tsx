@@ -509,6 +509,9 @@ export default function InterfaceSendConfig() {
                       URL
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                      策略
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                       状态
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
@@ -519,7 +522,7 @@ export default function InterfaceSendConfig() {
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                   {interfaceConfigs.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-10 text-center text-gray-500 dark:text-gray-400">
+                      <td colSpan={7} className="px-6 py-10 text-center text-gray-500 dark:text-gray-400">
                         <div className="flex flex-col items-center justify-center">
                           <i className="fa-solid fa-plug text-4xl text-gray-300 dark:text-gray-600 mb-2"></i>
                           暂无接口配置，请创建新的配置
@@ -528,8 +531,10 @@ export default function InterfaceSendConfig() {
                     </tr>
                   ) : (
                     interfaceConfigs.map((config) => (
-                      <tr key={config.id}  
-                        className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150"
+                      <tr
+                        key={config.id}
+                        onClick={() => editConfig(config.id)}
+                        className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150 cursor-pointer"
                       >
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="font-medium">{config.name}</div>
@@ -562,6 +567,14 @@ export default function InterfaceSendConfig() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-xs text-gray-600 dark:text-gray-400">
+                            <div>超时 {config.timeout}s</div>
+                            <div className="text-gray-400">
+                              {config.retryCount > 0 ? `重试 ${config.retryCount} 次` : '不重试'}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                             config.enabled
                               ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
@@ -573,7 +586,10 @@ export default function InterfaceSendConfig() {
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex justify-end gap-2">
                             <button
-                              onClick={() => toggleConfigStatus(config.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleConfigStatus(config.id);
+                              }}
                               disabled={loading}
                               className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 disabled:opacity-50"
                               title={config.enabled ? '禁用' : '启用'}
@@ -585,7 +601,10 @@ export default function InterfaceSendConfig() {
                               )}
                             </button>
                             <button
-                              onClick={() => editConfig(config.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                editConfig(config.id);
+                              }}
                               disabled={loading}
                               className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50"
                               title="编辑"
@@ -593,7 +612,10 @@ export default function InterfaceSendConfig() {
                               <i className="fa-solid fa-edit"></i>
                             </button>
                             <button
-                              onClick={() => duplicateConfig(config.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                duplicateConfig(config.id);
+                              }}
                               disabled={loading}
                               className="text-yellow-600 hover:text-yellow-800 dark:text-yellow-400 dark:hover:text-yellow-300 disabled:opacity-50"
                               title="复制配置"
@@ -601,7 +623,10 @@ export default function InterfaceSendConfig() {
                               <i className="fa-solid fa-copy"></i>
                             </button>
                             <button
-                              onClick={() => deleteConfig(config.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteConfig(config.id);
+                              }}
                               disabled={loading}
                               className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50"
                               title="删除"

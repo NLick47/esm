@@ -27,7 +27,6 @@ export default function DebugLogModule() {
   const [selectedHandle, setSelectedHandle] = useState<EventHandle | null>(null);
   
   const [loading, setLoading] = useState(false);
-  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [exporting, setExporting] = useState(false);
   const [retryingId, setRetryingId] = useState<number | null>(null);
 
@@ -152,16 +151,6 @@ export default function DebugLogModule() {
     }
   };
 
-  const toggleRowExpand = (id: number) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(id)) {
-      newExpanded.delete(id);
-    } else {
-      newExpanded.add(id);
-    }
-    setExpandedRows(newExpanded);
-  };
-
   const getStatusBadge = (status: string) => {
     const colors: Record<string, string> = {
       'Success': 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
@@ -196,6 +185,15 @@ export default function DebugLogModule() {
       return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
     }
     return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+  };
+
+  const formatJsonData = (data: string): string => {
+    try {
+      const parsed = JSON.parse(data);
+      return JSON.stringify(parsed, null, 2);
+    } catch {
+      return data;
+    }
   };
 
   const getSendStatusLabel = (needToSend?: boolean, sendSuccess?: boolean) => {
@@ -383,6 +381,7 @@ export default function DebugLogModule() {
                 <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">发送状态</th>
                 <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">处理次数</th>
                 <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">耗时(ms)</th>
+                <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">消息</th>
                 <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">最后处理时间</th>
                 <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">事件创建时间</th>
                 <th className="px-4 py-3 text-left text-sm font-medium whitespace-nowrap">操作</th>
@@ -390,14 +389,15 @@ export default function DebugLogModule() {
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {handles.map(handle => (
-                <tr key={handle.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                  <td className="px-4 py-3 text-sm">{handle.id}</td>
-                  <td className="px-4 py-3 text-sm">{handle.eventId}</td>
-                  <td className="px-4 py-3 text-sm">{handle.eventCode || '-'}</td>
-                  <td className="px-4 py-3">
-                    <div className="text-sm font-medium">{handle.processorName}</div>
-                    <div className="text-xs text-gray-500">{handle.processorId}</div>
-                  </td>
+                <tr
+                  key={handle.id}
+                  onClick={() => viewHandleDetails(handle.id)}
+                  className="hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer"
+                >
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">{handle.id}</td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">{handle.eventId}</td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">{handle.eventCode || '-'}</td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">{handle.processorName}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2 py-1 rounded text-xs ${getScriptStatusBadge(handle.scriptSuccess, handle.isDeadLetter)}`}>
                       {handle.isDeadLetter ? '死信' : handle.scriptSuccess === true ? '成功' : handle.scriptSuccess === false ? '失败' : '-'}
@@ -410,29 +410,34 @@ export default function DebugLogModule() {
                   </td>
                   <td className="px-4 py-3 text-sm">{handle.handleTimes}</td>
                   <td className="px-4 py-3 text-sm">{handle.lastHandleElapsedMs || '-'}</td>
-                  <td className="px-4 py-3 text-sm whitespace-nowrap">
-                    {handle.lastHandleDatetime ? new Date(handle.lastHandleDatetime).toLocaleString() : '-'}
+                  <td className="px-4 py-3 text-sm max-w-xs">
+                    <div className="truncate text-xs text-gray-600 dark:text-gray-400" title={handle.lastHandleMessage || ''}>
+                      {handle.lastHandleMessage || '-'}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-sm whitespace-nowrap">
-                    {handle.createDatetime ? new Date(handle.createDatetime).toLocaleString() : '-'}
+                    {handle.lastHandleDatetime ? new Date(handle.lastHandleDatetime).toLocaleString('zh-CN', { year: '2-digit', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/\//g, '-') : '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm whitespace-nowrap">
+                    {handle.createDatetime ? new Date(handle.createDatetime).toLocaleString('zh-CN', { year: '2-digit', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/\//g, '-') : '-'}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
                       <button
-                        onClick={() => viewHandleDetails(handle.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          viewHandleDetails(handle.id);
+                        }}
                         className="text-blue-600 hover:text-blue-700 text-sm whitespace-nowrap"
                       >
                         详情
                       </button>
-                      <button
-                        onClick={() => toggleRowExpand(handle.id)}
-                        className="text-gray-600 hover:text-gray-700 text-sm whitespace-nowrap"
-                      >
-                        {expandedRows.has(handle.id) ? '收起' : '消息'}
-                      </button>
                       {handle.isDeadLetter && (
                         <button
-                          onClick={() => handleRetryDeadLetter(handle.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRetryDeadLetter(handle.id);
+                          }}
                           disabled={retryingId === handle.id}
                           className="text-purple-600 hover:text-purple-700 text-sm whitespace-nowrap disabled:opacity-50"
                         >
@@ -445,11 +450,6 @@ export default function DebugLogModule() {
                         </button>
                       )}
                     </div>
-                    {expandedRows.has(handle.id) && handle.lastHandleMessage && (
-                      <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-800 rounded text-xs max-w-md">
-                        {handle.lastHandleMessage}
-                      </div>
-                    )}
                   </td>
                 </tr>
               ))}
@@ -491,6 +491,14 @@ export default function DebugLogModule() {
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">处理记录调试</h2>
         <div className="flex items-center gap-3">
+          <button
+            onClick={fetchHandles}
+            disabled={loading || !databaseType}
+            className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+          >
+            <i className={`fa-solid fa-rotate-right ${loading ? 'fa-spin' : ''}`}></i>
+            刷新
+          </button>
           <button
             onClick={handleExport}
             disabled={exporting || !databaseType}
@@ -558,20 +566,160 @@ export default function DebugLogModule() {
       )}
 
       {selectedHandle && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-auto">
-            <div className="flex justify-between items-start mb-4">
-              <h3 className="text-lg font-semibold">处理记录详情</h3>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setSelectedHandle(null)}>
+          <div
+            className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 弹窗头部 */}
+            <div className="flex items-center justify-between mb-5 pb-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <h3 className="text-lg font-semibold">处理记录详情</h3>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getScriptStatusBadge(selectedHandle.scriptSuccess, selectedHandle.isDeadLetter)}`}>
+                  {selectedHandle.isDeadLetter ? '死信' : selectedHandle.scriptSuccess === true ? '脚本成功' : selectedHandle.scriptSuccess === false ? '脚本失败' : '未执行'}
+                </span>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getSendStatusBadge(selectedHandle.needToSend, selectedHandle.sendSuccess)}`}>
+                  {getSendStatusLabel(selectedHandle.needToSend, selectedHandle.sendSuccess)}
+                </span>
+              </div>
               <button
                 onClick={() => setSelectedHandle(null)}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
               >
-                <i className="fa-solid fa-times"></i>
+                <i className="fa-solid fa-times text-lg"></i>
               </button>
             </div>
-            <pre className="bg-gray-100 dark:bg-gray-900 p-4 rounded overflow-auto text-sm">
-              {JSON.stringify(selectedHandle, null, 2)}
-            </pre>
+
+            <div className="space-y-6">
+              {/* 核心信息 */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">基本信息</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-6 text-sm">
+                  <div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">记录 ID</div>
+                    <div className="font-mono mt-0.5">{selectedHandle.id}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">事件 ID</div>
+                    <div className="font-mono mt-0.5">{selectedHandle.eventId}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">事件码</div>
+                    <div className="mt-0.5">{selectedHandle.eventCode || '-'}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">事件名称</div>
+                    <div className="mt-0.5">{selectedHandle.eventName || '-'}</div>
+                  </div>
+                  <div className="col-span-2">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">引用 ID</div>
+                    <div className="font-mono mt-0.5">{selectedHandle.strEventReferenceId || '-'}</div>
+                  </div>
+                  <div className="col-span-2">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">处理器</div>
+                    <div className="mt-0.5">{selectedHandle.processorName} <span className="text-gray-400">({selectedHandle.processorId})</span></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 执行结果 */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">执行结果</h4>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-y-4 gap-x-6 text-sm">
+                  <div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">脚本执行</div>
+                    <div className="mt-1">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getScriptStatusBadge(selectedHandle.scriptSuccess, selectedHandle.isDeadLetter)}`}>
+                        {selectedHandle.isDeadLetter ? '死信' : selectedHandle.scriptSuccess === true ? '成功' : selectedHandle.scriptSuccess === false ? '失败' : '-'}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">接口发送</div>
+                    <div className="mt-1">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getSendStatusBadge(selectedHandle.needToSend, selectedHandle.sendSuccess)}`}>
+                        {getSendStatusLabel(selectedHandle.needToSend, selectedHandle.sendSuccess)}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">处理次数</div>
+                    <div className="mt-0.5">{selectedHandle.handleTimes}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">耗时</div>
+                    <div className="mt-0.5">{selectedHandle.lastHandleElapsedMs ? `${selectedHandle.lastHandleElapsedMs} ms` : '-'}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">是否完成</div>
+                    <div className="mt-0.5">{selectedHandle.isFinished ? '是' : '否'}</div>
+                  </div>
+                  {selectedHandle.reason && (
+                    <div className="col-span-2 md:col-span-3">
+                      <div className="text-xs text-gray-500 dark:text-gray-400">脚本返回信息</div>
+                      <div className="mt-0.5 text-gray-700 dark:text-gray-300">{selectedHandle.reason}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 时间 */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">时间</h4>
+                <div className="grid grid-cols-2 gap-6 text-sm">
+                  <div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">事件创建</div>
+                    <div className="font-mono mt-0.5">{selectedHandle.createDatetime ? new Date(selectedHandle.createDatetime).toLocaleString() : '-'}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">最后处理</div>
+                    <div className="font-mono mt-0.5">{selectedHandle.lastHandleDatetime ? new Date(selectedHandle.lastHandleDatetime).toLocaleString() : '-'}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 消息 */}
+              {selectedHandle.lastHandleMessage && (
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">处理消息</h4>
+                  <div className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words font-mono bg-gray-50 dark:bg-gray-900/50 p-3 rounded border border-gray-200 dark:border-gray-700">
+                    {selectedHandle.lastHandleMessage}
+                  </div>
+                </div>
+              )}
+
+              {/* 请求与响应 */}
+              {(selectedHandle.requestData || selectedHandle.responseData) && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {selectedHandle.requestData && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">请求数据</h4>
+                      <pre className="text-xs text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words font-mono bg-gray-50 dark:bg-gray-900/50 p-3 rounded border border-gray-200 dark:border-gray-700 max-h-80 overflow-auto">
+                        {formatJsonData(selectedHandle.requestData)}
+                      </pre>
+                    </div>
+                  )}
+                  {selectedHandle.responseData && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">响应数据</h4>
+                      <pre className="text-xs text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words font-mono bg-gray-50 dark:bg-gray-900/50 p-3 rounded border border-gray-200 dark:border-gray-700 max-h-80 overflow-auto">
+                        {formatJsonData(selectedHandle.responseData)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 弹窗底部 */}
+            <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+              <button
+                onClick={() => setSelectedHandle(null)}
+                className="px-4 py-2 rounded bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 text-sm"
+              >
+                关闭
+              </button>
+            </div>
           </div>
         </div>
       )}
