@@ -1,6 +1,4 @@
-// WebApi/Controllers/DatabaseConfigController.cs
 using EventStreamManager.Infrastructure.Models.DataBase;
-using EventStreamManager.Infrastructure.Services.Data;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 

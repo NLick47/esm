@@ -1,8 +1,8 @@
-using ClosedXML.Excel;
 using EventStreamManager.Infrastructure.Entities;
 using EventStreamManager.Infrastructure.Models.EventLog;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
 using Microsoft.Extensions.Logging;
+using MiniExcelLibs;
 using SqlSugar;
 
 namespace EventStreamManager.Infrastructure.Services.Data;
@@ -155,108 +155,30 @@ public class EventLogService : IEventLogService
     }
 
     /// <summary>
-    /// 生成Excel文件
+    /// 生成Excel文件（使用 MiniExcel）
     /// </summary>
     private byte[] GenerateExcel(List<EventHandleResult> data)
     {
-        using var workbook = new XLWorkbook();
-        var worksheet = workbook.Worksheets.Add("事件处理记录");
-
-        // 设置标题行
-        var titles = new[]
+        var exportData = data.Select(item => new
         {
-            "事件ID", "事件代码", "事件名称", "引用ID", "处理器名称",
-            "请求体", "响应体",
-            "处理次数", "最后状态", "最后消息", "最后处理时间",
-            "处理耗时(ms)", "是否完成", "事件创建时间"
-        };
+            事件ID = item.EventId,
+            事件代码 = item.EventCode,
+            事件名称 = item.EventName,
+            引用ID = item.StrEventReferenceId,
+            处理器名称 = item.ProcessorName,
+            请求体 = item.RequestData,
+            响应体 = item.ResponseData,
+            处理次数 = item.HandleTimes,
+            最后状态 = item.LastHandleStatus,
+            最后消息 = item.LastHandleMessage,
+            最后处理时间 = item.LastHandleDatetime?.ToString("yyyy-MM-dd HH:mm:ss"),
+            处理耗时 = item.LastHandleElapsedMs,
+            是否完成 = item.IsFinished,
+            事件创建时间 = item.CreateDatetime.ToString("yyyy-MM-dd HH:mm:ss")
+        }).ToList();
 
-        // 设置标题样式
-        for (int i = 0; i < titles.Length; i++)
-        {
-            var cell = worksheet.Cell(1, i + 1);
-            cell.Value = titles[i];
-            cell.Style.Font.Bold = true;
-            cell.Style.Fill.BackgroundColor = XLColor.LightGray;
-            cell.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
-            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-        }
-
-        // 填充数据
-        for (int i = 0; i < data.Count; i++)
-        {
-            var item = data[i];
-            var row = i + 2;
-
-            worksheet.Cell(row, 1).Value = item.EventId;
-            worksheet.Cell(row, 2).Value = item.EventCode;
-            worksheet.Cell(row, 3).Value = item.EventName;
-            worksheet.Cell(row, 4).Value = item.StrEventReferenceId;
-            worksheet.Cell(row, 5).Value = item.ProcessorName;
-            worksheet.Cell(row, 6).Value = item.RequestData;
-            worksheet.Cell(row, 7).Value = item.ResponseData;
-            
-            worksheet.Cell(row, 8).Value = item.HandleTimes;
-            worksheet.Cell(row, 9).Value = item.LastHandleStatus;
-            worksheet.Cell(row, 10).Value = item.LastHandleMessage ?? "";
-            worksheet.Cell(row, 11).Value = item.LastHandleDatetime?.ToString("yyyy-MM-dd HH:mm:ss") ?? "";
-            worksheet.Cell(row, 12).Value = item.LastHandleElapsedMs;
-            worksheet.Cell(row, 13).Value = item.IsFinished;
-            worksheet.Cell(row, 14).Value = item.CreateDatetime.ToString("yyyy-MM-dd HH:mm:ss");
-
-            // 根据状态设置颜色
-            var statusCell = worksheet.Cell(row, 7);
-            if (!string.IsNullOrEmpty(item.LastHandleStatus))
-            {
-                switch (item.LastHandleStatus.ToLower())
-                {
-                    case "success":
-                        statusCell.Style.Font.FontColor = XLColor.Green;
-                        break;
-                    case "fail":
-                    case "exception":
-                        statusCell.Style.Font.FontColor = XLColor.Red;
-                        statusCell.Style.Font.Bold = true;
-                        break;
-                }
-            }
-
-            // 设置边框和数据对齐
-            for (int j = 1; j <= titles.Length; j++)
-            {
-                var cell = worksheet.Cell(row, j);
-                cell.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
-
-                // 数字列右对齐
-                if (j == 1 || j == 6 || j == 10)
-                {
-                    cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
-                }
-                // 日期列居中对齐
-                else if (j == 9 || j == 12)
-                {
-                    cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                }
-            }
-        }
-
-        // 自动调整列宽
-        worksheet.Columns().AdjustToContents();
-
-        // 设置列宽最小值和最大值
-        for (int i = 1; i <= titles.Length; i++)
-        {
-            var col = worksheet.Column(i);
-            if (col.Width < 8) col.Width = 8;
-            if (col.Width > 50) col.Width = 50;
-        }
-
-        // 冻结标题行
-        worksheet.SheetView.FreezeRows(1);
-
-        // 转换为字节数组
         using var stream = new MemoryStream();
-        workbook.SaveAs(stream);
+        MiniExcel.SaveAs(stream, exportData, sheetName: "事件处理记录");
         return stream.ToArray();
     }
     
