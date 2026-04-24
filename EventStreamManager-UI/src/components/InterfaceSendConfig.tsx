@@ -16,6 +16,14 @@ import {
 import { getEventCodes,getProcessors } from '@/services/processor.service';
 import { getDatabaseTypesWithActiveConfig } from '@/services/database.service';
 
+import { TabNav } from '@/components/ui/TabNav';
+import { StatusBadge } from '@/components/ui/StatusBadge';
+import { DataTable } from '@/components/ui/DataTable';
+import { DebugLogPanel } from '@/components/DebugLogPanel';
+import { FormField } from '@/components/ui/FormField';
+import { PageLoading } from '@/components/ui/PageLoading';
+import { buttonVariants } from '@/utils/button-styles';
+
 // 类型定义
 import type {
   InterfaceConfig,
@@ -35,6 +43,7 @@ export default function InterfaceSendConfig() {
   const [interfaceConfigs, setInterfaceConfigs] = useState<InterfaceConfig[]>([]);
   const [availableProcessors, setAvailableProcessors] = useState<AvailableProcessor[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isDebugging, setIsDebugging] = useState(false);
 
   // 调试相关状态
   const [debugConfigId, setDebugConfigId] = useState<string>('');
@@ -44,7 +53,7 @@ export default function InterfaceSendConfig() {
   const [debugEventId, setDebugEventId] = useState<string>('');
   const [debugLogs, setDebugLogs] = useState<DebugLogEntry[]>([]);
   const [debugResult, setDebugResult] = useState<InterfaceDebugResponse | null>(null);
-  const [isDebugging, setIsDebugging] = useState<boolean>(false);
+
 
   // 调试相关数据
   const [eventCodes, setEventCodes] = useState<EventCode[]>([]);
@@ -430,53 +439,20 @@ export default function InterfaceSendConfig() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">接口发送配置</h2>
-        {loading && (
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-            <i className="fa-solid fa-spinner fa-spin"></i>
-            加载中...
-          </div>
-        )}
+
       </div>
 
-      {/* 标签切换 */}
-      <div className="flex border-b border-gray-200 dark:border-gray-800">
-        <button
-          onClick={() => setActiveTab('list')}
-          disabled={loading}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
-            activeTab === 'list'
-              ? 'border-b-2 border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400'
-              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-          } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-        >
-          <i className="fa-solid fa-list"></i>
-          配置列表
-        </button>
-        <button
-          onClick={() => setActiveTab('editor')}
-          disabled={loading}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
-            activeTab === 'editor'
-              ? 'border-b-2 border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400'
-              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-          } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-        >
-          <i className="fa-solid fa-sliders"></i>
-          配置编辑器
-        </button>
-        <button
-          onClick={() => setActiveTab('debug')}
-          disabled={loading}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
-            activeTab === 'debug'
-              ? 'border-b-2 border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400'
-              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-          } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-        >
-          <i className="fa-solid fa-bug"></i>
-          调试
-        </button>
-      </div>
+      <TabNav
+        tabs={[
+          { key: 'list', label: '配置列表', icon: 'fa-solid fa-list' },
+          { key: 'editor', label: '配置编辑器', icon: 'fa-solid fa-sliders' },
+          { key: 'debug', label: '调试', icon: 'fa-solid fa-bug' },
+        ]}
+        activeKey={activeTab}
+        onChange={(key) => setActiveTab(key as 'list' | 'editor' | 'debug')}
+      />
+
+      {loading && interfaceConfigs.length === 0 && <PageLoading />}
 
       {/* 配置列表 */}
       {activeTab === 'list' && (
@@ -485,163 +461,110 @@ export default function InterfaceSendConfig() {
             <button
               onClick={createNewConfig}
               disabled={loading}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className={buttonVariants.primary + ' px-4 py-2 text-sm flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed'}
             >
-              <i className="fa-solid fa-plus mr-1"></i> 创建新配置
+              <i className="fa-solid fa-plus"></i> 创建新配置
             </button>
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-white shadow-md dark:border-gray-800 dark:bg-gray-800">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-full">
-                <thead className="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                      名称
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                      关联处理器
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                      请求方式
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                      URL
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                      策略
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                      状态
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                      操作
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                  {interfaceConfigs.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="px-6 py-10 text-center text-gray-500 dark:text-gray-400">
-                        <div className="flex flex-col items-center justify-center">
-                          <i className="fa-solid fa-plug text-4xl text-gray-300 dark:text-gray-600 mb-2"></i>
-                          暂无接口配置，请创建新的配置
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    interfaceConfigs.map((config) => (
-                      <tr
-                        key={config.id}
-                        onClick={() => editConfig(config.id)}
-                        className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150 cursor-pointer"
-                      >
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="font-medium">{config.name}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex flex-wrap gap-1">
-                            {config.processorNames.map((name, index) => (
-                              <span key={index} className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                                {name}
-                              </span>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                            config.method === 'GET'
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                              : config.method === 'POST'
-                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                              : config.method === 'PUT'
-                              ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                              : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                          }`}>
-                            {config.method}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 max-w-xs">
-                          <div className="text-sm text-gray-500 dark:text-gray-400 truncate" title={config.url}>
-                            {config.url}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-xs text-gray-600 dark:text-gray-400">
-                            <div>超时 {config.timeout}s</div>
-                            <div className="text-gray-400">
-                              {config.retryCount > 0 ? `重试 ${config.retryCount} 次` : '不重试'}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                            config.enabled
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                              : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                          }`}>
-                            {config.enabled ? '启用' : '禁用'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <div className="flex justify-end gap-2">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleConfigStatus(config.id);
-                              }}
-                              disabled={loading}
-                              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 disabled:opacity-50"
-                              title={config.enabled ? '禁用' : '启用'}
-                            >
-                              {config.enabled ? (
-                                <i className="fa-solid fa-toggle-on text-green-500 text-xl"></i>
-                              ) : (
-                                <i className="fa-solid fa-toggle-off text-gray-400 text-xl"></i>
-                              )}
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                editConfig(config.id);
-                              }}
-                              disabled={loading}
-                              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50"
-                              title="编辑"
-                            >
-                              <i className="fa-solid fa-edit"></i>
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                duplicateConfig(config.id);
-                              }}
-                              disabled={loading}
-                              className="text-yellow-600 hover:text-yellow-800 dark:text-yellow-400 dark:hover:text-yellow-300 disabled:opacity-50"
-                              title="复制配置"
-                            >
-                              <i className="fa-solid fa-copy"></i>
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteConfig(config.id);
-                              }}
-                              disabled={loading}
-                              className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50"
-                              title="删除"
-                            >
-                              <i className="fa-solid fa-trash"></i>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <DataTable
+            data={interfaceConfigs}
+            columns={[
+              {
+                key: 'name',
+                header: '名称',
+                render: (c: InterfaceConfig) => <div className="font-medium">{c.name}</div>
+              },
+              {
+                key: 'processorNames',
+                header: '关联处理器',
+                render: (c: InterfaceConfig) => (
+                  <div className="flex flex-wrap gap-1">
+                    {c.processorNames.map((name, index) => (
+                      <StatusBadge key={index} variant="default">{name}</StatusBadge>
+                    ))}
+                  </div>
+                )
+              },
+              {
+                key: 'method',
+                header: '请求方式',
+                render: (c: InterfaceConfig) => (
+                  <StatusBadge
+                    variant={
+                      c.method === 'GET' ? 'success' :
+                      c.method === 'POST' ? 'info' :
+                      c.method === 'PUT' ? 'warning' : 'danger'
+                    }
+                  >
+                    {c.method}
+                  </StatusBadge>
+                )
+              },
+              {
+                key: 'url',
+                header: 'URL',
+                render: (c: InterfaceConfig) => (
+                  <div className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-xs" title={c.url}>{c.url}</div>
+                )
+              },
+              {
+                key: 'policy',
+                header: '策略',
+                render: (c: InterfaceConfig) => (
+                  <div className="text-xs text-gray-600 dark:text-gray-400">
+                    <div>超时 {c.timeout}s</div>
+                    <div className="text-gray-400">{c.retryCount > 0 ? `重试 ${c.retryCount} 次` : '不重试'}</div>
+                  </div>
+                )
+              },
+              {
+                key: 'enabled',
+                header: '状态',
+                render: (c: InterfaceConfig) => <StatusBadge variant={c.enabled ? 'success' : 'default'}>{c.enabled ? '启用' : '禁用'}</StatusBadge>
+              }
+            ]}
+            keyExtractor={(c: InterfaceConfig) => c.id}
+            onRowClick={(c: InterfaceConfig) => editConfig(c.id)}
+            rowActions={(c: InterfaceConfig) => (
+              <>
+                <button
+                  onClick={() => toggleConfigStatus(c.id)}
+                  disabled={loading}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 disabled:opacity-50"
+                  title={c.enabled ? '禁用' : '启用'}
+                >
+                  {c.enabled ? <i className="fa-solid fa-toggle-on text-green-500 text-xl"></i> : <i className="fa-solid fa-toggle-off text-gray-400 text-xl"></i>}
+                </button>
+                <button
+                  onClick={() => editConfig(c.id)}
+                  disabled={loading}
+                  className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50"
+                  title="编辑"
+                >
+                  <i className="fa-solid fa-edit"></i>
+                </button>
+                <button
+                  onClick={() => duplicateConfig(c.id)}
+                  disabled={loading}
+                  className="text-yellow-600 hover:text-yellow-800 dark:text-yellow-400 dark:hover:text-yellow-300 disabled:opacity-50"
+                  title="复制配置"
+                >
+                  <i className="fa-solid fa-copy"></i>
+                </button>
+                <button
+                  onClick={() => deleteConfig(c.id)}
+                  disabled={loading}
+                  className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50"
+                  title="删除"
+                >
+                  <i className="fa-solid fa-trash"></i>
+                </button>
+              </>
+            )}
+            emptyText="暂无接口配置，请创建新的配置"
+            emptyIcon="fa-plug"
+          />
         </div>
       )}
 
@@ -654,10 +577,7 @@ export default function InterfaceSendConfig() {
             </h3>
 
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  配置名称 *
-                </label>
+              <FormField label="配置名称" required>
                 <input
                   type="text"
                   value={editingConfig.name}
@@ -666,7 +586,7 @@ export default function InterfaceSendConfig() {
                   placeholder="请输入配置名称"
                   disabled={loading}
                 />
-              </div>
+              </FormField>
 
               <div>
                 <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -709,10 +629,7 @@ export default function InterfaceSendConfig() {
                 </p>
               </div>
 
-              <div className="sm:col-span-2">
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  接口URL *
-                </label>
+              <FormField label="接口URL" required className="sm:col-span-2">
                 <input
                   type="url"
                   value={editingConfig.url}
@@ -721,12 +638,9 @@ export default function InterfaceSendConfig() {
                   placeholder="https://api.example.com/endpoint"
                   disabled={loading}
                 />
-              </div>
+              </FormField>
 
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  请求方式
-                </label>
+              <FormField label="请求方式">
                 <select
                   value={editingConfig.method}
                   onChange={(e) => handleConfigChange('method', e.target.value as InterfaceConfig['method'])}
@@ -738,12 +652,9 @@ export default function InterfaceSendConfig() {
                   <option value="PUT">PUT</option>
                   <option value="DELETE">DELETE</option>
                 </select>
-              </div>
+              </FormField>
 
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  超时时间 (秒)
-                </label>
+              <FormField label="超时时间 (秒)">
                 <input
                   type="number"
                   min="5"
@@ -753,12 +664,9 @@ export default function InterfaceSendConfig() {
                   className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
                   disabled={loading}
                 />
-              </div>
+              </FormField>
 
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  重试次数
-                </label>
+              <FormField label="重试次数">
                 <input
                   type="number"
                   min="0"
@@ -768,7 +676,7 @@ export default function InterfaceSendConfig() {
                   className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
                   disabled={loading}
                 />
-              </div>
+              </FormField>
 
               <div>
                 <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -880,7 +788,7 @@ export default function InterfaceSendConfig() {
               <button
                 onClick={cancelEdit}
                 disabled={loading}
-                className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 disabled:opacity-50"
+                className={buttonVariants.ghost + ' px-4 py-2 text-sm disabled:opacity-50'}
               >
                 取消
               </button>
@@ -888,7 +796,7 @@ export default function InterfaceSendConfig() {
               <button
                 onClick={saveConfig}
                 disabled={loading}
-                className="rounded-md bg-blue-600 px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className={buttonVariants.success + ' px-6 py-2 text-sm flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed'}
               >
                 {loading ? '保存中...' : '保存配置'}
               </button>
@@ -1019,19 +927,15 @@ export default function InterfaceSendConfig() {
                   <button
                     onClick={runDebug}
                     disabled={!debugConfigId || !debugProcessorId || !debugDatabaseType || !hasActiveConfig(debugDatabaseType) || isDebugging}
-                    className={`w-full rounded-md px-6 py-2 text-sm font-medium transition-colors ${
-                      !debugConfigId || !debugProcessorId || !debugDatabaseType || !hasActiveConfig(debugDatabaseType) || isDebugging
-                        ? 'bg-gray-400 text-white cursor-not-allowed'
-                        : 'bg-blue-600 text-white hover:bg-blue-700'
-                    }`}
+                    className={buttonVariants.primary + ' w-full px-6 py-2 text-sm flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed'}
                   >
                     {isDebugging ? (
                       <>
-                        <i className="fa-solid fa-spinner fa-spin mr-1"></i> 运行中...
+                        <i className="fa-solid fa-spinner fa-spin"></i> 运行中...
                       </>
                     ) : (
                       <>
-                        <i className="fa-solid fa-play mr-1"></i> 运行调试
+                        <i className="fa-solid fa-play"></i> 运行调试
                       </>
                     )}
                   </button>
@@ -1039,9 +943,9 @@ export default function InterfaceSendConfig() {
                   {debugLogs.length > 0 && (
                     <button
                       onClick={clearDebugLogs}
-                      className="w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                      className={buttonVariants.ghost + ' w-full px-4 py-2 text-sm flex items-center justify-center gap-1'}
                     >
-                      <i className="fa-solid fa-trash mr-1"></i> 清空日志
+                      <i className="fa-solid fa-trash"></i> 清空日志
                     </button>
                   )}
                 </div>
@@ -1074,42 +978,7 @@ export default function InterfaceSendConfig() {
                     )}
                   </div>
 
-                  <div className="h-96 overflow-auto rounded-lg bg-gray-900 p-4 text-xs font-mono">
-                    {debugLogs.length === 0 ? (
-                      <div className="flex h-full items-center justify-center text-gray-500">
-                        <div className="text-center">
-                          <i className="fa-solid fa-bug text-2xl mb-2"></i>
-                          <p>准备就绪，请点击"运行调试"开始</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-1">
-                        {debugLogs.map((log, index) => {
-                          const icon = {
-                            error: '❌',
-                            warn: '⚠️',
-                            success: '✅',
-                            output: '📤',
-                            info: 'ℹ️'
-                          }[log.type] || 'ℹ️';
-
-                          const textColor = {
-                            error: 'text-red-400',
-                            warn: 'text-yellow-400',
-                            success: 'text-green-400',
-                            output: 'text-blue-400',
-                            info: 'text-gray-300'
-                          }[log.type] || 'text-gray-300';
-
-                          return (
-                            <div key={index} className={`whitespace-pre-wrap break-all ${textColor}`}>
-                              [{log.timestamp}] {icon} {log.message}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
+                  <DebugLogPanel logs={debugLogs} emptyHint="准备就绪，请点击运行调试开始" className="h-96 text-xs" />
 
                   {/* 结果显示区域 */}
                   {debugResult && (

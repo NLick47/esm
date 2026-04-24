@@ -4,6 +4,7 @@ import * as eventLogService from '@/services/event-log.service';
 import * as databaseService from '@/services/database.service';
 import * as processorService from '@/services/processor.service';
 import { EventHandle } from '@/types/event-log';
+import { PageLoading } from '@/components/ui/PageLoading';
 
 type StatusType = 'Success' | 'Fail' | 'Exception' | 'Processing' | '';
 
@@ -535,10 +536,8 @@ export default function DebugLogModule() {
         ))}
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <i className="fa-solid fa-spinner fa-spin text-3xl text-blue-600"></i>
-        </div>
+      {handles.length === 0 && loading ? (
+        <PageLoading className="h-96" />
       ) : (
         <>
           {renderHandlesTable()}

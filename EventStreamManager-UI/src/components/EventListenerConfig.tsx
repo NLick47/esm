@@ -9,9 +9,12 @@ import {
 } from '@/types';
 import * as eventListenerService from '@/services/event-listener.service';
 import {getDatabaseTypesWithActiveConfig,getActiveConfig} from '@/services/database.service'
+import { PageLoading } from '@/components/ui/PageLoading';
+
 export default function EventListenerConfig() {
     const [activeDatabase, setActiveDatabase] = useState<string>('');
     const [isLoading, setIsLoading] = useState(false);
+    const [isInitializing, setIsInitializing] = useState(true);
     
     const [startCondition, setStartCondition] = useState<StartCondition>({
         type: 'time',
@@ -139,9 +142,21 @@ export default function EventListenerConfig() {
     };
 
     useEffect(() => {
-        loadAllConfigs();
-        loadDatabaseTypesWithActiveConfig();
-        loadStatistics();
+        const init = async () => {
+            setIsInitializing(true);
+            try {
+                await Promise.all([
+                    loadAllConfigs(),
+                    loadDatabaseTypesWithActiveConfig(),
+                    loadStatistics()
+                ]);
+            } catch (e) {
+                console.error('初始化失败:', e);
+            } finally {
+                setIsInitializing(false);
+            }
+        };
+        init();
     }, []);
 
     useEffect(() => {
@@ -203,14 +218,10 @@ export default function EventListenerConfig() {
 
     return (
         <div className="space-y-6">
-            {isLoading && (
-                <div className="fixed top-4 right-4 z-50">
-                    <div className="bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
-                        <i className="fa-solid fa-spinner fa-spin"></i>
-                        <span>加载中...</span>
-                    </div>
-                </div>
-            )}
+            {isInitializing ? (
+                <PageLoading className="h-96" />
+            ) : (
+                <>
 
             <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold">事件监听配置</h2>
@@ -492,6 +503,8 @@ export default function EventListenerConfig() {
                             </p>
                         </div>
                     </div>
+                </>
+            )}
                 </>
             )}
         </div>

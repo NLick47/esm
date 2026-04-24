@@ -1,7 +1,15 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import { SystemVariable, SystemVariableRequest } from '@/types/system-variable';
 import * as systemVariableService from '@/services/system-variable.service';
+import { useApiQuery } from '@/hooks/useApiQuery';
+import { useApiMutation } from '@/hooks/useApiMutation';
+import { Modal } from '@/components/ui/Modal';
+import { FormField } from '@/components/ui/FormField';
+import { StatusBadge } from '@/components/ui/StatusBadge';
+import { DataTable } from '@/components/ui/DataTable';
+import { PageLoading } from '@/components/ui/PageLoading';
+import { buttonVariants } from '@/utils/button-styles';
 
 const EMPTY_FORM: SystemVariableRequest = {
   key: '',
@@ -11,39 +19,57 @@ const EMPTY_FORM: SystemVariableRequest = {
 };
 
 export default function SystemVariableManager() {
-  const [variables, setVariables] = useState<SystemVariable[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [editingVariable, setEditingVariable] = useState<SystemVariable | null>(null);
   const [formData, setFormData] = useState<SystemVariableRequest>({ ...EMPTY_FORM });
   const [showForm, setShowForm] = useState(false);
 
-  // 加载变量列表
-  const loadVariables = async () => {
-    setIsLoading(true);
-    try {
-      const data = await systemVariableService.getAllVariables();
-      setVariables(data || []);
-    } catch (error: any) {
-      console.error('获取系统变量失败:', error);
-      toast.error(error.message || '加载系统变量失败');
-    } finally {
-      setIsLoading(false);
+  const {
+    data: variables = [],
+    loading: isLoading,
+    refresh,
+    setData: setVariables,
+  } = useApiQuery(() => systemVariableService.getAllVariables(), {
+    initialData: [],
+    errorMessage: '加载系统变量失败',
+  });
+
+  const { mutate: saveVariable, loading: isSaving } = useApiMutation(
+    systemVariableService.saveVariable,
+    {
+      successMessage: '保存成功',
+      errorMessage: '保存失败',
+      onSuccess: (saved) => {
+        setVariables(prev => {
+          const list = prev || [];
+          const index = list.findIndex(v => v.id === saved.id);
+          if (index >= 0) {
+            const updated = [...list];
+            updated[index] = saved;
+            return updated;
+          }
+          return [...list, saved];
+        });
+        setShowForm(false);
+        setEditingVariable(null);
+        setFormData({ ...EMPTY_FORM });
+      },
     }
-  };
+  );
 
-  useEffect(() => {
-    loadVariables();
-  }, []);
+  const { mutate: deleteVariable } = useApiMutation(
+    (id: string) => systemVariableService.deleteVariable(id),
+    {
+      errorMessage: '删除失败',
+    }
+  );
 
-  // 提取所有分类
   const categories = useMemo(() => {
     const set = new Set(variables.map(v => v.category));
     return Array.from(set).sort();
   }, [variables]);
 
-  // 筛选后的变量
   const filteredVariables = useMemo(() => {
     return variables.filter(v => {
       const matchSearch = !searchTerm ||
@@ -55,14 +81,12 @@ export default function SystemVariableManager() {
     });
   }, [variables, searchTerm, categoryFilter]);
 
-  // 打开新增表单
   const handleAdd = () => {
     setEditingVariable(null);
     setFormData({ ...EMPTY_FORM });
     setShowForm(true);
   };
 
-  // 打开编辑表单
   const handleEdit = (variable: SystemVariable) => {
     setEditingVariable(variable);
     setFormData({
@@ -74,25 +98,15 @@ export default function SystemVariableManager() {
     setShowForm(true);
   };
 
-  // 删除变量
   const handleDelete = async (variable: SystemVariable) => {
     if (!window.confirm(`确定要删除变量 "${variable.key}" 吗？`)) {
       return;
     }
-    setIsLoading(true);
-    try {
-      await systemVariableService.deleteVariable(variable.id);
-      setVariables(prev => prev.filter(v => v.id !== variable.id));
-      toast.success(`变量 "${variable.key}" 已删除`);
-    } catch (error: any) {
-      console.error('删除变量失败:', error);
-      toast.error(error.message || '删除失败');
-    } finally {
-      setIsLoading(false);
-    }
+    await deleteVariable(variable.id);
+    setVariables(prev => (prev || []).filter(v => v.id !== variable.id));
+    toast.success(`变量 "${variable.key}" 已删除`);
   };
 
-  // 复制值到剪贴板
   const handleCopyValue = async (value: string, key: string) => {
     try {
       await navigator.clipboard.writeText(value);
@@ -102,66 +116,35 @@ export default function SystemVariableManager() {
     }
   };
 
-  // 保存表单
   const handleSave = async () => {
     if (!formData.key.trim()) {
       toast.error('变量键名不能为空');
       return;
     }
-
-    setIsLoading(true);
-    try {
-      const saved = await systemVariableService.saveVariable(formData);
-
-      setVariables(prev => {
-        const index = prev.findIndex(v => v.id === saved.id);
-        if (index >= 0) {
-          const updated = [...prev];
-          updated[index] = saved;
-          return updated;
-        }
-        return [...prev, saved];
-      });
-
-      toast.success(editingVariable ? '变量已更新' : '变量已创建');
-      setShowForm(false);
-      setEditingVariable(null);
-      setFormData({ ...EMPTY_FORM });
-    } catch (error: any) {
-      console.error('保存变量失败:', error);
-      toast.error(error.message || '保存失败');
-    } finally {
-      setIsLoading(false);
-    }
+    await saveVariable(formData);
   };
 
-  // 取消表单
   const handleCancel = () => {
     setShowForm(false);
     setEditingVariable(null);
     setFormData({ ...EMPTY_FORM });
   };
 
-  // 表单字段变化
   const handleChange = (field: keyof SystemVariableRequest, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const inputBase = 'w-full rounded-lg border border-gray-300 bg-white px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white';
+
   return (
     <div className="space-y-6">
-      {/* 标题栏 */}
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">系统变量管理</h2>
         <div className="flex items-center gap-3">
-          {isLoading && (
-            <div className="flex items-center gap-2 text-blue-600">
-              <i className="fa-solid fa-spinner fa-spin"></i>
-              <span>加载中...</span>
-            </div>
-          )}
+
           <button
             onClick={handleAdd}
-            className="rounded-lg bg-green-600 text-white px-4 py-2 font-medium hover:bg-green-700 transition-colors flex items-center gap-2"
+            className={buttonVariants.success + ' px-4 py-2 flex items-center gap-2'}
           >
             <i className="fa-solid fa-plus"></i>
             新增变量
@@ -169,7 +152,6 @@ export default function SystemVariableManager() {
         </div>
       </div>
 
-      {/* 搜索和筛选 */}
       <div className="flex flex-wrap items-center gap-4">
         <div className="flex-1 min-w-[200px]">
           <div className="relative">
@@ -196,212 +178,165 @@ export default function SystemVariableManager() {
           </select>
         </div>
         <button
-          onClick={loadVariables}
-          className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 hover:bg-gray-100 transition-colors dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+          onClick={refresh}
+          className={buttonVariants.ghost + ' px-4 py-2'}
           title="刷新"
         >
           <i className="fa-solid fa-rotate-right"></i>
         </button>
       </div>
 
-      {/* 变量列表表格 */}
-      <div className="rounded-xl bg-white shadow-md dark:bg-gray-800 dark:shadow-lg overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-700">
-              <tr>
-                <th className="px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">键名</th>
-                <th className="px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">值</th>
-                <th className="px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">描述</th>
-                <th className="px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">分类</th>
-                <th className="px-4 py-3 font-semibold text-gray-700 dark:text-gray-300">更新时间</th>
-                <th className="px-4 py-3 font-semibold text-gray-700 dark:text-gray-300 text-right">操作</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {filteredVariables.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                    {isLoading ? '加载中...' : '暂无系统变量'}
-                  </td>
-                </tr>
-              ) : (
-                filteredVariables.map(variable => (
-                  <tr
-                    key={variable.id}
-                    onClick={() => handleEdit(variable)}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer"
-                  >
-                    <td className="px-4 py-3 font-mono text-blue-600 dark:text-blue-400 font-medium">
-                      {variable.key}
-                    </td>
-                    <td className="px-4 py-3 max-w-xs">
-                      <div className="truncate font-mono text-xs text-gray-600 dark:text-gray-400" title={variable.value}>
-                        {variable.value}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
-                      {variable.description || '-'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                        {variable.category}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                      {new Date(variable.updatedAt).toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCopyValue(variable.value, variable.key);
-                          }}
-                          className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-                          title="复制值"
-                        >
-                          <i className="fa-regular fa-copy"></i>
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEdit(variable);
-                          }}
-                          className="rounded p-1.5 text-blue-500 hover:bg-blue-50 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-blue-900/20 dark:hover:text-blue-300"
-                          title="编辑"
-                        >
-                          <i className="fa-solid fa-pen-to-square"></i>
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDelete(variable);
-                          }}
-                          className="rounded p-1.5 text-red-500 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300"
-                          title="删除"
-                        >
-                          <i className="fa-solid fa-trash"></i>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-        <div className="border-t border-gray-200 dark:border-gray-700 px-4 py-2 text-xs text-gray-500 dark:text-gray-400">
-          共 {filteredVariables.length} 条记录
-        </div>
-      </div>
+      {isLoading && variables.length === 0 ? (
+        <PageLoading />
+      ) : (
+        <>
+          <DataTable
+            data={filteredVariables}
+            columns={[
+              {
+                key: 'key',
+                header: '键名',
+                render: (v: SystemVariable) => (
+                  <span className="font-mono text-blue-600 dark:text-blue-400 font-medium">{v.key}</span>
+                )
+              },
+              {
+                key: 'value',
+                header: '值',
+                render: (v: SystemVariable) => (
+                  <div className="truncate font-mono text-xs text-gray-600 dark:text-gray-400 max-w-xs" title={v.value}>
+                    {v.value}
+                  </div>
+                )
+              },
+              {
+                key: 'description',
+                header: '描述',
+                render: (v: SystemVariable) => v.description || '-'
+              },
+              {
+                key: 'category',
+                header: '分类',
+                render: (v: SystemVariable) => <StatusBadge variant="default">{v.category}</StatusBadge>
+              },
+              {
+                key: 'updatedAt',
+                header: '更新时间',
+                render: (v: SystemVariable) => (
+                  <span className="whitespace-nowrap text-gray-500 dark:text-gray-400">
+                    {new Date(v.updatedAt).toLocaleString()}
+                  </span>
+                )
+              }
+            ]}
+            keyExtractor={(v: SystemVariable) => v.id}
+            onRowClick={(v: SystemVariable) => handleEdit(v)}
+            rowActions={(v: SystemVariable) => (
+              <>
+                <button
+                  onClick={() => handleCopyValue(v.value, v.key)}
+                  className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                  title="复制值"
+                >
+                  <i className="fa-regular fa-copy"></i>
+                </button>
+                <button
+                  onClick={() => handleEdit(v)}
+                  className="rounded p-1.5 text-blue-500 hover:bg-blue-50 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-blue-900/20 dark:hover:text-blue-300"
+                  title="编辑"
+                >
+                  <i className="fa-solid fa-pen-to-square"></i>
+                </button>
+                <button
+                  onClick={() => handleDelete(v)}
+                  className="rounded p-1.5 text-red-500 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300"
+                  title="删除"
+                >
+                  <i className="fa-solid fa-trash"></i>
+                </button>
+              </>
+            )}
+            emptyText="暂无系统变量"
+          />
 
-      {/* 新增/编辑弹窗 */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div
-            className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-lg mx-4 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold">
-                {editingVariable ? '编辑变量' : '新增变量'}
-              </h3>
-              <button
-                onClick={handleCancel}
-                className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
-              >
-                <i className="fa-solid fa-times text-lg"></i>
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  键名 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  autoFocus={!editingVariable}
-                  value={formData.key}
-                  onChange={(e) => handleChange('key', e.target.value)}
-                  disabled={!!editingVariable}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed font-mono"
-                  placeholder="例如：mysql_connection"
-                />
-                {editingVariable && (
-                  <p className="mt-1 text-xs text-gray-500">键名不可修改</p>
-                )}
-              </div>
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  分类
-                </label>
-                <input
-                  type="text"
-                  value={formData.category}
-                  onChange={(e) => handleChange('category', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
-                  placeholder="例如：Database"
-                  list="category-options"
-                />
-                <datalist id="category-options">
-                  {categories.map(cat => (
-                    <option key={cat} value={cat} />
-                  ))}
-                </datalist>
-              </div>
-              <div className="md:col-span-2">
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  值 <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  autoFocus={!!editingVariable}
-                  value={formData.value}
-                  onChange={(e) => handleChange('value', e.target.value)}
-                  rows={3}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white font-mono text-sm"
-                  placeholder="变量值..."
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  描述
-                </label>
-                <input
-                  type="text"
-                  value={formData.description}
-                  onChange={(e) => handleChange('description', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
-                  placeholder="变量用途描述..."
-                />
-              </div>
-            </div>
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                onClick={handleCancel}
-                className="rounded-lg border border-gray-300 px-6 py-2 text-gray-700 hover:bg-gray-100 transition-colors dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={isLoading || !formData.key.trim()}
-                className={`rounded-lg px-6 py-2 text-white font-medium transition-colors ${
-                  isLoading || !formData.key.trim()
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-green-600 hover:bg-green-700'
-                }`}
-              >
-                <i className="fa-solid fa-save mr-1"></i>
-                {isLoading ? '保存中...' : '保存'}
-              </button>
-            </div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">
+            共 {filteredVariables.length} 条记录
           </div>
-        </div>
+        </>
       )}
 
-      {/* 使用说明 */}
+      <Modal
+        isOpen={showForm}
+        onClose={handleCancel}
+        title={editingVariable ? '编辑变量' : '新增变量'}
+        footer={
+          <>
+            <button onClick={handleCancel} className={buttonVariants.ghost + ' px-6 py-2'}>
+              取消
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={isSaving || !formData.key.trim()}
+              className={buttonVariants.success + ' px-6 py-2 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed'}
+            >
+              <i className="fa-solid fa-save"></i>
+              {isSaving ? '保存中...' : '保存'}
+            </button>
+          </>
+        }
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <FormField label="键名" required hint={editingVariable ? '键名不可修改' : undefined}>
+            <input
+              type="text"
+              autoFocus={!editingVariable}
+              value={formData.key}
+              onChange={(e) => handleChange('key', e.target.value)}
+              disabled={!!editingVariable}
+              className={inputBase + ' disabled:opacity-60 disabled:cursor-not-allowed font-mono'}
+              placeholder="例如：mysql_connection"
+            />
+          </FormField>
+
+          <FormField label="分类">
+            <input
+              type="text"
+              value={formData.category}
+              onChange={(e) => handleChange('category', e.target.value)}
+              className={inputBase}
+              placeholder="例如：Database"
+              list="category-options"
+            />
+            <datalist id="category-options">
+              {categories.map(cat => (
+                <option key={cat} value={cat} />
+              ))}
+            </datalist>
+          </FormField>
+
+          <FormField label="值" required className="md:col-span-2">
+            <textarea
+              autoFocus={!!editingVariable}
+              value={formData.value}
+              onChange={(e) => handleChange('value', e.target.value)}
+              rows={3}
+              className={inputBase + ' font-mono text-sm'}
+              placeholder="变量值..."
+            />
+          </FormField>
+
+          <FormField label="描述" className="md:col-span-2">
+            <input
+              type="text"
+              value={formData.description}
+              onChange={(e) => handleChange('description', e.target.value)}
+              className={inputBase}
+              placeholder="变量用途描述..."
+            />
+          </FormField>
+        </div>
+      </Modal>
+
       <div className="rounded-xl bg-blue-50 p-4 dark:bg-blue-900/20">
         <h4 className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-2">
           <i className="fa-solid fa-circle-info mr-1"></i>

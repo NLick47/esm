@@ -2,18 +2,23 @@ import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { DatabaseConfig, DatabaseType, DriverType } from '@/types/database';
 import * as databaseService from '@/services/database.service';
+import { useApiQuery } from '@/hooks/useApiQuery';
+import { Modal } from '@/components/ui/Modal';
+import { FormField } from '@/components/ui/FormField';
+import { StatusBadge } from '@/components/ui/StatusBadge';
+import { PageLoading } from '@/components/ui/PageLoading';
+import { buttonVariants } from '@/utils/button-styles';
 
 export default function DatabaseConnectionManager() {
   const [activeDatabase, setActiveDatabase] = useState<DatabaseType>('');
   const [currentConfigIndex, setCurrentConfigIndex] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isMutating, setIsMutating] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
   const [isAddingType, setIsAddingType] = useState(false);
   const [newTypeName, setNewTypeName] = useState('');
   const [newTypeLabel, setNewTypeLabel] = useState('');
   const [typeNameError, setTypeNameError] = useState('');
-  const [modalAnimated, setModalAnimated] = useState(false);
 
   // 将类型标识自动转换为显示名称
   const autoGenerateLabel = (name: string): string => {
@@ -57,7 +62,7 @@ export default function DatabaseConnectionManager() {
     setTypeNameError('');
   };
 
-  // 数据库配置数据 - 使用动态对象，key是数据库类型标识
+  // 数据库配置数据
   const [databaseConfigs, setDatabaseConfigs] = useState<Record<string, DatabaseConfig[]>>({});
 
   // 当前编辑的配置
@@ -70,37 +75,41 @@ export default function DatabaseConnectionManager() {
     timeout: 30
   });
 
-  // 获取数据库类型列表
-  const [databaseTypes, setDatabaseTypes] = useState<{ value: string, label: string }[]>([]);
+  const {
+    data: databaseTypes = [],
+    loading: typesLoading,
+    setData: setDatabaseTypes,
+  } = useApiQuery(() => databaseService.getDatabaseTypes(), {
+    initialData: [],
+    errorMessage: '获取数据库类型失败',
+  });
 
-  // 连接字符串示例（从后端模板获取）
-  const [connectionExamples, setConnectionExamples] = useState<Record<string, string>>({});
+  const {
+    data: connectionExamples = {},
+  } = useApiQuery(() => databaseService.getConnectionExamples(), {
+    initialData: {},
+    showErrorToast: false,
+  });
 
-  // 加载配置数据
+  // 初始化时加载所有配置
+  const { loading: configsLoading, execute: loadConfigs } = useApiQuery(
+    () => databaseService.getAllConfigs(),
+    { initialData: {}, enabled: false, showErrorToast: false }
+  );
+
+  const isLoading = typesLoading || configsLoading || isMutating;
+
   useEffect(() => {
-    loadConfigs();
-    loadDatabaseTypes();
-    loadConnectionExamples();
+    loadConfigs().then(data => {
+      if (data) setDatabaseConfigs(data || {});
+    });
   }, []);
 
   useEffect(() => {
-    if (isAddingType) {
-      const timer = setTimeout(() => setModalAnimated(true), 10);
-      return () => clearTimeout(timer);
-    } else {
-      setModalAnimated(false);
+    if (databaseTypes.length > 0 && !activeDatabase) {
+      setActiveDatabase(databaseTypes[0].value);
     }
-  }, [isAddingType]);
-
-  useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isAddingType) {
-        closeAddTypeModal();
-      }
-    };
-    window.addEventListener('keydown', handleEsc);
-    return () => window.removeEventListener('keydown', handleEsc);
-  }, [isAddingType, closeAddTypeModal]);
+  }, [databaseTypes]);
 
   // 当切换数据库类型或索引时更新当前配置
   useEffect(() => {
@@ -117,24 +126,6 @@ export default function DatabaseConnectionManager() {
       createNewConfig();
     }
   }, [activeDatabase, currentConfigIndex, databaseConfigs]);
-
-  // 获取所有配置
-  const loadConfigs = async () => {
-    setIsLoading(true);
-    try {
-      const data = await databaseService.getAllConfigs();
-      setDatabaseConfigs(data || {});
-
-      if (databaseTypes.length > 0 && !activeDatabase) {
-        setActiveDatabase(databaseTypes[0].value);
-      }
-    } catch (error) {
-      console.error('获取配置失败:', error);
-      toast.error('加载数据库配置失败');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   // 获取指定类型的配置
   const loadConfigsByType = async (type: string) => {
@@ -158,33 +149,6 @@ export default function DatabaseConnectionManager() {
     }
   };
 
-  // 获取数据库类型列表
-  const loadDatabaseTypes = async () => {
-    try {
-      const data = await databaseService.getDatabaseTypes();
-      if (data && data.length > 0) {
-        setDatabaseTypes(data);
-        if (!activeDatabase) {
-          setActiveDatabase(data[0].value);
-        }
-      }
-    } catch (error) {
-      console.error('获取数据库类型失败:', error);
-    }
-  };
-
-  // 获取连接字符串示例
-  const loadConnectionExamples = async () => {
-    try {
-      const data = await databaseService.getConnectionExamples();
-      if (data) {
-        setConnectionExamples(data);
-      }
-    } catch (error) {
-      console.error('获取连接示例失败:', error);
-    }
-  };
-
   // 添加新的数据库类型
   const addDatabaseType = async () => {
     const name = newTypeName.trim();
@@ -202,11 +166,11 @@ export default function DatabaseConnectionManager() {
       return;
     }
 
-    setIsLoading(true);
+    setIsMutating(true);
     try {
       const newType = await databaseService.addDatabaseType(name, label);
 
-      setDatabaseTypes(prev => [...prev, newType]);
+      setDatabaseTypes(prev => [...(prev || []), newType]);
       setDatabaseConfigs(prev => ({
         ...prev,
         [name]: []
@@ -222,7 +186,7 @@ export default function DatabaseConnectionManager() {
       console.error('添加数据库类型失败:', error);
       toast.error('添加数据库类型失败');
     } finally {
-      setIsLoading(false);
+      setIsMutating(false);
     }
   };
 
@@ -232,11 +196,11 @@ export default function DatabaseConnectionManager() {
       return;
     }
 
-    setIsLoading(true);
+    setIsMutating(true);
     try {
       await databaseService.deleteDatabaseType(type);
 
-      setDatabaseTypes(prev => prev.filter(t => t.value !== type));
+      setDatabaseTypes(prev => (prev || []).filter(t => t.value !== type));
 
       const newConfigs = { ...databaseConfigs };
       delete newConfigs[type];
@@ -264,7 +228,7 @@ export default function DatabaseConnectionManager() {
       console.error('删除数据库类型失败:', error);
       toast.error('删除数据库类型失败');
     } finally {
-      setIsLoading(false);
+      setIsMutating(false);
     }
   };
 
@@ -291,7 +255,7 @@ export default function DatabaseConnectionManager() {
       return;
     }
 
-    setIsLoading(true);
+    setIsMutating(true);
     try {
       let savedConfig: DatabaseConfig;
       
@@ -321,7 +285,7 @@ export default function DatabaseConnectionManager() {
       console.error('保存失败:', error);
       toast.error(error.message || '保存失败');
     } finally {
-      setIsLoading(false);
+      setIsMutating(false);
     }
   };
 
@@ -415,7 +379,7 @@ export default function DatabaseConnectionManager() {
       return;
     }
 
-    setIsLoading(true);
+    setIsMutating(true);
     try {
       await databaseService.deleteConfig(activeDatabase, currentConfig.id);
 
@@ -440,7 +404,7 @@ export default function DatabaseConnectionManager() {
       console.error('删除失败:', error);
       toast.error(error.message || '删除失败');
     } finally {
-      setIsLoading(false);
+      setIsMutating(false);
     }
   };
 
@@ -453,7 +417,7 @@ export default function DatabaseConnectionManager() {
       return;
     }
 
-    setIsLoading(true);
+    setIsMutating(true);
     try {
       await databaseService.setActiveConfig(activeDatabase, targetId);
 
@@ -486,7 +450,7 @@ export default function DatabaseConnectionManager() {
       console.error('设置激活配置失败:', error);
       toast.error(error.message || '设置失败');
     } finally {
-      setIsLoading(false);
+      setIsMutating(false);
     }
   };
 
@@ -510,12 +474,7 @@ export default function DatabaseConnectionManager() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">数据库连接管理</h2>
-        {isLoading && (
-          <div className="flex items-center gap-2 text-blue-600">
-            <i className="fa-solid fa-spinner fa-spin"></i>
-            <span>加载中...</span>
-          </div>
-        )}
+
       </div>
 
       {/* 数据库类型选择器和添加按钮 */}
@@ -564,111 +523,66 @@ export default function DatabaseConnectionManager() {
         </button>
       </div>
 
+      {isLoading && databaseTypes.length === 0 && <PageLoading />}
+
       {/* 添加新类型的弹窗 */}
-      {isAddingType && (
-        <div
-          className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity duration-200 ${modalAnimated ? 'opacity-100' : 'opacity-0'}`}
-          onClick={closeAddTypeModal}
-        >
-          <div
-            className={`bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-lg mx-4 shadow-2xl transition-all duration-200 ease-out ${modalAnimated ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-4'}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100 dark:border-gray-700">
-              <h3 className="text-lg font-semibold flex items-center gap-2.5 text-gray-800 dark:text-gray-100">
-                <span className="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
-                  <i className="fa-solid fa-plus text-blue-600 dark:text-blue-400 text-sm"></i>
-                </span>
-                新增数据库连接类型
-              </h3>
-              <button
-                onClick={closeAddTypeModal}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:text-gray-500 dark:hover:text-gray-300 dark:hover:bg-gray-700 transition-all"
-              >
-                <i className="fa-solid fa-xmark text-lg"></i>
-              </button>
-            </div>
+      <Modal
+        isOpen={isAddingType}
+        onClose={closeAddTypeModal}
+        title="新增数据库连接类型"
+        icon={<i className="fa-solid fa-plus text-blue-600 dark:text-blue-400 text-sm"></i>}
+        footer={
+          <>
+            <button onClick={closeAddTypeModal} className={buttonVariants.ghost + ' px-5 py-2.5'}>
+              取消
+            </button>
+            <button
+              onClick={addDatabaseType}
+              disabled={!newTypeName.trim() || !newTypeLabel.trim() || !!typeNameError || isLoading}
+              className={buttonVariants.primary + ' px-5 py-2.5 flex items-center gap-1.5'}
+            >
+              {isLoading ? (
+                <>
+                  <i className="fa-solid fa-spinner fa-spin"></i>
+                  添加中...
+                </>
+              ) : (
+                <>
+                  <i className="fa-solid fa-plus text-xs"></i>
+                  添加
+                </>
+              )}
+            </button>
+          </>
+        }
+      >
+        <FormField label="类型标识" required error={typeNameError || undefined} hint={typeNameError ? undefined : '唯一标识，只能包含字母、数字和下划线'}>
+          <input
+            type="text"
+            autoFocus
+            value={newTypeName}
+            onChange={(e) => handleTypeNameChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className={`w-full rounded-lg border bg-white px-4 py-2.5 shadow-sm focus:outline-none focus:ring-2 dark:bg-gray-800 dark:text-white transition-all ${
+              typeNameError
+                ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20 dark:border-red-700'
+                : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500/20 dark:border-gray-600'
+            }`}
+            placeholder="例如：mri"
+          />
+        </FormField>
 
-            <div className="space-y-5">
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  类型标识 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  autoFocus
-                  value={newTypeName}
-                  onChange={(e) => handleTypeNameChange(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  className={`w-full rounded-lg border bg-white px-4 py-2.5 shadow-sm focus:outline-none focus:ring-2 dark:bg-gray-800 dark:text-white transition-all ${
-                    typeNameError
-                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20 dark:border-red-700'
-                      : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500/20 dark:border-gray-600'
-                  }`}
-                  placeholder="例如：mri"
-                />
-                {typeNameError ? (
-                  <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
-                    <i className="fa-solid fa-circle-exclamation"></i>
-                    {typeNameError}
-                  </p>
-                ) : (
-                  <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                    唯一标识，只能包含字母、数字和下划线
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  显示名称 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={newTypeLabel}
-                  onChange={(e) => setNewTypeLabel(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white transition-all"
-                  placeholder="例如：核磁共振数据库"
-                />
-                <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                  用于界面展示的名称
-                </p>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 mt-8">
-              <button
-                onClick={closeAddTypeModal}
-                className="px-5 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700 transition-all text-sm font-medium text-gray-700 dark:text-gray-300"
-              >
-                取消
-              </button>
-              <button
-                onClick={addDatabaseType}
-                disabled={!newTypeName.trim() || !newTypeLabel.trim() || !!typeNameError || isLoading}
-                className={`px-5 py-2.5 rounded-lg text-white text-sm font-medium transition-all flex items-center gap-1.5 ${
-                  !newTypeName.trim() || !newTypeLabel.trim() || !!typeNameError || isLoading
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700 shadow-sm hover:shadow-md active:scale-95'
-                }`}
-              >
-                {isLoading ? (
-                  <>
-                    <i className="fa-solid fa-spinner fa-spin"></i>
-                    添加中...
-                  </>
-                ) : (
-                  <>
-                    <i className="fa-solid fa-plus text-xs"></i>
-                    添加
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        <FormField label="显示名称" required hint="用于界面展示的名称">
+          <input
+            type="text"
+            value={newTypeLabel}
+            onChange={(e) => setNewTypeLabel(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white transition-all"
+            placeholder="例如：核磁共振数据库"
+          />
+        </FormField>
+      </Modal>
 
       {/* 配置列表和操作 */}
       {activeDatabase && (
@@ -693,17 +607,10 @@ export default function DatabaseConnectionManager() {
                 </select>
 
                 {currentConfig.isActive && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                    <i className="fa-solid fa-check-circle"></i>
-                    当前使用中
-                  </span>
+                  <StatusBadge variant="success"><i className="fa-solid fa-check-circle mr-1"></i>当前使用中</StatusBadge>
                 )}
-
                 {!currentConfig.isActive && currentConfig.id && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                    <i className="fa-solid fa-circle"></i>
-                    未使用
-                  </span>
+                  <StatusBadge variant="default"><i className="fa-solid fa-circle mr-1"></i>未使用</StatusBadge>
                 )}
               </div>
 
@@ -756,10 +663,7 @@ export default function DatabaseConnectionManager() {
             </h3>
 
             <div className="grid grid-cols-1 gap-6">
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  配置名称
-                </label>
+              <FormField label="配置名称">
                 <input
                   type="text"
                   value={currentConfig.name}
@@ -767,12 +671,9 @@ export default function DatabaseConnectionManager() {
                   className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
                   placeholder="例如：生产数据库"
                 />
-              </div>
+              </FormField>
 
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  数据库驱动
-                </label>
+              <FormField label="数据库驱动">
                 <select
                   value={currentConfig.driver}
                   onChange={(e) => handleConfigChange('driver', e.target.value as DriverType)}
@@ -784,12 +685,9 @@ export default function DatabaseConnectionManager() {
                   <option value={DriverType.Oracle}>Oracle</option>
                   <option value={DriverType.SqLite}>SqLite</option>
                 </select>
-              </div>
+              </FormField>
 
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  连接字符串
-                </label>
+              <FormField label="连接字符串" hint={`示例: ${getConnectionStringExamples(currentConfig.driver)}`}>
                 <textarea
                   value={currentConfig.connectionString}
                   onChange={(e) => handleConfigChange('connectionString', e.target.value)}
@@ -797,15 +695,9 @@ export default function DatabaseConnectionManager() {
                   rows={3}
                   placeholder={getConnectionStringExamples(currentConfig.driver)}
                 />
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  示例: {getConnectionStringExamples(currentConfig.driver)}
-                </p>
-              </div>
+              </FormField>
 
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  SQL 执行超时 (秒)
-                </label>
+              <FormField label="SQL 执行超时 (秒)" hint="单条 SQL 查询的最大执行等待时间，默认 30 秒">
                 <input
                   type="number"
                   value={currentConfig.timeout}
@@ -814,10 +706,7 @@ export default function DatabaseConnectionManager() {
                   min="1"
                   max="300"
                 />
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  单条 SQL 查询的最大执行等待时间，默认 30 秒
-                </p>
-              </div>
+              </FormField>
 
               {currentConfig.id && (
                 <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
@@ -825,16 +714,10 @@ export default function DatabaseConnectionManager() {
                     激活状态:
                   </span>
                   {currentConfig.isActive ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                      <i className="fa-solid fa-check-circle"></i>
-                      当前使用中
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-800 dark:bg-gray-600 dark:text-gray-300">
-                      <i className="fa-solid fa-circle"></i>
-                      未使用
-                    </span>
-                  )}
+                  <StatusBadge variant="success"><i className="fa-solid fa-check-circle mr-1"></i>当前使用中</StatusBadge>
+                ) : (
+                  <StatusBadge variant="default"><i className="fa-solid fa-circle mr-1"></i>未使用</StatusBadge>
+                )}
                 </div>
               )}
             </div>
@@ -843,10 +726,7 @@ export default function DatabaseConnectionManager() {
               <button
                 onClick={saveCurrentConfig}
                 disabled={isLoading || !currentConfig.name}
-                className={`flex items-center gap-2 rounded-lg px-6 py-3 font-medium transition-colors ${isLoading || !currentConfig.name
-                    ? 'bg-gray-400 text-white cursor-not-allowed'
-                    : 'bg-green-600 text-white hover:bg-green-700'
-                  }`}
+                className={buttonVariants.success + ' px-6 py-3 flex items-center gap-2'}
               >
                 <i className="fa-solid fa-save"></i>
                 {currentConfig.id ? '更新配置' : '保存配置'}
@@ -855,10 +735,7 @@ export default function DatabaseConnectionManager() {
               <button
                 onClick={testConnection}
                 disabled={connectionStatus === 'connecting' || !currentConfig.connectionString || isLoading}
-                className={`flex items-center gap-2 rounded-lg px-6 py-3 font-medium transition-colors ${connectionStatus === 'connecting' || !currentConfig.connectionString || isLoading
-                    ? 'bg-gray-400 text-white cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                  }`}
+                className={buttonVariants.primary + ' px-6 py-3 flex items-center gap-2'}
               >
                 <i className="fa-solid fa-plug"></i>
                 测试连接
@@ -868,11 +745,7 @@ export default function DatabaseConnectionManager() {
                 <button
                   onClick={initializeTables}
                   disabled={!currentConfig.connectionString || isInitializing || isLoading}
-                  className={`flex items-center gap-2 rounded-lg px-6 py-3 font-medium transition-colors ${
-                    !currentConfig.connectionString || isInitializing || isLoading
-                      ? 'bg-gray-400 text-white cursor-not-allowed'
-                      : 'bg-orange-600 text-white hover:bg-orange-700'
-                  }`}
+                  className={buttonVariants.danger + ' px-6 py-3 flex items-center gap-2'}
                 >
                   {isInitializing ? (
                     <>

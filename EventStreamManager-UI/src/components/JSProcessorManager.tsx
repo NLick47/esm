@@ -1,6 +1,14 @@
 import { useState, useEffect, useCallback,useMemo } from 'react';
 import { toast } from 'sonner';
 import CodeMirror from '@uiw/react-codemirror';
+import { TabNav } from '@/components/ui/TabNav';
+import { StatusBadge } from '@/components/ui/StatusBadge';
+import { DataTable } from '@/components/ui/DataTable';
+import { DebugLogPanel } from '@/components/DebugLogPanel';
+import { Modal } from '@/components/ui/Modal';
+import { PageLoading } from '@/components/ui/PageLoading';
+
+import { buttonVariants } from '@/utils/button-styles';
 import { javascript } from '@codemirror/lang-javascript';
 import { sql } from '@codemirror/lang-sql';
 import { oneDark } from '@codemirror/theme-one-dark';
@@ -905,12 +913,7 @@ export default function JSProcessorManager() {
   // ==================== 渲染函数 ====================
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <i className="fa-solid fa-spinner fa-spin text-3xl text-blue-600"></i>
-        <span className="ml-2 text-gray-600 dark:text-gray-400">加载数据中...</span>
-      </div>
-    );
+    return <PageLoading />;
   }
 
   return (
@@ -919,39 +922,15 @@ export default function JSProcessorManager() {
         <h2 className="text-2xl font-bold">JS处理器管理</h2>
       </div>
 
-      {/* 标签页导航 */}
-      <div className="flex border-b border-gray-200 dark:border-gray-800">
-        <button
-          onClick={() => setActiveTab('list')}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${activeTab === 'list'
-            ? 'border-b-2 border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400'
-            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-            }`}
-        >
-          <i className="fa-solid fa-list"></i>
-          处理器列表
-        </button>
-        <button
-          onClick={() => setActiveTab('editor')}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${activeTab === 'editor'
-            ? 'border-b-2 border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400'
-            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-            }`}
-        >
-          <i className="fa-solid fa-code"></i>
-          编辑器
-        </button>
-        <button
-          onClick={() => setActiveTab('debug')}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${activeTab === 'debug'
-            ? 'border-b-2 border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-400'
-            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-            }`}
-        >
-          <i className="fa-solid fa-bug"></i>
-          调试
-        </button>
-      </div>
+      <TabNav
+        tabs={[
+          { key: 'list', label: '处理器列表', icon: 'fa-solid fa-list' },
+          { key: 'editor', label: '编辑器', icon: 'fa-solid fa-code' },
+          { key: 'debug', label: '调试', icon: 'fa-solid fa-bug' },
+        ]}
+        activeKey={activeTab}
+        onChange={(key) => setActiveTab(key as 'list' | 'editor' | 'debug')}
+      />
 
       {/* 处理器列表标签页 */}
       {activeTab === 'list' && (
@@ -959,131 +938,82 @@ export default function JSProcessorManager() {
           <div className="mb-4 flex justify-end">
             <button
               onClick={createNewProcessor}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+              className={buttonVariants.primary + ' px-4 py-2 text-sm flex items-center gap-1'}
             >
-              <i className="fa-solid fa-plus mr-1"></i> 创建新处理器
+              <i className="fa-solid fa-plus"></i> 创建新处理器
             </button>
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-white shadow-md dark:border-gray-800 dark:bg-gray-800">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-full">
-                <thead className="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                      名称
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                      数据库类型
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                      事件码过滤
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                      描述
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                      状态
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                      操作
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {processors.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-10 text-center text-gray-500 dark:text-gray-400">
-                        <div className="flex flex-col items-center justify-center">
-                          <i className="fa-solid fa-code text-4xl text-gray-300 dark:text-gray-600 mb-2"></i>
-                          暂无处理器，请创建新的处理器
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    processors.map((processor) => (
-                      <tr
-                        key={processor.id}
-                        onClick={() => editProcessor(processor.id)}
-                        className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150 cursor-pointer"
-                      >
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="font-medium">{processor.name}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex flex-wrap gap-1">
-                            {processor.databaseTypes.map((dbType) => (
-                              <span key={dbType} className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${databaseTypes.find(t => t.value === dbType) ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                                }`}>
-                                {getDatabaseTypeLabel(dbType)}
-                              </span>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex flex-wrap gap-1">
-                            {processor.eventCodes.map((code, index) => (
-                              <span key={index} className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                                {code}
-                              </span>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1">
-                            {processor.description || '无描述'}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${processor.enabled
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                            : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                            }`}>
-                            {processor.enabled ? '启用' : '禁用'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <div className="flex justify-end gap-2">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleProcessorStatus(processor.id);
-                              }}
-                              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 transition-colors duration-150"
-                            >
-                              {processor.enabled ? (
-                                <i className="fa-solid fa-toggle-on text-green-500"></i>
-                              ) : (
-                                <i className="fa-solid fa-toggle-off text-gray-400"></i>
-                              )}
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                editProcessor(processor.id);
-                              }}
-                              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors duration-150"
-                            >
-                              <i className="fa-solid fa-edit"></i>
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteProcessor(processor.id);
-                              }}
-                              className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transition-colors duration-150"
-                            >
-                              <i className="fa-solid fa-trash"></i>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <DataTable
+            data={processors}
+            columns={[
+              {
+                key: 'name',
+                header: '名称',
+                render: (p: JSProcessorListResponse) => <div className="font-medium">{p.name}</div>
+              },
+              {
+                key: 'databaseTypes',
+                header: '数据库类型',
+                render: (p: JSProcessorListResponse) => (
+                  <div className="flex flex-wrap gap-1">
+                    {p.databaseTypes.map((dbType) => (
+                      <StatusBadge key={dbType} variant={databaseTypes.find(t => t.value === dbType) ? 'info' : 'default'}>
+                        {getDatabaseTypeLabel(dbType)}
+                      </StatusBadge>
+                    ))}
+                  </div>
+                )
+              },
+              {
+                key: 'eventCodes',
+                header: '事件码过滤',
+                render: (p: JSProcessorListResponse) => (
+                  <div className="flex flex-wrap gap-1">
+                    {p.eventCodes.map((code, index) => (
+                      <StatusBadge key={index} variant="default">{code}</StatusBadge>
+                    ))}
+                  </div>
+                )
+              },
+              {
+                key: 'description',
+                header: '描述',
+                render: (p: JSProcessorListResponse) => <div className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1">{p.description || '无描述'}</div>
+              },
+              {
+                key: 'enabled',
+                header: '状态',
+                render: (p: JSProcessorListResponse) => <StatusBadge variant={p.enabled ? 'success' : 'default'}>{p.enabled ? '启用' : '禁用'}</StatusBadge>
+              }
+            ]}
+            keyExtractor={(p: JSProcessorListResponse) => p.id}
+            onRowClick={(p: JSProcessorListResponse) => editProcessor(p.id)}
+            rowActions={(p: JSProcessorListResponse) => (
+              <>
+                <button
+                  onClick={() => toggleProcessorStatus(p.id)}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 transition-colors duration-150"
+                >
+                  {p.enabled ? <i className="fa-solid fa-toggle-on text-green-500"></i> : <i className="fa-solid fa-toggle-off text-gray-400"></i>}
+                </button>
+                <button
+                  onClick={() => editProcessor(p.id)}
+                  className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors duration-150"
+                >
+                  <i className="fa-solid fa-edit"></i>
+                </button>
+                <button
+                  onClick={() => deleteProcessor(p.id)}
+                  className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transition-colors duration-150"
+                >
+                  <i className="fa-solid fa-trash"></i>
+                </button>
+              </>
+            )}
+            emptyText="暂无处理器，请创建新的处理器"
+            emptyIcon="fa-code"
+          />
         </div>
       )}
 
@@ -1424,7 +1354,7 @@ export default function JSProcessorManager() {
                   {editorDebugLog.length > 0 && (
                     <button
                       onClick={clearEditorDebugLog}
-                      className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                      className={buttonVariants.iconDefault + ' text-sm'}
                     >
                       <i className="fa-solid fa-trash mr-1"></i>清空日志
                     </button>
@@ -1474,10 +1404,7 @@ export default function JSProcessorManager() {
                     <button
                       onClick={runEditorDebug}
                       disabled={isEditorDebugging || !editorDebugExamineId.trim()}
-                      className={`w-full rounded-md px-6 py-2 text-sm font-medium transition-colors ${(isEditorDebugging || !editorDebugExamineId.trim())
-                          ? 'bg-gray-400 text-white cursor-not-allowed'
-                          : 'bg-purple-600 text-white hover:bg-purple-700'
-                        }`}
+                      className={buttonVariants.primary + ' w-full px-6 py-2 text-sm flex items-center justify-center gap-1'}
                     >
                       {isEditorDebugging ? (
                         <>
@@ -1505,39 +1432,7 @@ export default function JSProcessorManager() {
                       )}
                     </div>
 
-                    <div className="h-80 overflow-auto rounded-lg bg-gray-900 p-4 text-xs font-mono">
-                      {editorDebugLog.length === 0 ? (
-                        <div className="flex h-full items-center justify-center text-gray-500">
-                          <div className="text-center">
-                            <i className="fa-solid fa-bug text-2xl mb-2"></i>
-                            <p>请输入检查ID并点击"运行调试"开始</p>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-1">
-                          {editorDebugLog.map((log, index) => {
-                            const isError = log.includes('❌');
-                            const isWarn = log.includes('⚠️');
-                            const isSuccess = log.includes('✅');
-                            const isOutput = log.includes('📤');
-
-                            return (
-                              <div
-                                key={index}
-                                className={`whitespace-pre-wrap break-all ${isError ? 'text-red-400' :
-                                    isWarn ? 'text-yellow-400' :
-                                      isSuccess ? 'text-green-400' :
-                                        isOutput ? 'text-blue-400' :
-                                          'text-gray-300'
-                                  }`}
-                              >
-                                {log}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
+                    <DebugLogPanel logs={editorDebugLog} emptyHint="请输入检查ID并点击运行调试开始" className="h-80 text-xs" />
 
                     {editorDebugResult?.result && (
                       <div className="mt-4 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
@@ -1647,10 +1542,7 @@ export default function JSProcessorManager() {
                   <button
                     onClick={runDebug}
                     disabled={!selectedProcessor || isDebugging}
-                    className={`w-full rounded-md px-6 py-2 text-sm font-medium transition-colors ${(!selectedProcessor || isDebugging)
-                      ? 'bg-gray-400 text-white cursor-not-allowed'
-                      : 'bg-blue-600 text-white hover:bg-blue-700'
-                      }`}
+                    className={buttonVariants.primary + ' w-full px-6 py-2 text-sm flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed'}
                   >
                     {isDebugging ? (
                       <>
@@ -1666,9 +1558,9 @@ export default function JSProcessorManager() {
                   {debugLog.length > 0 && (
                     <button
                       onClick={() => setDebugLog([])}
-                      className="w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                      className={buttonVariants.ghost + ' w-full px-4 py-2 text-sm flex items-center justify-center gap-1'}
                     >
-                      <i className="fa-solid fa-trash mr-1"></i> 清空日志
+                      <i className="fa-solid fa-trash"></i> 清空日志
                     </button>
                   )}
                 </div>
@@ -1697,39 +1589,7 @@ export default function JSProcessorManager() {
                     )}
                   </div>
 
-                  <div className="h-80 overflow-auto rounded-lg bg-gray-900 p-4 text-xs font-mono">
-                    {debugLog.length === 0 ? (
-                      <div className="flex h-full items-center justify-center text-gray-500">
-                        <div className="text-center">
-                          <i className="fa-solid fa-bug text-2xl mb-2"></i>
-                          <p>准备就绪，请点击"运行调试"开始</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-1">
-                        {debugLog.map((log, index) => {
-                          const isError = log.includes('❌') || log.includes('[ERROR]');
-                          const isWarn = log.includes('⚠️') || log.includes('[WARNING]');
-                          const isSuccess = log.includes('✅');
-                          const isOutput = log.includes('📤') || log.includes('[OUTPUT]');
-
-                          return (
-                            <div
-                              key={index}
-                              className={`whitespace-pre-wrap break-all ${isError ? 'text-red-400' :
-                                isWarn ? 'text-yellow-400' :
-                                  isSuccess ? 'text-green-400' :
-                                    isOutput ? 'text-blue-400' :
-                                      'text-gray-300'
-                                }`}
-                            >
-                              {log}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
+                  <DebugLogPanel logs={debugLog} emptyHint="准备就绪，请点击运行调试开始" className="h-80 text-xs" />
 
                   {debugResult?.result && (
                     <div className="mt-4 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
@@ -1788,59 +1648,44 @@ export default function JSProcessorManager() {
         }}
       />
 
-      {/* SQL编辑器模态框 */}
-      {editingTemplate && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-3/4 max-w-4xl max-h-[80vh] overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                编辑SQL模板 - {editingTemplate.name}
-              </h3>
-              <button
-                onClick={() => setEditingTemplate(null)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                <i className="fa-solid fa-times"></i>
-              </button>
-            </div>
-            <div className="p-4">
-              <div className="border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden" style={{ height: '400px' }}>
-                <CodeMirror
-                  value={editingTemplate.sql}
-                  height="400px"
-                  style={{ fontSize: '16px' }}
-                  extensions={[sql()]}
-                  theme={oneDark}
-                  onChange={(value) => {
-                    setEditingTemplate(prev => prev ? { ...prev, sql: value } : null);
-                  }}
-                  basicSetup={CODE_MIRROR_BASIC_SETUP}
-                />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 px-4 py-3 border-t border-gray-200 dark:border-gray-700">
-              <button
-                onClick={() => setEditingTemplate(null)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
-              >
-                取消
-              </button>
-              <button
-                onClick={() => {
-                  if (editingTemplate) {
-                    updateCustomTemplate(editingTemplate.id, { sqlTemplate: editingTemplate.sql });
-                    setEditingTemplate(null);
-                  }
-                }}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
-              >
-                保存
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      <Modal
+        isOpen={!!editingTemplate}
+        onClose={() => setEditingTemplate(null)}
+        title={`编辑SQL模板 - ${editingTemplate?.name || ''}`}
+        size="xl"
+        footer={
+          <>
+            <button onClick={() => setEditingTemplate(null)} className={buttonVariants.ghost + ' px-4 py-2'}>
+              取消
+            </button>
+            <button
+              onClick={() => {
+                if (editingTemplate) {
+                  updateCustomTemplate(editingTemplate.id, { sqlTemplate: editingTemplate.sql });
+                  setEditingTemplate(null);
+                }
+              }}
+              className={buttonVariants.primary + ' px-4 py-2'}
+            >
+              保存
+            </button>
+          </>
+        }
+      >
+        <div className="border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden" style={{ height: '400px' }}>
+          <CodeMirror
+            value={editingTemplate?.sql || ''}
+            height="400px"
+            style={{ fontSize: '16px' }}
+            extensions={[sql()]}
+            theme={oneDark}
+            onChange={(value) => {
+              setEditingTemplate(prev => prev ? { ...prev, sql: value } : null);
+            }}
+            basicSetup={CODE_MIRROR_BASIC_SETUP}
+          />
+        </div>
+      </Modal>
     </div>
   );
 }
