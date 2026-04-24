@@ -1,0 +1,7 @@
+{
+  "SqlServer": "Server=localhost,1433;Database=mydb;User Id=sa;Password=123456;TrustServerCertificate=true;Max Pool Size=100;Min Pool Size=0;Connection Lifetime=0;",
+  "MySql": "Server=localhost;Port=3306;Database=mydb;Uid=root;Pwd=123456;Maximum Pool Size=100;Minimum Pool Size=0;Connection LifeTime=0;",
+  "PostgreSql": "Host=localhost;Port=5432;Database=mydb;Username=postgres;Password=123456;Max Pool Size=100;Min Pool Size=0;Connection Lifetime=0;",
+  "Oracle": "Data Source=localhost:1521/ORCL;User Id=system;Password=123456;Pooling=true;Max Pool Size=100;Min Pool Size=1;Connection Lifetime=0;",
+  "SqLite": "Data Source=mydb.db;Pooling=true;"
+}

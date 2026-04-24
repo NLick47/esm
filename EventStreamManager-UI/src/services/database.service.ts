@@ -82,6 +82,13 @@ export function deleteConfig(type: string, id: string): Promise<void> {
 }
 
 /**
+ * 获取所有连接字符串示例
+ */
+export function getConnectionExamples(): Promise<Record<string, string>> {
+  return get<Record<string, string>>(`${BASE_PATH}/connection-examples`);
+}
+
+/**
  * 测试连接
  */
 export function testConnection(config: Partial<DatabaseConfig>): Promise<{ success: boolean; message: string }> {

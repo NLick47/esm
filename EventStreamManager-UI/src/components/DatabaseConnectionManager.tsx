@@ -13,6 +13,7 @@ export default function DatabaseConnectionManager() {
   const [newTypeName, setNewTypeName] = useState('');
   const [newTypeLabel, setNewTypeLabel] = useState('');
   const [typeNameError, setTypeNameError] = useState('');
+  const [modalAnimated, setModalAnimated] = useState(false);
 
   // 将类型标识自动转换为显示名称
   const autoGenerateLabel = (name: string): string => {
@@ -72,11 +73,34 @@ export default function DatabaseConnectionManager() {
   // 获取数据库类型列表
   const [databaseTypes, setDatabaseTypes] = useState<{ value: string, label: string }[]>([]);
 
+  // 连接字符串示例（从后端模板获取）
+  const [connectionExamples, setConnectionExamples] = useState<Record<string, string>>({});
+
   // 加载配置数据
   useEffect(() => {
     loadConfigs();
     loadDatabaseTypes();
+    loadConnectionExamples();
   }, []);
+
+  useEffect(() => {
+    if (isAddingType) {
+      const timer = setTimeout(() => setModalAnimated(true), 10);
+      return () => clearTimeout(timer);
+    } else {
+      setModalAnimated(false);
+    }
+  }, [isAddingType]);
+
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isAddingType) {
+        closeAddTypeModal();
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [isAddingType, closeAddTypeModal]);
 
   // 当切换数据库类型或索引时更新当前配置
   useEffect(() => {
@@ -146,6 +170,18 @@ export default function DatabaseConnectionManager() {
       }
     } catch (error) {
       console.error('获取数据库类型失败:', error);
+    }
+  };
+
+  // 获取连接字符串示例
+  const loadConnectionExamples = async () => {
+    try {
+      const data = await databaseService.getConnectionExamples();
+      if (data) {
+        setConnectionExamples(data);
+      }
+    } catch (error) {
+      console.error('获取连接示例失败:', error);
     }
   };
 
@@ -460,20 +496,9 @@ export default function DatabaseConnectionManager() {
     return found?.label || type;
   };
 
-  // 解析连接字符串示例
+  // 解析连接字符串示例（从后端模板获取）
   const getConnectionStringExamples = (driver: string): string => {
-    switch (driver) {
-      case 'SQL Server':
-        return 'Server=localhost,1433;Database=mydb;User Id=sa;Password=123456;TrustServerCertificate=true;';
-      case 'MySQL':
-        return 'Server=localhost;Port=3306;Database=mydb;Uid=root;Pwd=123456;';
-      case 'PostgreSQL':
-        return 'Host=localhost;Port=5432;Database=mydb;Username=postgres;Password=123456;';
-      case 'Oracle':
-        return 'Data Source=localhost:1521/ORCL;User Id=system;Password=123456;';
-      default:
-        return 'Server=localhost;Database=mydb;User Id=user;Password=pass;';
-    }
+    return connectionExamples[driver] || 'Server=localhost;Database=mydb;User Id=user;Password=pass;';
   };
 
   // 获取当前激活的配置
@@ -541,21 +566,26 @@ export default function DatabaseConnectionManager() {
 
       {/* 添加新类型的弹窗 */}
       {isAddingType && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div
+          className={`fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity duration-200 ${modalAnimated ? 'opacity-100' : 'opacity-0'}`}
+          onClick={closeAddTypeModal}
+        >
           <div
-            className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-lg mx-4 shadow-2xl"
+            className={`bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-lg mx-4 shadow-2xl transition-all duration-200 ease-out ${modalAnimated ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-4'}`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <i className="fa-solid fa-database text-blue-600"></i>
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-100 dark:border-gray-700">
+              <h3 className="text-lg font-semibold flex items-center gap-2.5 text-gray-800 dark:text-gray-100">
+                <span className="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
+                  <i className="fa-solid fa-plus text-blue-600 dark:text-blue-400 text-sm"></i>
+                </span>
                 新增数据库连接类型
               </h3>
               <button
                 onClick={closeAddTypeModal}
-                className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:text-gray-500 dark:hover:text-gray-300 dark:hover:bg-gray-700 transition-all"
               >
-                <i className="fa-solid fa-times text-lg"></i>
+                <i className="fa-solid fa-xmark text-lg"></i>
               </button>
             </div>
 
@@ -564,22 +594,19 @@ export default function DatabaseConnectionManager() {
                 <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                   类型标识 <span className="text-red-500">*</span>
                 </label>
-                <div className="relative">
-                  <i className="fa-solid fa-tag absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                  <input
-                    type="text"
-                    autoFocus
-                    value={newTypeName}
-                    onChange={(e) => handleTypeNameChange(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    className={`w-full rounded-lg border bg-white pl-10 pr-4 py-2.5 shadow-sm focus:outline-none focus:ring-2 dark:bg-gray-800 dark:text-white transition-colors ${
-                      typeNameError
-                        ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20 dark:border-red-700'
-                        : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500/20 dark:border-gray-600'
-                    }`}
-                    placeholder="例如：mri"
-                  />
-                </div>
+                <input
+                  type="text"
+                  autoFocus
+                  value={newTypeName}
+                  onChange={(e) => handleTypeNameChange(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  className={`w-full rounded-lg border bg-white px-4 py-2.5 shadow-sm focus:outline-none focus:ring-2 dark:bg-gray-800 dark:text-white transition-all ${
+                    typeNameError
+                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20 dark:border-red-700'
+                      : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500/20 dark:border-gray-600'
+                  }`}
+                  placeholder="例如：mri"
+                />
                 {typeNameError ? (
                   <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
                     <i className="fa-solid fa-circle-exclamation"></i>
@@ -596,17 +623,14 @@ export default function DatabaseConnectionManager() {
                 <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                   显示名称 <span className="text-red-500">*</span>
                 </label>
-                <div className="relative">
-                  <i className="fa-solid fa-font absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                  <input
-                    type="text"
-                    value={newTypeLabel}
-                    onChange={(e) => setNewTypeLabel(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    className="w-full rounded-lg border border-gray-300 bg-white pl-10 pr-4 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                    placeholder="例如：核磁共振数据库"
-                  />
-                </div>
+                <input
+                  type="text"
+                  value={newTypeLabel}
+                  onChange={(e) => setNewTypeLabel(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-gray-800 dark:text-white transition-all"
+                  placeholder="例如：核磁共振数据库"
+                />
                 <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                   用于界面展示的名称
                 </p>
@@ -616,26 +640,29 @@ export default function DatabaseConnectionManager() {
             <div className="flex justify-end gap-3 mt-8">
               <button
                 onClick={closeAddTypeModal}
-                className="px-5 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700 transition-colors text-sm font-medium"
+                className="px-5 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700 transition-all text-sm font-medium text-gray-700 dark:text-gray-300"
               >
                 取消
               </button>
               <button
                 onClick={addDatabaseType}
                 disabled={!newTypeName.trim() || !newTypeLabel.trim() || !!typeNameError || isLoading}
-                className={`px-5 py-2.5 rounded-lg text-white text-sm font-medium transition-colors ${
+                className={`px-5 py-2.5 rounded-lg text-white text-sm font-medium transition-all flex items-center gap-1.5 ${
                   !newTypeName.trim() || !newTypeLabel.trim() || !!typeNameError || isLoading
                     ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700'
+                    : 'bg-blue-600 hover:bg-blue-700 shadow-sm hover:shadow-md active:scale-95'
                 }`}
               >
                 {isLoading ? (
                   <>
-                    <i className="fa-solid fa-spinner fa-spin mr-1"></i>
+                    <i className="fa-solid fa-spinner fa-spin"></i>
                     添加中...
                   </>
                 ) : (
-                  <>添加</>
+                  <>
+                    <i className="fa-solid fa-plus text-xs"></i>
+                    添加
+                  </>
                 )}
               </button>
             </div>

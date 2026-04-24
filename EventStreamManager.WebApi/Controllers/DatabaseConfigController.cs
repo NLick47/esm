@@ -1,5 +1,6 @@
 // WebApi/Controllers/DatabaseConfigController.cs
 using EventStreamManager.Infrastructure.Models.DataBase;
+using EventStreamManager.Infrastructure.Services.Data;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,17 +13,20 @@ namespace EventStreamManager.WebApi.Controllers
         private readonly IDatabaseSchemeService _databaseSchemeService;
         private readonly ITableInitializationService _tableInitializationService;
         private readonly IDatabaseConnectionService _connectionService;
+        private readonly IDataService _dataService;
         private readonly ILogger<DatabaseConfigController> _logger;
 
         public DatabaseConfigController(
             IDatabaseSchemeService databaseSchemeService,
             IDatabaseConnectionService connectionService,
             ITableInitializationService tableInitializationService,
+            IDataService dataService,
             ILogger<DatabaseConfigController> logger)
         {
             _databaseSchemeService = databaseSchemeService;
             _connectionService = connectionService;
             _tableInitializationService = tableInitializationService;
+            _dataService = dataService;
             _logger = logger;
         }
 
@@ -145,17 +149,27 @@ namespace EventStreamManager.WebApi.Controllers
             return OkMessage("数据库类型删除成功");
         }
 
+        // 获取所有连接字符串示例
+        [HttpGet("connection-examples")]
+        public async Task<IActionResult> GetAllConnectionExamples()
+        {
+            var examples = await _dataService.ReadTemplateSingleAsync<Dictionary<string, string>>("connection-examples.json");
+            if (examples == null)
+            {
+                return Fail("连接示例模板文件未找到");
+            }
+            return Ok(examples, "获取连接示例成功");
+        }
+
         // 获取连接字符串示例
         [HttpGet("connection-examples/{driver}")]
-        public IActionResult GetConnectionStringExample(string driver)
+        public async Task<IActionResult> GetConnectionStringExample(string driver)
         {
-            var examples = new Dictionary<string, string>
+            var examples = await _dataService.ReadTemplateSingleAsync<Dictionary<string, string>>("connection-examples.json");
+            if (examples == null)
             {
-                ["SQL Server"] = "Server=localhost,1433;Database=mydb;User Id=sa;Password=123456;TrustServerCertificate=true;",
-                ["MySQL"] = "Server=localhost;Port=3306;Database=mydb;Uid=root;Pwd=123456;",
-                ["PostgreSQL"] = "Host=localhost;Port=5432;Database=mydb;Username=postgres;Password=123456;",
-                ["Oracle"] = "Data Source=localhost:1521/ORCL;User Id=system;Password=123456;"
-            };
+                return Fail("连接示例模板文件未找到");
+            }
 
             if (examples.TryGetValue(driver, out var example))
             {
