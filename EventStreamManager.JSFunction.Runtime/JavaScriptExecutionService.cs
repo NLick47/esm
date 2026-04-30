@@ -246,6 +246,11 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
             cfg.LimitRecursion(options.MaxRecursionDepth);
             cfg.MaxStatements(options.MaxStatements);
             cfg.TimeoutInterval(TimeSpan.FromSeconds(options.TimeoutSeconds));
+
+            if (options.MemoryLimitMb > 0)
+            {
+                cfg.LimitMemory(options.MemoryLimitMb.Value * 1024L * 1024L);
+            }
         });
 
         // 注入所有注册的全局函数

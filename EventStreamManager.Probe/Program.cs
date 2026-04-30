@@ -116,6 +116,10 @@ static async Task RestartServiceAsync(ProbeConfig config, string workingDir)
             {
                 Log.Warning(ex, "Failed to kill process PID {Pid}", proc.Id);
             }
+            finally
+            {
+                proc.Dispose();
+            }
         }
 
         var startInfo = new ProcessStartInfo
@@ -132,7 +136,7 @@ static async Task RestartServiceAsync(ProbeConfig config, string workingDir)
         Log.Information("Starting service: {Command} {Arguments} (WorkingDir: {WorkingDir})",
             config.RestartCommand, config.RestartArguments, workingDir);
 
-        var process = Process.Start(startInfo);
+        using var process = Process.Start(startInfo);
         if (process != null)
         {
             Log.Information("Service started. PID: {Pid}", process.Id);

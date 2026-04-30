@@ -35,5 +35,5 @@ public class ExecutionOptions
     /// <summary>
     /// 内存限制（MB）
     /// </summary>
-    public int? MemoryLimitMb { get; set; }
+    public int? MemoryLimitMb { get; set; } = 512;
 }

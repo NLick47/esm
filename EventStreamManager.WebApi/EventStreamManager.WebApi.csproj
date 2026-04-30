@@ -28,9 +28,19 @@
       </None>
     </ItemGroup>
 
-    
     <ItemGroup>
-      <Folder Include="wwwroot\" />
+      <_ContentIncludedByDefault Remove="wwwroot\assets\fa-brands-400-D1LuMI3I.ttf" />
+      <_ContentIncludedByDefault Remove="wwwroot\assets\fa-brands-400-D_cYUPeE.woff2" />
+      <_ContentIncludedByDefault Remove="wwwroot\assets\fa-regular-400-BjRzuEpd.woff2" />
+      <_ContentIncludedByDefault Remove="wwwroot\assets\fa-regular-400-DZaxPHgR.ttf" />
+      <_ContentIncludedByDefault Remove="wwwroot\assets\fa-solid-900-CTAAxXor.woff2" />
+      <_ContentIncludedByDefault Remove="wwwroot\assets\fa-solid-900-D0aA9rwL.ttf" />
+      <_ContentIncludedByDefault Remove="wwwroot\assets\fa-v4compatibility-C9RhG_FT.woff2" />
+      <_ContentIncludedByDefault Remove="wwwroot\assets\fa-v4compatibility-CCth-dXg.ttf" />
+      <_ContentIncludedByDefault Remove="wwwroot\assets\index-bNf3icfF.css" />
+      <_ContentIncludedByDefault Remove="wwwroot\assets\index-CO2YEZcF.js" />
+      <_ContentIncludedByDefault Remove="wwwroot\assets\index-DA7lbFg_.js" />
+      <_ContentIncludedByDefault Remove="wwwroot\assets\index-DXccOH-Z.css" />
     </ItemGroup>
 
 </Project>
