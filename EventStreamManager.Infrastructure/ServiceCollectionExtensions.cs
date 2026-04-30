@@ -1,3 +1,5 @@
+using EventStreamManager.Infrastructure.Repositories;
+using EventStreamManager.Infrastructure.Repositories.Interfaces;
 using EventStreamManager.Infrastructure.Services;
 using EventStreamManager.Infrastructure.Services.Data;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
@@ -38,6 +40,10 @@ public static class ServiceCollectionExtensions
 
         // 脚本数据构建服务
         services.AddScoped<IEventDataBuilderService, EventDataBuilderService>();
+
+        // Repository
+        services.AddScoped<IEventHandleRepository, EventHandleRepository>();
+        services.AddScoped<IEventRepository, EventRepository>();
 
         return services;
     }

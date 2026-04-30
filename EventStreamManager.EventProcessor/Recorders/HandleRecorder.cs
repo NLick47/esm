@@ -1,38 +1,28 @@
 using EventStreamManager.EventProcessor.Interfaces;
 using EventStreamManager.Infrastructure.Entities;
-using EventStreamManager.Infrastructure.Services.Data.Interfaces;
+using EventStreamManager.Infrastructure.Repositories.Interfaces;
 using Microsoft.Extensions.Logging;
 
 namespace EventStreamManager.EventProcessor.Recorders;
 
-/// <summary>
-/// 处理记录器
-/// </summary>
 public class HandleRecorder : IHandleRecorder
 {
-    private readonly ISqlSugarContext _db;
+    private readonly IEventHandleRepository _repository;
     private readonly ILogger<HandleRecorder> _logger;
 
-    public HandleRecorder(ISqlSugarContext db, ILogger<HandleRecorder> logger)
+    public HandleRecorder(IEventHandleRepository repository, ILogger<HandleRecorder> logger)
     {
-        _db = db;
+        _repository = repository;
         _logger = logger;
     }
 
-    /// <summary>
-    /// 获取或创建单个处理器的处理记录
-    /// </summary>
     public async Task<EventHandle> GetOrCreateAsync(string databaseType, int eventId, string processorId, string processorName)
     {
         ArgumentNullException.ThrowIfNull(databaseType);
         ArgumentNullException.ThrowIfNull(processorId);
         ArgumentNullException.ThrowIfNull(processorName);
 
-        var client = await _db.GetClientAsync(databaseType);
-        var existing = await client.Queryable<EventHandle>()
-            .Where(h => h.EventId == eventId && h.ProcessorId == processorId)
-            .FirstAsync();
-
+        var existing = await _repository.GetAsync(databaseType, eventId, processorId);
         if (existing != null) return existing;
 
         var newHandle = new EventHandle
@@ -48,20 +38,17 @@ public class HandleRecorder : IHandleRecorder
 
         try
         {
-            newHandle.Id = await client.Insertable(newHandle).ExecuteReturnIdentityAsync();
+            var created = await _repository.CreateAsync(databaseType, newHandle);
             _logger.LogDebug("[{DatabaseType}] 创建处理记录: EventId={EventId}, Processor={ProcessorName}",
                 databaseType, eventId, processorName);
-            return newHandle;
+            return created;
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "[{DatabaseType}] 插入处理记录冲突，尝试重新查询: EventId={EventId}, Processor={ProcessorName}",
                 databaseType, eventId, processorName);
 
-            var conflicted = await client.Queryable<EventHandle>()
-                .Where(h => h.EventId == eventId && h.ProcessorId == processorId)
-                .FirstAsync();
-
+            var conflicted = await _repository.GetAsync(databaseType, eventId, processorId);
             if (conflicted != null) return conflicted;
 
             _logger.LogError(ex, "[{DatabaseType}] 重新查询处理记录仍然不存在: EventId={EventId}, Processor={ProcessorName}",
@@ -70,22 +57,12 @@ public class HandleRecorder : IHandleRecorder
         }
     }
 
-    /// <summary>
-    /// 获取事件的所有处理记录
-    /// </summary>
     public async Task<List<EventHandle>> GetByEventIdAsync(string databaseType, int eventId)
     {
         ArgumentNullException.ThrowIfNull(databaseType);
-
-        var client = await _db.GetClientAsync(databaseType);
-        return await client.Queryable<EventHandle>()
-            .Where(h => h.EventId == eventId)
-            .ToListAsync();
+        return await _repository.GetByEventIdAsync(databaseType, eventId);
     }
 
-    /// <summary>
-    /// 记录单次处理日志
-    /// </summary>
     public async Task<EventHandleLog> LogAsync(string databaseType, EventHandle handle, ExecutionResult result)
     {
         ArgumentNullException.ThrowIfNull(databaseType);
@@ -111,73 +88,64 @@ public class HandleRecorder : IHandleRecorder
             ExceptionMessage = result.ErrorMessage,
             Status = status,
             ExecutionTimeMs = result.ExecutionTimeMs,
-            Reason = result.Reason, 
+            Reason = result.Reason,
             HandleDatetime = DateTime.Now
         };
 
-        var client = await _db.GetClientAsync(databaseType);
-        log.Id = await client.Insertable(log).ExecuteReturnIdentityAsync();
+        var created = await _repository.CreateLogAsync(databaseType, log);
 
         _logger.LogDebug("[{DatabaseType}] 记录日志: HandleId={HandleId}, Processor={ProcessorName}, Status={Status}",
             databaseType, handle.Id, handle.ProcessorName, status);
 
-        return log;
+        return created;
     }
 
-    /// <summary>
-    /// 标记完成
-    /// </summary>
     public async Task MarkFinishedAsync(string databaseType, int handleId, string status, int logId)
     {
         ArgumentNullException.ThrowIfNull(databaseType);
         ArgumentNullException.ThrowIfNull(status);
 
-        var client = await _db.GetClientAsync(databaseType);
-        await client.Updateable<EventHandle>()
-            .SetColumns(h => new EventHandle
-            {
-                IsFinished = true,
-                LastHandleStatus = status,
-                LastHandleDatetime = DateTime.Now,
-                LastHandleLogId = logId
-            })
-            .Where(h => h.Id == handleId)
-            .ExecuteCommandAsync();
+        var handle = await _repository.GetByIdAsync(databaseType, handleId);
+        if (handle == null)
+        {
+            _logger.LogError("[{DatabaseType}] 标记完成时找不到记录: HandleId={HandleId}", databaseType, handleId);
+            throw new InvalidOperationException($"处理记录不存在: HandleId={handleId}");
+        }
+
+        handle.IsFinished = true;
+        handle.LastHandleStatus = status;
+        handle.LastHandleDatetime = DateTime.Now;
+        handle.LastHandleLogId = logId;
+
+        await _repository.UpdateAsync(databaseType, handle);
 
         _logger.LogInformation("[{DatabaseType}] 处理完成: HandleId={HandleId}, Status={Status}",
             databaseType, handleId, status);
     }
 
-    /// <summary>
-    /// 标记失败（增加处理次数）
-    /// </summary>
     public async Task MarkFailedAsync(string databaseType, EventHandle handle, string status, int logId)
     {
         ArgumentNullException.ThrowIfNull(databaseType);
         ArgumentNullException.ThrowIfNull(handle);
         ArgumentNullException.ThrowIfNull(status);
 
-        var client = await _db.GetClientAsync(databaseType);
         handle.HandleTimes++;
         handle.LastHandleStatus = status;
         handle.LastHandleDatetime = DateTime.Now;
         handle.LastHandleLogId = logId;
 
-        await client.Updateable(handle).ExecuteCommandAsync();
+        await _repository.UpdateAsync(databaseType, handle);
+
         _logger.LogWarning("[{DatabaseType}] 处理失败: HandleId={HandleId}, Processor={ProcessorName}, Times={Times}",
             databaseType, handle.Id, handle.ProcessorName, handle.HandleTimes);
     }
 
-    /// <summary>
-    /// 标记重试次数耗尽（死信）
-    /// </summary>
     public async Task MarkRetryExhaustedAsync(string databaseType, EventHandle handle, string status, int logId)
     {
         ArgumentNullException.ThrowIfNull(databaseType);
         ArgumentNullException.ThrowIfNull(handle);
         ArgumentNullException.ThrowIfNull(status);
 
-        var client = await _db.GetClientAsync(databaseType);
         handle.HandleTimes++;
         handle.IsFinished = true;
         handle.IsDeadLetter = true;
@@ -185,7 +153,8 @@ public class HandleRecorder : IHandleRecorder
         handle.LastHandleDatetime = DateTime.Now;
         handle.LastHandleLogId = logId;
 
-        await client.Updateable(handle).ExecuteCommandAsync();
+        await _repository.UpdateAsync(databaseType, handle);
+
         _logger.LogError("[{DatabaseType}] 重试次数耗尽，标记为死信: HandleId={HandleId}, Processor={ProcessorName}, Times={Times}",
             databaseType, handle.Id, handle.ProcessorName, handle.HandleTimes);
     }
