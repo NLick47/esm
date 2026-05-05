@@ -11,6 +11,14 @@ public interface IEventDataBuilderService
         Event eventData,
         JsProcessor processor,
         CancellationToken ct = default);
+
+    Task<EnhancedQueryData> BuildEnhancedDataAsync(
+        string databaseType,
+        Event eventData,
+        JsProcessor processor,
+        Dictionary<string, object?>? shared,
+        PipelineStageInfo? pipeline,
+        CancellationToken ct = default);
     
     
     Task<List<Dictionary<string, object>>> ExecuteProcessorQueryAsync(

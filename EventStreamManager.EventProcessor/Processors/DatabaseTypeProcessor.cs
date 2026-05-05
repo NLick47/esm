@@ -139,6 +139,8 @@ public class DatabaseTypeProcessor : IDisposable
                 var sender = scope.ServiceProvider.GetRequiredService<IInterfaceSender>();
                 var processorService = scope.ServiceProvider.GetRequiredService<IProcessorService>();
                 var interfaceService = scope.ServiceProvider.GetRequiredService<IInterfaceConfigService>();
+                var pipelineService = scope.ServiceProvider.GetRequiredService<IPipelineService>();
+                var pipelineExecutor = scope.ServiceProvider.GetRequiredService<PipelineExecutor>();
 
                 var eventCodes = await GetEventCodesAsync(processorService);
                 var processorIds = await GetProcessorIdsAsync(processorService);
@@ -157,8 +159,8 @@ public class DatabaseTypeProcessor : IDisposable
                 foreach (var eventData in events)
                 {
                     if (cancellationToken.IsCancellationRequested) break;
-                    await ProcessEventAsync(eventData, processorService, interfaceService, 
-                        executor, recorder, sender, config.MaxRetryCount);
+                    await ProcessEventAsync(eventData, processorService, interfaceService,
+                        executor, recorder, sender, pipelineService, pipelineExecutor, config.MaxRetryCount);
                     _status.LastProcessedEventId = eventData.Id;
                 }
 
@@ -227,14 +229,23 @@ public class DatabaseTypeProcessor : IDisposable
         IScriptExecutor executor,
         IHandleRecorder recorder,
         IInterfaceSender sender,
+        IPipelineService pipelineService,
+        PipelineExecutor pipelineExecutor,
         int maxRetryCount)
     {
         try
         {
+            // 优先匹配 Pipeline
+            var pipeline = await pipelineService.GetMatchingAsync(eventData.EventCode, _databaseType);
+            if (pipeline != null)
+            {
+                await ProcessPipelineAsync(eventData, pipeline, pipelineExecutor, interfaceService, recorder, sender, maxRetryCount);
+                return;
+            }
+
             var processors = await GetMatchingProcessorsAsync(eventData, processorService);
             if (processors.Count == 0) return;
 
-            // 遍历每个处理器，单独处理并记录
             foreach (var processor in processors)
             {
                 await ProcessSingleProcessorAsync(eventData, processor, interfaceService, executor, recorder, sender, maxRetryCount);
@@ -246,6 +257,96 @@ public class DatabaseTypeProcessor : IDisposable
         {
             _logger.LogError(ex, "[{DatabaseType}] 处理事件异常: EventId={EventId}",
                 _databaseType, eventData.Id);
+            _status.LastError = ex.Message;
+            _status.LastErrorTime = DateTime.Now;
+        }
+    }
+
+    private async Task ProcessPipelineAsync(
+        Event eventData,
+        ProcessorPipeline pipeline,
+        PipelineExecutor pipelineExecutor,
+        IInterfaceConfigService interfaceService,
+        IHandleRecorder recorder,
+        IInterfaceSender sender,
+        int maxRetryCount)
+    {
+        EventHandle? handle = null;
+        try
+        {
+            handle = await recorder.GetOrCreateAsync(_databaseType, eventData.Id, pipeline.Id, pipeline.Name);
+            if (handle.IsFinished) return;
+
+            var result = await pipelineExecutor.ExecuteAsync(_databaseType, eventData, pipeline);
+
+            var log = await recorder.LogAsync(_databaseType, handle, result);
+
+            if (result.Success && result.NeedToSend)
+            {
+                var senderStage = pipeline.Stages.FirstOrDefault(s => s.IsSender);
+                var senderProcessorId = senderStage?.ProcessorId ?? pipeline.Id;
+                await SendResultAsync(senderProcessorId, result, interfaceService, sender);
+            }
+
+            bool isSuccess = DetermineOverallSuccess(result);
+            if (isSuccess)
+            {
+                await recorder.MarkFinishedAsync(_databaseType, handle.Id, HandleStatus.Success, log.Id);
+                _status.SuccessCount++;
+                _logger.LogInformation(
+                    "[{DatabaseType}] Pipeline '{PipelineName}' 处理事件 {EventId}: 成功, 耗时 {Time}ms",
+                    _databaseType, pipeline.Name, eventData.Id, result.ExecutionTimeMs);
+            }
+            else
+            {
+                bool retryExhausted = maxRetryCount > 0 && handle.HandleTimes + 1 >= maxRetryCount;
+                if (retryExhausted)
+                {
+                    await recorder.MarkRetryExhaustedAsync(_databaseType, handle, HandleStatus.Fail, log.Id);
+                    _status.FailedCount++;
+                }
+                else
+                {
+                    await recorder.MarkFailedAsync(_databaseType, handle, HandleStatus.Fail, log.Id);
+                    _status.FailedCount++;
+                }
+            }
+
+            _status.TotalProcessedCount++;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[{DatabaseType}] Pipeline '{PipelineName}' 处理事件 {EventId} 异常",
+                _databaseType, pipeline.Name, eventData.Id);
+
+            if (handle != null)
+            {
+                try
+                {
+                    var errorResult = new ExecutionResult
+                    {
+                        Success = false,
+                        ErrorMessage = $"Pipeline 执行异常: {ex.Message}",
+                        ExecutionTimeMs = 0
+                    };
+                    var log = await recorder.LogAsync(_databaseType, handle, errorResult);
+                    bool retryExhausted = maxRetryCount > 0 && handle.HandleTimes + 1 >= maxRetryCount;
+                    if (retryExhausted)
+                    {
+                        await recorder.MarkRetryExhaustedAsync(_databaseType, handle, HandleStatus.Fail, log.Id);
+                    }
+                    else
+                    {
+                        await recorder.MarkFailedAsync(_databaseType, handle, HandleStatus.Fail, log.Id);
+                    }
+                }
+                catch (Exception recordEx)
+                {
+                    _logger.LogError(recordEx, "[{DatabaseType}] 记录 Pipeline 失败状态时异常", _databaseType);
+                }
+            }
+
+            _status.FailedCount++;
             _status.LastError = ex.Message;
             _status.LastErrorTime = DateTime.Now;
         }

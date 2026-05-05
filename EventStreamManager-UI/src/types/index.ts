@@ -9,3 +9,4 @@ export * from './processor';
 export * from './interface-config';
 export * from './event-log';
 export * from './system';
+export * from './pipeline';

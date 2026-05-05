@@ -190,6 +190,15 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
                         if (!requestInfo.IsUndefined() && !requestInfo.IsNull())
                             result.RequestInfo = ConvertJsValueToObject(requestInfo)?.ToString();
                     }
+
+                    if (obj.HasOwnProperty("sharedOutput"))
+                    {
+                        var sharedOutput = obj.Get("sharedOutput");
+                        if (!sharedOutput.IsUndefined() && !sharedOutput.IsNull() && sharedOutput.IsObject())
+                        {
+                            result.SharedOutput = ConvertJsValueToDictionary(sharedOutput.AsObject());
+                        }
+                    }
                 }
             }
 
@@ -381,14 +390,18 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
 
         if (value.IsObject())
         {
-            var obj = value.AsObject();
-            var result = new Dictionary<string, object?>();
-            foreach (var key in obj.GetOwnPropertyKeys())
-                result[key.AsString()] = ConvertJsValueToObject(obj.Get(key));
-            return result;
+            return ConvertJsValueToDictionary(value.AsObject());
         }
 
         return value.ToString();
+    }
+
+    private Dictionary<string, object?> ConvertJsValueToDictionary(Jint.Native.Object.ObjectInstance obj)
+    {
+        var result = new Dictionary<string, object?>();
+        foreach (var key in obj.GetOwnPropertyKeys())
+            result[key.AsString()] = ConvertJsValueToObject(obj.Get(key));
+        return result;
     }
 
     public void Dispose()

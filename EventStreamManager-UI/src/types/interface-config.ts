@@ -48,21 +48,8 @@ export interface ProcessorReferenceStatus {
   referencedByConfigName?: string;
 }
 
-/**
- * 数据库类型信息（带激活配置）
- */
-export interface DatabaseTypeWithActiveConfig {
-  value: string;
-  label: string;
-  activeConfig: {
-    id: string;
-    name: string;
-    connectionString: string;
-    driver: string;
-    isActive: boolean;
-    timeout: number;
-  } | null;
-}
+import type { DatabaseTypeWithActiveConfig } from './database';
+export type { DatabaseTypeWithActiveConfig };
 
 /**
  * 调试日志条目

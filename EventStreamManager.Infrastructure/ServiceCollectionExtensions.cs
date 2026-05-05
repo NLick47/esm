@@ -26,6 +26,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IDataService, JsonDataService>();
         services.AddSingleton<IProcessorService, ProcessorService>();
         services.AddSingleton<IProcessorVersionService, ProcessorVersionService>();
+        services.AddSingleton<IPipelineService, PipelineService>();
         services.AddSingleton<ISqlTemplateService, SqlTemplateService>();
         services.AddSingleton<ISystemVariableService, SystemVariableService>();
         services.AddScoped<ITableInitializationService, TableInitializationService>();

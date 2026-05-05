@@ -6,6 +6,7 @@ import JSProcessorManager from '@/components/JSProcessorManager';
 import InterfaceSendConfig from '@/components/InterfaceSendConfig';
 import DebugLogModule from '@/components/DebugLogModule';
 import SystemVariableManager from '@/components/SystemVariableManager';
+import PipelineManager from '@/components/PipelineManager';
 import { toast } from 'sonner';
 import * as systemService from '@/services/system.service';
 import { ServiceStatus, ProcessorStatus } from '@/types';
@@ -260,6 +261,8 @@ const formatDuration = useCallback((durationStr: string): string => {
         return <DebugLogModule />;
       case 'systemvar':
         return <SystemVariableManager />;
+      case 'pipeline':
+        return <PipelineManager />;
       default:
         return <DatabaseConnectionManager />;
     }
@@ -352,6 +355,12 @@ const formatDuration = useCallback((durationStr: string): string => {
               label="调试与日志" 
               active={activeModule === 'debug'} 
               onClick={() => setActiveModule('debug')} 
+            />
+            <ModuleNavItem 
+              icon="fa-layer-group" 
+              label="Pipeline 配置" 
+              active={activeModule === 'pipeline'} 
+              onClick={() => setActiveModule('pipeline')} 
             />
           </nav>
         </aside>

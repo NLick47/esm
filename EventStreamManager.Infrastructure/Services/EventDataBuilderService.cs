@@ -25,13 +25,23 @@ public class EventDataBuilderService : IEventDataBuilderService
         JsProcessor processor,
         CancellationToken ct = default)
     {
-       
+        return await BuildEnhancedDataAsync(databaseType, eventData, processor, null, null, ct);
+    }
+
+    public async Task<EnhancedQueryData> BuildEnhancedDataAsync(
+        string databaseType,
+        Event eventData,
+        JsProcessor processor,
+        Dictionary<string, object?>? shared,
+        PipelineStageInfo? pipeline,
+        CancellationToken ct = default)
+    {
         var rows = await ExecuteProcessorQueryAsync(
-            databaseType, 
-            processor.SqlTemplate, 
-            eventData, 
+            databaseType,
+            processor.SqlTemplate,
+            eventData,
             ct);
-        
+
         return new EnhancedQueryData
         {
             Rows = rows,
@@ -53,7 +63,9 @@ public class EventDataBuilderService : IEventDataBuilderService
                 Id = processor.Id,
                 Name = processor.Name,
                 Enabled = processor.Enabled
-            }
+            },
+            Shared = shared,
+            Pipeline = pipeline
         };
     }
 

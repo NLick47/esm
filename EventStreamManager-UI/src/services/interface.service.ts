@@ -1,7 +1,6 @@
 import { get, post, put, del, patch } from '@/utils/request';
 import { 
   InterfaceConfig, 
-  AvailableProcessor, 
   ProcessorReferenceStatus,
   InterfaceDebugRequest,
   InterfaceDebugResponse 

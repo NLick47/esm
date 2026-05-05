@@ -26,6 +26,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IScriptExecutor, ScriptExecutor>();
         services.AddScoped<IHandleRecorder, HandleRecorder>();
         services.AddScoped<IInterfaceSender, InterfaceSender>();
+        services.AddScoped<PipelineExecutor>();
 
         services.AddSingleton<IProcessorFactory, ProcessorFactory>();
 

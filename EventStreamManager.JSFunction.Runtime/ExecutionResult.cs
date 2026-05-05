@@ -97,4 +97,9 @@ public class ExecutionResult
     /// 请求信息：正常时的请求数据
     /// </summary>
     public string? RequestInfo { get; set; }
+
+    /// <summary>
+    /// 输出到共享上下文的数据（Pipeline 模式下使用）
+    /// </summary>
+    public Dictionary<string, object?>? SharedOutput { get; set; }
 }

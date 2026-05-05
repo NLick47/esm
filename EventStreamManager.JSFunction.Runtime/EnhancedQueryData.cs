@@ -22,4 +22,14 @@ public class EnhancedQueryData
     /// 处理器信息（如果有）
     /// </summary>
     public ProcessorInfo? Processor { get; set; }
+
+    /// <summary>
+    /// 共享上下文数据（Pipeline 模式下使用）
+    /// </summary>
+    public Dictionary<string, object?>? Shared { get; set; }
+
+    /// <summary>
+    /// 管道阶段信息（Pipeline 模式下使用）
+    /// </summary>
+    public PipelineStageInfo? Pipeline { get; set; }
 }
