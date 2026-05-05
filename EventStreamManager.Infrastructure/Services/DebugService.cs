@@ -313,7 +313,7 @@ namespace EventStreamManager.Infrastructure.Services
             List<DebugLogEntry> logs)
         {
             AddLog(logs, "info", "步骤: 获取事件数据");
-            var client = await _sqlSugarContext.GetClientAsync(databaseType);
+            using var client = await _sqlSugarContext.GetClientAsync(databaseType);
 
             if (string.IsNullOrEmpty(eventId))
             {

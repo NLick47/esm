@@ -28,6 +28,7 @@ import { buttonVariants } from '@/utils/button-styles';
 import type {
   InterfaceConfig,
   AvailableProcessor,
+  ProcessorReferenceStatus,
   DatabaseTypeWithActiveConfig,
   DebugLogEntry,
   InterfaceDebugResponse
@@ -41,7 +42,7 @@ export default function InterfaceSendConfig() {
 
   // 状态管理
   const [interfaceConfigs, setInterfaceConfigs] = useState<InterfaceConfig[]>([]);
-  const [availableProcessors, setAvailableProcessors] = useState<AvailableProcessor[]>([]);
+  const [availableProcessors, setAvailableProcessors] = useState<ProcessorReferenceStatus[]>([]);
   const [loading, setLoading] = useState(false);
   const [isDebugging, setIsDebugging] = useState(false);
 
@@ -278,23 +279,6 @@ export default function InterfaceSendConfig() {
 
     try {
       setLoading(true);
-
-      if (isNewConfig) {
-        const unreferencedProcessors = await getUnreferencedProcessors();
-        const unreferencedIds = unreferencedProcessors.map(p => p.id);
-        
-        const invalidProcessors = editingConfig.processorIds.filter(id => !unreferencedIds.includes(id));
-        
-        if (invalidProcessors.length > 0) {
-          const invalidNames = editingConfig.processorNames.filter((_, index) => 
-            invalidProcessors.includes(editingConfig.processorIds[index])
-          );
-          
-          toast.error(`以下处理器已被其他配置引用，无法选择：${invalidNames.join('、')}`);
-          loadProcessors('unreferenced');
-          return;
-        }
-      }
 
       let savedConfig: InterfaceConfig;
       if (isNewConfig) {
@@ -593,39 +577,53 @@ export default function InterfaceSendConfig() {
                   关联处理器 (可多选) *
                 </label>
                 <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-2 border rounded-lg p-3 dark:border-gray-700">
-                  {availableProcessors.map((processor) => (
-                    <label
-                      key={processor.id}
-                      className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors cursor-pointer ${
-                        editingConfig.processorIds.includes(processor.id)
-                          ? 'border-blue-600 bg-blue-50 text-blue-700 dark:border-blue-500 dark:bg-blue-900/30 dark:text-blue-400'
-                          : 'border-gray-300 bg-white text-gray-700 hover:border-blue-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-blue-700'
-                      } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      onClick={() => {
-                        if (loading) return;
-                        const newIds = [...editingConfig.processorIds];
-                        const index = newIds.indexOf(processor.id);
-                        if (index > -1) {
-                          newIds.splice(index, 1);
-                        } else {
-                          newIds.push(processor.id);
-                        }
-                        handleConfigChange('processorIds', newIds);
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={editingConfig.processorIds.includes(processor.id)}
-                        onChange={() => {}}
-                        className="mr-2 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                        disabled={loading}
-                      />
-                      {processor.name}
-                    </label>
-                  ))}
+                  {availableProcessors.map((processor) => {
+                    const isReferencedByOther = processor.isReferenced &&
+                      (isNewConfig || processor.referencedByConfigId !== selectedConfig);
+                    const isSelected = editingConfig.processorIds.includes(processor.id);
+
+                    return (
+                      <label
+                        key={processor.id}
+                        className={`inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                          isReferencedByOther
+                            ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-500'
+                            : isSelected
+                              ? 'border-blue-600 bg-blue-50 text-blue-700 cursor-pointer dark:border-blue-500 dark:bg-blue-900/30 dark:text-blue-400'
+                              : 'border-gray-300 bg-white text-gray-700 cursor-pointer hover:border-blue-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-blue-700'
+                        } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        onClick={() => {
+                          if (loading || isReferencedByOther) return;
+                          const newIds = [...editingConfig.processorIds];
+                          const index = newIds.indexOf(processor.id);
+                          if (index > -1) {
+                            newIds.splice(index, 1);
+                          } else {
+                            newIds.push(processor.id);
+                          }
+                          handleConfigChange('processorIds', newIds);
+                        }}
+                        title={isReferencedByOther ? `已被接口配置"${processor.referencedByConfigName}"引用` : undefined}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => {}}
+                          className="mr-2 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
+                          disabled={loading || isReferencedByOther}
+                        />
+                        <span>{processor.name}</span>
+                        {isReferencedByOther && (
+                          <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                            已引用
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
                 </div>
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  选择此接口配置适用的处理器，可选择多个
+                  灰色标记的处理器已被其他接口配置引用，不可选择
                 </p>
               </div>
 

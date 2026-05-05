@@ -2,6 +2,7 @@ import { get, post, put, del, patch } from '@/utils/request';
 import { 
   InterfaceConfig, 
   AvailableProcessor, 
+  ProcessorReferenceStatus,
   InterfaceDebugRequest,
   InterfaceDebugResponse 
 } from '@/types/interface-config';
@@ -58,15 +59,15 @@ export function toggleInterfaceConfig(id: string): Promise<InterfaceConfig> {
 /**
  * 获取未被引用的处理器
  */
-export function getUnreferencedProcessors(): Promise<AvailableProcessor[]> {
-  return get<AvailableProcessor[]>('/api/InterfaceConfig/processors/unreferenced');
+export function getUnreferencedProcessors(): Promise<ProcessorReferenceStatus[]> {
+  return get<ProcessorReferenceStatus[]>('/api/InterfaceConfig/processors/unreferenced');
 }
 
 /**
  * 获取所有处理器（包含引用状态）
  */
-export function GetAvailableProcessors(): Promise<AvailableProcessor[]> {
-  return get<AvailableProcessor[]>('/api/InterfaceConfig/processors/available');
+export function GetAvailableProcessors(): Promise<ProcessorReferenceStatus[]> {
+  return get<ProcessorReferenceStatus[]>('/api/InterfaceConfig/processors/available');
 }
 
 

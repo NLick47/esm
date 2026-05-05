@@ -23,7 +23,7 @@ public class EventRepository : IEventRepository
         List<string>? eventCodes,
         List<string> processorIds)
     {
-        var client = await _db.GetClientAsync(databaseType);
+        using var client = await _db.GetClientAsync(databaseType);
 
         var query = client.Queryable<Event>()
             .AS(tableName)

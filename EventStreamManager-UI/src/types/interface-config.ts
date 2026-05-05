@@ -38,6 +38,17 @@ export interface AvailableProcessor {
 }
 
 /**
+ * 处理器引用状态
+ */
+export interface ProcessorReferenceStatus {
+  id: string;
+  name: string;
+  isReferenced: boolean;
+  referencedByConfigId?: string;
+  referencedByConfigName?: string;
+}
+
+/**
  * 数据库类型信息（带激活配置）
  */
 export interface DatabaseTypeWithActiveConfig {

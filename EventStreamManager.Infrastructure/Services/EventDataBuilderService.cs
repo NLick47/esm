@@ -66,11 +66,11 @@ public class EventDataBuilderService : IEventDataBuilderService
         if (string.IsNullOrEmpty(sqlTemplate))
             return new List<Dictionary<string, object>>();
 
-        var sql = ReplaceVariables(sqlTemplate, eventData);
+        var (sql, parameters) = BuildParameterizedSql(sqlTemplate, eventData);
         
         _logger.LogDebug("执行SQL: {Sql}", sql);
         
-        return await _sqlSugarContext.ExecuteQueryAsync(databaseType, sql);
+        return await _sqlSugarContext.ExecuteQueryAsync(databaseType, sql, parameters);
     }
 
     
@@ -117,13 +117,24 @@ public class EventDataBuilderService : IEventDataBuilderService
             }
         };
     }
-    private static string ReplaceVariables(string sql, Event eventData)
+    private static (string Sql, object Parameters) BuildParameterizedSql(string sql, Event eventData)
     {
-        return sql
-            .Replace("${strEventReferenceId}", $"'{eventData.StrEventReferenceId}'")
-            .Replace("${eventId}", eventData.Id.ToString())
-            .Replace("${eventType}", $"'{eventData.EventType}'")
-            .Replace("${eventCode}", $"'{eventData.EventCode}'")
-            .Replace("${operatorCode}", $"'{eventData.OperatorCode}'");
+        var parameterizedSql = sql
+            .Replace("${strEventReferenceId}", "@strEventReferenceId")
+            .Replace("${eventId}", "@eventId")
+            .Replace("${eventType}", "@eventType")
+            .Replace("${eventCode}", "@eventCode")
+            .Replace("${operatorCode}", "@operatorCode");
+
+        var parameters = new
+        {
+            strEventReferenceId = eventData.StrEventReferenceId,
+            eventId = eventData.Id,
+            eventType = eventData.EventType,
+            eventCode = eventData.EventCode,
+            operatorCode = eventData.OperatorCode
+        };
+
+        return (parameterizedSql, parameters);
     }
 }

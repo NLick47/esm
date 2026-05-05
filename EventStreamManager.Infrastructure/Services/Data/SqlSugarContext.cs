@@ -92,7 +92,6 @@ public class SqlSugarContext : ISqlSugarContext
         {
             client = await GetClientAsync(databaseType);
             
-            // 在 DEBUG 模式下打印 SQL
             if (_logger.IsEnabled(LogLevel.Debug))
             {
                 PrintSqlWithParameters("ExecuteQueryAsync", query, parameters);
@@ -122,7 +121,6 @@ public class SqlSugarContext : ISqlSugarContext
         }
         finally
         {
-            // 确保连接被释放
             if (client != null)
             {
                 client.Dispose();
@@ -176,7 +174,6 @@ public class SqlSugarContext : ISqlSugarContext
         {
             client = await GetClientAsync(databaseType);
             
-            // 在 DEBUG 模式下打印 SQL
             if (_logger.IsEnabled(LogLevel.Debug))
             {
                 PrintSqlWithParameters("ExecuteCommandAsync", sql, parameters);
@@ -212,7 +209,6 @@ public class SqlSugarContext : ISqlSugarContext
         {
             client = await GetClientAsync(databaseType);
             
-            // 在 DEBUG 模式下打印 SQL
             if (_logger.IsEnabled(LogLevel.Debug))
             {
                 PrintSqlWithParameters($"ExecuteScalarAsync<{typeof(T).Name}>", sql, parameters);
@@ -358,7 +354,6 @@ public class SqlSugarContext : ISqlSugarContext
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "打印 SQL 参数时出错");
-            // 出错时至少打印原始 SQL
             _logger.LogDebug("SQL: {Sql}", sql);
         }
     }

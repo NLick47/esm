@@ -15,8 +15,10 @@ public interface IInterfaceConfigService
     Task<bool> ValidateProcessorIdsAsync(List<string> processorIds);
 
     Task<InterfaceConfig?> GetConfigByProcessorIdAsync(string processorId);
-    
+    Task<List<InterfaceConfig>> GetConfigsByProcessorIdAsync(string processorId);
     Task<bool> IsProcessorReferencedAsync(string processorId);
-    
-   
+
+    Task<List<ProcessorReferenceStatus>> GetProcessorReferenceStatusesAsync();
+
+    Task<ReferenceValidationResult> ValidateReferenceConflictsAsync(List<string> processorIds, string? excludeConfigId = null);
 }

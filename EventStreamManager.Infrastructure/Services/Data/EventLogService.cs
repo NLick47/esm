@@ -37,7 +37,7 @@ public class EventLogService : IEventLogService
     {
         try
         {
-            var client = await _db.GetClientAsync(databaseType);
+            using var client = await _db.GetClientAsync(databaseType);
 
             var query = BuildQuery(client, eventId, strEventReferenceId, processorId,
                 status, eventCode, startDate, endDate);
@@ -81,7 +81,7 @@ public class EventLogService : IEventLogService
     {
         try
         {
-            var client = await _db.GetClientAsync(databaseType);
+            using var client = await _db.GetClientAsync(databaseType);
             var query = BuildQuery(client, eventId, strEventReferenceId, processorId,
                 status, eventCode, startDate, endDate);
 
@@ -114,7 +114,7 @@ public class EventLogService : IEventLogService
     {
         try
         {
-            var client = await _db.GetClientAsync(databaseType);
+            using var client = await _db.GetClientAsync(databaseType);
             var handle = await client.Queryable<EventHandle>()
                 .Where(h => h.Id == handleId)
                 .FirstAsync();
