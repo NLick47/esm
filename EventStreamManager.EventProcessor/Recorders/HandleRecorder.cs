@@ -1,3 +1,4 @@
+using System.Text.Json;
 using EventStreamManager.EventProcessor.Interfaces;
 using EventStreamManager.Infrastructure.Entities;
 using EventStreamManager.Infrastructure.Repositories.Interfaces;
@@ -111,7 +112,9 @@ public class HandleRecorder : IHandleRecorder
                     ConsoleOutput = result.ConsoleOutput,
                     ErrorLineNumber = result.ErrorLineNumber,
                     ErrorColumn = result.ErrorColumn,
-                    InputDataSnapshot = result.InputData?.ToString()
+                    InputDataSnapshot = result.InputData != null
+                        ? JsonSerializer.Serialize(result.InputData, new JsonSerializerOptions { WriteIndented = false })
+                        : null
                 };
                 await _detailRepository.CreateAsync(databaseType, detail);
             }

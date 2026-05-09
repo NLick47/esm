@@ -39,6 +39,7 @@ public class ScriptExecutor : IScriptExecutor
             ProcessorName = context.ProcessorName
         };
 
+        EnhancedQueryData? jsData = null;
         try
         {
             if (context.ProcessorConfig == null || !context.ProcessorConfig.Enabled)
@@ -57,8 +58,7 @@ public class ScriptExecutor : IScriptExecutor
                 return result;
             }
 
-
-            var jsData = await _eventDataBuilderService.BuildEnhancedDataAsync(
+            jsData = await _eventDataBuilderService.BuildEnhancedDataAsync(
                 context.DatabaseType,
                 context.Event,
                 new JsProcessor()
@@ -72,6 +72,8 @@ public class ScriptExecutor : IScriptExecutor
             stopwatch.Stop();
             result.ExecutionTimeMs = stopwatch.ElapsedMilliseconds;
 
+            result.InputData = jsData;
+
             if (!execResult.Success)
             {
                 result.Success = false;
@@ -80,7 +82,6 @@ public class ScriptExecutor : IScriptExecutor
                 result.ErrorStack = execResult.ErrorStack;
                 result.ErrorLineNumber = execResult.ErrorLineNumber;
                 result.ErrorColumn = execResult.ErrorColumn;
-                result.InputData = execResult.InputData;
             }
             else
             {
@@ -97,6 +98,7 @@ public class ScriptExecutor : IScriptExecutor
             result.ExecutionTimeMs = stopwatch.ElapsedMilliseconds;
             result.Success = false;
             result.ErrorMessage = ex.Message;
+            result.InputData = jsData;
             _logger.LogError(ex, "[{DatabaseType}] 执行失败: {ProcessorName}",
                 context.DatabaseType, context.ProcessorName);
         }

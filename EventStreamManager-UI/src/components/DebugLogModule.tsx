@@ -732,7 +732,7 @@ export default function DebugLogModule() {
               )}
 
               {/* 脚本诊断 */}
-              {selectedHandle.detail && (selectedHandle.detail.errorStack || selectedHandle.detail.consoleOutput) && (
+              {selectedHandle.detail && (selectedHandle.detail.errorStack || selectedHandle.detail.consoleOutput || selectedHandle.detail.inputDataSnapshot) && (
                 <div>
                   <h4 className="text-sm font-semibold text-red-600 dark:text-red-400 mb-3">
                     <i className="fa-solid fa-bug mr-1"></i>脚本诊断
@@ -742,6 +742,14 @@ export default function DebugLogModule() {
                       <div className="text-xs bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 p-2 rounded border border-red-200 dark:border-red-800">
                         <i className="fa-solid fa-location-crosshairs mr-1"></i>
                         报错位置: 行 {selectedHandle.detail.errorLineNumber ?? '?'}, 列 {selectedHandle.detail.errorColumn ?? '?'}
+                      </div>
+                    )}
+                    {selectedHandle.detail.inputDataSnapshot && (
+                      <div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">脚本输入数据</div>
+                        <pre className="text-xs text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words font-mono bg-gray-50 dark:bg-gray-900/50 p-3 rounded border border-gray-200 dark:border-gray-700 max-h-60 overflow-auto">
+                          {formatJsonData(selectedHandle.detail.inputDataSnapshot)}
+                        </pre>
                       </div>
                     )}
                     {selectedHandle.detail.consoleOutput && (
