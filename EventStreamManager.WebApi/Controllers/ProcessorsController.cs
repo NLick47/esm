@@ -31,7 +31,7 @@ public class ProcessorsController : BaseController
     public async Task<IActionResult> GetAll()
     {
         var list = await _processorService.GetAllAsync();
-        return Ok(list, "获取处理器列表成功");
+        return Ok(list.Select(p => p.ToListResponse()).ToList(), "获取处理器列表成功");
     }
     
     [HttpGet("{id}")]
@@ -77,15 +77,15 @@ public class ProcessorsController : BaseController
     }
     
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] ProcessorRequest request)
+    public async Task<IActionResult> Create([FromBody] CreateProcessorRequest request)
     {
         var processor = request.ToEntity();
         var created = await _processorService.CreateAsync(processor);
-        return Ok(created, "创建处理器成功");
+        return Ok(created.ToDetailResponse(), "创建处理器成功");
     }
     
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(string id, [FromBody] ProcessorRequest request)
+    public async Task<IActionResult> Update(string id, [FromBody] UpdateProcessorRequest request)
     {
         var processor = request.ToEntity();
         var updated = await _processorService.UpdateAsync(id, processor);
@@ -131,6 +131,6 @@ public class ProcessorsController : BaseController
         {
             return Fail($"未找到ID为 {id} 的处理器", 404);
         }
-        return Ok(item, "切换处理器状态成功");
+        return Ok(item.ToListResponse(), "切换处理器状态成功");
     }
 }

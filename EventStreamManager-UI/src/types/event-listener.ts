@@ -14,9 +14,6 @@ export interface EventConfig {
   tableName: string;
   primaryKey: string;
   timestampField: string;
-  lastInitializationTime?: string;
-  lastInitializationMethod?: string;
-  lastEventId?: number;
   totalEventsProcessed?: number;
 }
 
@@ -24,7 +21,6 @@ export interface DatabaseStatistics {
   eventsProcessed: number;
   isEnabled: boolean;
   lastRunTime?: string;
-  lastEventId?: number;
 }
 
 export interface StatisticsResponse {

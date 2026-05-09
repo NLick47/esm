@@ -1,5 +1,6 @@
 using EventStreamManager.Infrastructure.Models.JSProcessor;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
+using EventStreamManager.WebApi.Mappings;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventStreamManager.WebApi.Controllers;
@@ -21,6 +22,6 @@ public class EventCodesController : BaseController
     public async Task<IActionResult> GetAll()
     {
         var list = await _dataService.ReadTemplateAsync<EventCode>(FileName);
-        return Ok(list, "获取事件代码成功");
+        return Ok(list.ToResponses(), "获取事件代码成功");
     }
 }

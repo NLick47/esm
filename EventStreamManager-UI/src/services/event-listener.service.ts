@@ -1,4 +1,4 @@
-import { get, post, put } from '@/utils/request';
+import { get, post, put, patch } from '@/utils/request';
 import { 
   EventConfig, 
   StatisticsResponse,
@@ -50,17 +50,10 @@ export function getStatistics(): Promise<StatisticsResponse> {
 }
 
 /**
- * 启用事件监听
+ * 切换事件监听启用状态
  */
-export function enableEventListener(type: string): Promise<void> {
-  return post<void>(`${BASE_PATH}/${type}/enable`);
-}
-
-/**
- * 停用事件监听
- */
-export function disableEventListener(type: string): Promise<void> {
-  return post<void>(`${BASE_PATH}/${type}/disable`);
+export function toggleEventListener(type: string, enabled: boolean): Promise<void> {
+  return patch<void>(`${BASE_PATH}/${type}/toggle`, null, { params: { enabled } });
 }
 
 /**

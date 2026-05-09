@@ -8,8 +8,7 @@ import {
   UpdateCustomSqlTemplateRequest,
   DefaultTemplateResponse,
   ValidationResult,
-  JSProcessorDetailResponse,
-  DebugResult
+  JSProcessorDetailResponse
 } from '@/types/processor';
 
 import { executeDebug, executeExamineDebug } from './debug.service';
@@ -91,31 +90,6 @@ export function getDefaultTemplate(): Promise<DefaultTemplateResponse> {
  */
 export function validateCode(code: string): Promise<ValidationResult> {
   return post<ValidationResult>(`${BASE_PATH}/script/validate`, { script: code });
-}
-
-/**
- * 调试处理器
- */
-export function debugProcessor(params: {
-  processorId: string;
-  eventId: string;
-  eventType: string;
-  databaseType: string;
-}): Promise<DebugResult> {
-  return post<DebugResult>(`${BASE_PATH}/processors/debug`, params);
-}
-
-/**
- * 调试 JS 代码（编辑器内）
- */
-export function debugCode(params: {
-  code: string;
-  sqlTemplate: string;
-  eventId: string;
-  eventType: string;
-  databaseType: string;
-}): Promise<DebugResult> {
-  return post<DebugResult>(`${BASE_PATH}/processors/debug-code`, params);
 }
 
 /**

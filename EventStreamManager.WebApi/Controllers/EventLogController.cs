@@ -1,4 +1,5 @@
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
+using EventStreamManager.WebApi.Mappings;
 using EventStreamManager.WebApi.Models.Requests;
 using Microsoft.AspNetCore.Mvc;
 
@@ -34,7 +35,7 @@ public class EventLogController : BaseController
             request.Page,
             request.PageSize);
 
-        return PageData(items, total, request.Page, request.PageSize, "获取处理记录列表成功");
+        return PageData(items.ToResponses(), total, request.Page, request.PageSize, "获取处理记录列表成功");
     }
 
     /// <summary>

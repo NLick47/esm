@@ -1,5 +1,5 @@
-using EventStreamManager.Infrastructure.Models.JSProcessor;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
+using EventStreamManager.WebApi.Mappings;
 using EventStreamManager.WebApi.Models.Requests;
 using Microsoft.AspNetCore.Mvc;
 
@@ -24,7 +24,7 @@ public class ProcessorVersionsController : BaseController
     public async Task<IActionResult> GetVersions(string processorId)
     {
         var versions = await _versionService.GetVersionsAsync(processorId);
-        return Ok(versions, "获取版本历史成功");
+        return Ok(versions.ToResponses(), "获取版本历史成功");
     }
 
     [HttpGet("detail/{versionId}")]
@@ -35,7 +35,7 @@ public class ProcessorVersionsController : BaseController
         {
             return Fail("未找到指定版本", 404);
         }
-        return Ok(version, "获取版本详情成功");
+        return Ok(version.ToResponse(), "获取版本详情成功");
     }
 
     [HttpPost("{processorId}/commit")]
@@ -50,12 +50,13 @@ public class ProcessorVersionsController : BaseController
         _logger.LogInformation("处理器版本已提交 - ProcessorId: {ProcessorId}, Version: {Version}, Message: {Message}",
             processorId, version.Version, request.CommitMessage);
 
-        return Ok(version, "版本提交成功");
+        return Ok(version.ToResponse(), "版本提交成功");
     }
 
     [HttpPost("{processorId}/rollback/{versionId}")]
-    public async Task<IActionResult> Rollback(string processorId, string versionId, [FromBody] RollbackOptions? options = null)
+    public async Task<IActionResult> Rollback(string processorId, string versionId, [FromBody] RollbackVersionRequest? request = null)
     {
+        var options = request?.ToEntity();
         var result = await _versionService.RollbackAsync(processorId, versionId, options);
         if (result == null)
         {
@@ -71,6 +72,6 @@ public class ProcessorVersionsController : BaseController
             message += "（回滚成功，但存在需要关注的事项）";
         }
 
-        return Ok(result, message);
+        return Ok(result.ToResponse(), message);
     }
 }

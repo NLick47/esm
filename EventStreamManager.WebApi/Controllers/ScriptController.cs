@@ -1,4 +1,5 @@
 using EventStreamManager.JSFunction.Runtime;
+using EventStreamManager.WebApi.Mappings;
 using EventStreamManager.WebApi.Models.Requests;
 using Microsoft.AspNetCore.Mvc;
 
@@ -20,6 +21,6 @@ public class ScriptController : BaseController
     public IActionResult ValidateScript([FromBody] ValidateScriptRequest request)
     {
         var result = _scriptExecutionService.ValidateScript(request.Script);
-        return Ok(result, "脚本验证完成");
+        return Ok(result.ToResponse(), "脚本验证完成");
     }
 }

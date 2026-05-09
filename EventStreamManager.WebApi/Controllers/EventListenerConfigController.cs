@@ -1,5 +1,7 @@
 using EventStreamManager.Infrastructure.Models.EventListener;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
+using EventStreamManager.WebApi.Mappings;
+using EventStreamManager.WebApi.Models.Requests;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventStreamManager.WebApi.Controllers;
@@ -20,7 +22,7 @@ public class EventListenerConfigController : BaseController
     public async Task<IActionResult> GetAllConfigs()
     {
         var configs = await _configService.GetAllConfigsAsync();
-        return Ok(configs, "获取所有配置成功");
+        return Ok(configs.ToResponse(), "获取所有配置成功");
     }
     
     [HttpGet("{databaseType}")]
@@ -31,14 +33,15 @@ public class EventListenerConfigController : BaseController
         {
             config = await _configService.UpdateConfigAsync(databaseType, new EventConfig());
         }
-        return Ok(config, "获取配置成功");
+        return Ok(config.ToResponse(), "获取配置成功");
     }
     
     [HttpPut("{databaseType}")]
-    public async Task<IActionResult> UpdateConfig(string databaseType, [FromBody] EventConfig config)
+    public async Task<IActionResult> UpdateConfig(string databaseType, [FromBody] UpdateEventConfigRequest request)
     {
+        var config = request.ToEntity();
         var updatedConfig = await _configService.UpdateConfigAsync(databaseType, config);
-        return Ok(updatedConfig, "更新配置成功");
+        return Ok(updatedConfig.ToResponse(), "更新配置成功");
     }
     
     [HttpGet("{databaseType}/start-condition")]
@@ -49,18 +52,19 @@ public class EventListenerConfigController : BaseController
         {
             return Fail($"未找到 {databaseType} 的起始条件", 404);
         }
-        return Ok(condition, "获取起始条件成功");
+        return Ok(condition.ToResponse(), "获取起始条件成功");
     }
 
     [HttpPut("{databaseType}/start-condition")]
-    public async Task<IActionResult> UpdateStartCondition(string databaseType, [FromBody] StartCondition condition)
+    public async Task<IActionResult> UpdateStartCondition(string databaseType, [FromBody] UpdateStartConditionRequest request)
     {
+        var condition = request.ToEntity();
         var success = await _configService.UpdateStartConditionAsync(databaseType, condition);
         if (!success)
         {
             return Fail($"未找到 {databaseType} 的配置", 404);
         }
-        return Ok(new { message = "起始条件更新成功", condition }, "更新起始条件成功");
+        return Ok(new { message = "起始条件更新成功", condition = condition.ToResponse() }, "更新起始条件成功");
     }
     
     [HttpPatch("{databaseType}/toggle")]
@@ -78,7 +82,7 @@ public class EventListenerConfigController : BaseController
     public async Task<IActionResult> ResetToDefault(string databaseType)
     {
         var defaultConfig = await _configService.ResetToDefaultAsync(databaseType);
-        return Ok(defaultConfig, "重置配置成功");
+        return Ok(defaultConfig.ToResponse(), "重置配置成功");
     }
     
     [HttpGet("types")]
@@ -89,13 +93,14 @@ public class EventListenerConfigController : BaseController
     }
     
     [HttpPut("batch")]
-    public async Task<IActionResult> BatchUpdate([FromBody] Dictionary<string, EventConfig> updates)
+    public async Task<IActionResult> BatchUpdate([FromBody] BatchUpdateEventConfigsRequest request)
     {
-        foreach (var update in updates)
+        foreach (var update in request.Updates)
         {
-            await _configService.UpdateConfigAsync(update.Key, update.Value);
+            var config = update.Value.ToEntity();
+            await _configService.UpdateConfigAsync(update.Key, config);
         }
-        return Ok(new { message = "批量更新成功", count = updates.Count }, "批量更新成功");
+        return Ok(new { message = "批量更新成功", count = request.Updates.Count }, "批量更新成功");
     }
     
     [HttpGet("statistics")]

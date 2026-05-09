@@ -1,4 +1,5 @@
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
+using EventStreamManager.WebApi.Mappings;
 using EventStreamManager.WebApi.Models.Requests;
 using Microsoft.AspNetCore.Mvc;
 
@@ -24,7 +25,7 @@ public class SystemVariablesController : BaseController
     public async Task<IActionResult> GetAll()
     {
         var list = await _systemVariableService.GetAllAsync();
-        return Ok(list, "获取系统变量列表成功");
+        return Ok(list.ToResponses(), "获取系统变量列表成功");
     }
 
    
@@ -36,7 +37,7 @@ public class SystemVariablesController : BaseController
         {
             return Fail($"未找到ID为 {id} 的系统变量", 404);
         }
-        return Ok(item, "获取系统变量成功");
+        return Ok(item.ToResponse(), "获取系统变量成功");
     }
 
  
@@ -48,7 +49,7 @@ public class SystemVariablesController : BaseController
         {
             return Fail($"未找到键名为 {key} 的系统变量", 404);
         }
-        return Ok(item, "获取系统变量成功");
+        return Ok(item.ToResponse(), "获取系统变量成功");
     }
 
   
@@ -68,7 +69,7 @@ public class SystemVariablesController : BaseController
         );
 
         _logger.LogInformation("系统变量已保存 - Key: {Key}, Category: {Category}", variable.Key, variable.Category);
-        return Ok(variable, "保存系统变量成功");
+        return Ok(variable.ToResponse(), "保存系统变量成功");
     }
 
    

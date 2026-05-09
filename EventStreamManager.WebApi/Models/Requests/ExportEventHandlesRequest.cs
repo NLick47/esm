@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace EventStreamManager.WebApi.Models.Requests;
 
 /// <summary>
@@ -8,6 +10,7 @@ public class ExportEventHandlesRequest
     /// <summary>
     /// 数据库类型（必填）
     /// </summary>
+    [Required(ErrorMessage = "数据库类型不能为空")]
     public string DatabaseType { get; set; } = string.Empty;
 
     /// <summary>
@@ -48,5 +51,6 @@ public class ExportEventHandlesRequest
     /// <summary>
     /// 最大导出行数（默认10000）
     /// </summary>
+    [Range(1, 100000, ErrorMessage = "最大导出行数必须在1-100000之间")]
     public int MaxRows { get; set; } = 10000;
 }
