@@ -43,6 +43,20 @@ export interface GetEventHandlesRequest {
   pageSize?: number;
 }
 
+export interface EventHandleLogDetail {
+  logId: number;
+  errorStack?: string;
+  consoleOutput?: string;
+  errorLineNumber?: number;
+  errorColumn?: number;
+  scriptSnapshot?: string;
+  inputDataSnapshot?: string;
+}
+
+export interface EventHandleDetail extends EventHandle {
+  detail?: EventHandleLogDetail;
+}
+
 export interface ExportEventHandlesRequest {
   databaseType: string;
   eventId?: number;

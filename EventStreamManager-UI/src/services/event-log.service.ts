@@ -2,6 +2,7 @@ import { get, post } from '@/utils/request';
 import { getApiUrl } from '@/config/api.config';
 import type { 
   EventHandle, 
+  EventHandleDetail,
   PagedResult, 
   GetEventHandlesRequest, 
   ExportEventHandlesRequest 
@@ -9,6 +10,7 @@ import type {
 
 export type { 
   EventHandle, 
+  EventHandleDetail,
   PagedResult, 
   GetEventHandlesRequest, 
   ExportEventHandlesRequest 
@@ -57,6 +59,10 @@ export function downloadExportFile(params: ExportEventHandlesRequest): void {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+}
+
+export function getHandleDetail(databaseType: string, handleId: number): Promise<{ success: boolean; data: EventHandleDetail; message: string }> {
+  return get(`${BASE_PATH}/handles/${handleId}`, { params: { databaseType } });
 }
 
 export function retryDeadLetter(databaseType: string, handleId: number): Promise<{ success: boolean; message: string }> {

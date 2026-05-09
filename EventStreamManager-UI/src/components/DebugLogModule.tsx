@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import * as eventLogService from '@/services/event-log.service';
 import * as databaseService from '@/services/database.service';
 import * as processorService from '@/services/processor.service';
-import { EventHandle } from '@/types/event-log';
+import { EventHandle, EventHandleDetail } from '@/types/event-log';
 import { PageLoading } from '@/components/ui/PageLoading';
 
 type StatusType = 'Success' | 'Fail' | 'Exception' | 'Processing' | '';
@@ -25,7 +25,8 @@ export default function DebugLogModule() {
   
   const [handles, setHandles] = useState<EventHandle[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<EventHandle | null>(null);
-  const [selectedHandle, setSelectedHandle] = useState<EventHandle | null>(null);
+  const [selectedHandle, setSelectedHandle] = useState<EventHandleDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -129,10 +130,24 @@ export default function DebugLogModule() {
 
   const viewHandleDetails = async (handleId: number) => {
     const handle = handles.find(h => h.id === handleId);
-    if (handle) {
-      setSelectedHandle(handle);
-    } else {
+    if (!handle) {
       toast.error('未找到对应的处理记录');
+      return;
+    }
+
+    setDetailLoading(true);
+    try {
+      const res = await eventLogService.getHandleDetail(databaseType, handleId);
+      if (res.success && res.data) {
+        setSelectedHandle(res.data);
+      } else {
+        toast.error(res.message || '获取详情失败');
+      }
+    } catch (error) {
+      toast.error('获取详情失败');
+      console.error(error);
+    } finally {
+      setDetailLoading(false);
     }
   };
 
@@ -589,6 +604,13 @@ export default function DebugLogModule() {
               </button>
             </div>
 
+            {detailLoading && (
+              <div className="flex items-center justify-center py-8 text-gray-500">
+                <i className="fa-solid fa-spinner fa-spin mr-2"></i>
+                加载详情中...
+              </div>
+            )}
+
             <div className="space-y-6">
               {/* 核心信息 */}
               <div>
@@ -706,6 +728,39 @@ export default function DebugLogModule() {
                       </pre>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* 脚本诊断 */}
+              {selectedHandle.detail && (selectedHandle.detail.errorStack || selectedHandle.detail.consoleOutput) && (
+                <div>
+                  <h4 className="text-sm font-semibold text-red-600 dark:text-red-400 mb-3">
+                    <i className="fa-solid fa-bug mr-1"></i>脚本诊断
+                  </h4>
+                  <div className="space-y-3">
+                    {(selectedHandle.detail.errorLineNumber || selectedHandle.detail.errorColumn) && (
+                      <div className="text-xs bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 p-2 rounded border border-red-200 dark:border-red-800">
+                        <i className="fa-solid fa-location-crosshairs mr-1"></i>
+                        报错位置: 行 {selectedHandle.detail.errorLineNumber ?? '?'}, 列 {selectedHandle.detail.errorColumn ?? '?'}
+                      </div>
+                    )}
+                    {selectedHandle.detail.consoleOutput && (
+                      <div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">控制台输出</div>
+                        <pre className="text-xs text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words font-mono bg-gray-50 dark:bg-gray-900/50 p-3 rounded border border-gray-200 dark:border-gray-700 max-h-60 overflow-auto">
+                          {selectedHandle.detail.consoleOutput}
+                        </pre>
+                      </div>
+                    )}
+                    {selectedHandle.detail.errorStack && (
+                      <div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">异常堆栈</div>
+                        <pre className="text-xs text-red-700 dark:text-red-400 whitespace-pre-wrap break-words font-mono bg-red-50 dark:bg-red-900/20 p-3 rounded border border-red-200 dark:border-red-800 max-h-80 overflow-auto">
+                          {selectedHandle.detail.errorStack}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

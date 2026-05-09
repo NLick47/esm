@@ -43,6 +43,7 @@ public static class ServiceCollectionExtensions
 
         // Repository
         services.AddScoped<IEventHandleRepository, EventHandleRepository>();
+        services.AddScoped<IEventHandleLogDetailRepository, EventHandleLogDetailRepository>();
         services.AddScoped<IEventRepository, EventRepository>();
 
         return services;

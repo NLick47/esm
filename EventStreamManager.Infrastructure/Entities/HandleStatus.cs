@@ -38,4 +38,12 @@ public class ExecutionResult
     public string? ConsoleOutput { get; set; }
     public long ExecutionTimeMs { get; set; }
     public SendResult? SendResult { get; set; }
+
+    public string? ErrorStack { get; set; }
+
+    public int? ErrorLineNumber { get; set; }
+
+    public int? ErrorColumn { get; set; }
+
+    public object? InputData { get; set; }
 }

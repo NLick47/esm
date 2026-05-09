@@ -48,7 +48,8 @@ public class TableInitializationService : ITableInitializationService
             var entityTypes = new[]
             {
                 typeof(EventHandle),
-                typeof(EventHandleLog)
+                typeof(EventHandleLog),
+                typeof(EventHandleLogDetail)
             };
 
             var successMessages = new List<string>();

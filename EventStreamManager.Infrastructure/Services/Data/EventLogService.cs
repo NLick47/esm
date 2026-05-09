@@ -233,6 +233,74 @@ public class EventLogService : IEventLogService
     }
 
  
+    #region 详情查询
+
+    public async Task<(EventHandleResult? Handle, EventHandleLogDetail? Detail)> GetHandleDetailAsync(
+        string databaseType, int handleId)
+    {
+        try
+        {
+            using var client = await _db.GetClientAsync(databaseType);
+
+            var handle = await client.Queryable<EventHandle>()
+                .Where(h => h.Id == handleId)
+                .FirstAsync();
+
+            if (handle == null) return (null, null);
+
+            var log = await client.Queryable<EventHandleLog>()
+                .Where(l => l.EventHandleId == handleId)
+                .OrderByDescending(l => l.Id)
+                .FirstAsync();
+
+            var eventConfig = await client.Queryable<Event>()
+                .Where(e => e.Id == handle.EventId)
+                .FirstAsync();
+
+            EventHandleLogDetail? detail = null;
+            if (log != null)
+            {
+                detail = await client.Queryable<EventHandleLogDetail>()
+                    .Where(d => d.LogId == log.Id)
+                    .FirstAsync();
+            }
+
+            var result = new EventHandleResult
+            {
+                Id = handle.Id,
+                EventId = handle.EventId,
+                EventCode = eventConfig?.EventCode,
+                ProcessorId = handle.ProcessorId,
+                ProcessorName = handle.ProcessorName,
+                HandleTimes = handle.HandleTimes,
+                LastHandleStatus = handle.LastHandleStatus ?? string.Empty,
+                LastHandleMessage = log?.ExceptionMessage,
+                LastHandleDatetime = handle.LastHandleDatetime,
+                LastHandleElapsedMs = log?.ExecutionTimeMs,
+                StrEventReferenceId = eventConfig?.StrEventReferenceId,
+                NeedToSend = log?.NeedToSend ?? false,
+                Reason = log?.Reason,
+                ScriptSuccess = log?.ScriptSuccess,
+                SendSuccess = log?.SendSuccess,
+                IsDeadLetter = handle.IsDeadLetter,
+                RequestData = log?.RequestData,
+                ResponseData = log?.ResponseData,
+                IsFinished = handle.IsFinished,
+                CreateDatetime = eventConfig?.CreateDatetime ?? handle.CreateDatetime,
+                EventName = eventConfig?.EventName
+            };
+
+            return (result, detail);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[{DatabaseType}] 获取处理记录详情失败: HandleId={HandleId}", databaseType, handleId);
+            throw;
+        }
+    }
+
+    #endregion
+
     private ISugarQueryable<EventHandle> BuildCountQuery(
         ISqlSugarClient client,
         int? eventId,

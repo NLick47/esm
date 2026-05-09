@@ -1,3 +1,4 @@
+using EventStreamManager.Infrastructure.Entities;
 using EventStreamManager.Infrastructure.Models.EventLog;
 
 namespace EventStreamManager.Infrastructure.Services.Data.Interfaces;
@@ -37,4 +38,9 @@ public interface IEventLogService
     /// 重置死信状态，允许重新处理
     /// </summary>
     Task<bool> ResetDeadLetterAsync(string databaseType, int handleId);
+
+    /// <summary>
+    /// 获取单条处理记录详情（含最新日志及诊断信息）
+    /// </summary>
+    Task<(EventHandleResult? Handle, EventHandleLogDetail? Detail)> GetHandleDetailAsync(string databaseType, int handleId);
 }

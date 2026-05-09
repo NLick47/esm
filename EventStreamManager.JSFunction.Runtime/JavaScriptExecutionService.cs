@@ -212,6 +212,8 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
             result.Success = false;
             result.ErrorMessage = ex.Message;
             result.ErrorStack = ex.StackTrace;
+            result.ErrorLineNumber = ex.Location.Start.Line;
+            result.ErrorColumn = ex.Location.Start.Column;
         }
         catch (TimeoutException ex)
         {

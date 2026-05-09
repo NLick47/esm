@@ -1,3 +1,4 @@
+using EventStreamManager.Infrastructure.Entities;
 using EventStreamManager.Infrastructure.Models.DataBase;
 using EventStreamManager.Infrastructure.Models.EventListener;
 using EventStreamManager.Infrastructure.Models.EventLog;
@@ -372,7 +373,7 @@ public static class ManualMapper
 
     public static Models.Responses.ConnectionTestResponse ToResponse(this Infrastructure.Models.DataBase.ConnectionTestResponse response)
     {
-        return new EventStreamManager.WebApi.Models.Responses.ConnectionTestResponse
+        return new Models.Responses.ConnectionTestResponse
         {
             Success = response.Success,
             Message = response.Message,
@@ -482,6 +483,50 @@ public static class ManualMapper
     public static List<EventHandleResponse> ToResponses(this List<EventHandleResult> results)
     {
         return results.Select(r => r.ToResponse()).ToList();
+    }
+
+    public static EventHandleLogDetailResponse? ToResponse(this EventHandleLogDetail? detail)
+    {
+        if (detail == null) return null;
+        return new EventHandleLogDetailResponse
+        {
+            LogId = detail.LogId,
+            ErrorStack = detail.ErrorStack,
+            ConsoleOutput = detail.ConsoleOutput,
+            ErrorLineNumber = detail.ErrorLineNumber,
+            ErrorColumn = detail.ErrorColumn,
+            ScriptSnapshot = detail.ScriptSnapshot,
+            InputDataSnapshot = detail.InputDataSnapshot
+        };
+    }
+
+    public static EventHandleDetailResponse WithDetail(this EventHandleResponse response, EventHandleLogDetailResponse? detail)
+    {
+        return new EventHandleDetailResponse
+        {
+            Id = response.Id,
+            EventId = response.EventId,
+            EventCode = response.EventCode,
+            ProcessorId = response.ProcessorId,
+            ProcessorName = response.ProcessorName,
+            HandleTimes = response.HandleTimes,
+            LastHandleStatus = response.LastHandleStatus,
+            LastHandleMessage = response.LastHandleMessage,
+            LastHandleDatetime = response.LastHandleDatetime,
+            LastHandleElapsedMs = response.LastHandleElapsedMs,
+            StrEventReferenceId = response.StrEventReferenceId,
+            NeedToSend = response.NeedToSend,
+            Reason = response.Reason,
+            ScriptSuccess = response.ScriptSuccess,
+            SendSuccess = response.SendSuccess,
+            IsDeadLetter = response.IsDeadLetter,
+            RequestData = response.RequestData,
+            ResponseData = response.ResponseData,
+            IsFinished = response.IsFinished,
+            CreateDatetime = response.CreateDatetime,
+            EventName = response.EventName,
+            Detail = detail
+        };
     }
 
     #endregion

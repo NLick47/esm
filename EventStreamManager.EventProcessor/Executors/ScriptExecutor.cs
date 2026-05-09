@@ -77,6 +77,10 @@ public class ScriptExecutor : IScriptExecutor
                 result.Success = false;
                 result.ErrorMessage = execResult.ErrorMessage;
                 result.ConsoleOutput = execResult.ConsoleOutput;
+                result.ErrorStack = execResult.ErrorStack;
+                result.ErrorLineNumber = execResult.ErrorLineNumber;
+                result.ErrorColumn = execResult.ErrorColumn;
+                result.InputData = execResult.InputData;
             }
             else
             {

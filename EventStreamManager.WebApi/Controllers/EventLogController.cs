@@ -60,6 +60,22 @@ public class EventLogController : BaseController
     }
 
     /// <summary>
+    /// 获取单条处理记录详情（含诊断信息）
+    /// </summary>
+    [HttpGet("handles/{handleId}")]
+    public async Task<IActionResult> GetHandleDetail(string databaseType, int handleId)
+    {
+        var (handle, detail) = await _eventLogService.GetHandleDetailAsync(databaseType, handleId);
+        if (handle == null)
+        {
+            return Fail("处理记录不存在");
+        }
+
+        var response = handle.ToResponse().WithDetail(detail?.ToResponse());
+        return Ok(response, "获取详情成功");
+    }
+
+    /// <summary>
     /// 重置死信状态，允许重新处理
     /// </summary>
     [HttpPost("{handleId}/retry")]

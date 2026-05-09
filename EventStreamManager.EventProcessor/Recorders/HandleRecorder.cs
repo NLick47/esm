@@ -8,11 +8,16 @@ namespace EventStreamManager.EventProcessor.Recorders;
 public class HandleRecorder : IHandleRecorder
 {
     private readonly IEventHandleRepository _repository;
+    private readonly IEventHandleLogDetailRepository _detailRepository;
     private readonly ILogger<HandleRecorder> _logger;
 
-    public HandleRecorder(IEventHandleRepository repository, ILogger<HandleRecorder> logger)
+    public HandleRecorder(
+        IEventHandleRepository repository,
+        IEventHandleLogDetailRepository detailRepository,
+        ILogger<HandleRecorder> logger)
     {
         _repository = repository;
+        _detailRepository = detailRepository;
         _logger = logger;
     }
 
@@ -93,6 +98,28 @@ public class HandleRecorder : IHandleRecorder
         };
 
         var created = await _repository.CreateLogAsync(databaseType, log);
+
+        // 仅在失败时保存详细诊断信息到独立表，避免成功记录膨胀
+        if (!result.Success)
+        {
+            try
+            {
+                var detail = new EventHandleLogDetail
+                {
+                    LogId = created.Id,
+                    ErrorStack = result.ErrorStack,
+                    ConsoleOutput = result.ConsoleOutput,
+                    ErrorLineNumber = result.ErrorLineNumber,
+                    ErrorColumn = result.ErrorColumn,
+                    InputDataSnapshot = result.InputData?.ToString()
+                };
+                await _detailRepository.CreateAsync(databaseType, detail);
+            }
+            catch (Exception detailEx)
+            {
+                _logger.LogError(detailEx, "[{DatabaseType}] 保存日志详情失败: LogId={LogId}", databaseType, created.Id);
+            }
+        }
 
         _logger.LogDebug("[{DatabaseType}] 记录日志: HandleId={HandleId}, Processor={ProcessorName}, Status={Status}",
             databaseType, handle.Id, handle.ProcessorName, status);
