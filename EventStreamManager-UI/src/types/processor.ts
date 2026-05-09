@@ -107,14 +107,3 @@ export interface ValidationResult {
   source?: string;
   hasProcessFunction: boolean;
 }
-
-/**
- * 调试结果
- */
-export interface DebugResult {
-  success: boolean;
-  result?: any;
-  logs: string[];
-  executionTime: number;
-  error?: string;
-}

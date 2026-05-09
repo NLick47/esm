@@ -1,5 +1,6 @@
-using EventStreamManager.Infrastructure.Models.DataBase;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
+using EventStreamManager.WebApi.Mappings;
+using EventStreamManager.WebApi.Models.Requests;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventStreamManager.WebApi.Controllers
@@ -33,7 +34,7 @@ namespace EventStreamManager.WebApi.Controllers
         public async Task<IActionResult> GetAllConfigs()
         {
             var configs = await _databaseSchemeService.GetAllConfigsAsync();
-            return Ok(configs, "获取所有配置成功");
+            return Ok(configs.ToResponseMap(), "获取所有配置成功");
         }
 
         // 获取指定类型的数据库配置
@@ -41,7 +42,7 @@ namespace EventStreamManager.WebApi.Controllers
         public async Task<IActionResult> GetConfigsByType(string databaseType)
         {
             var configs = await _databaseSchemeService.GetConfigsByTypeAsync(databaseType);
-            return Ok(configs, $"获取{databaseType}配置成功");
+            return Ok(configs.ToResponses(), $"获取{databaseType}配置成功");
         }
 
         // 获取指定ID的配置
@@ -53,32 +54,29 @@ namespace EventStreamManager.WebApi.Controllers
             {
                 return Fail("配置不存在", 404);
             }
-            return Ok(config, "获取配置成功");
+            return Ok(config.ToResponse(), "获取配置成功");
         }
 
         // 创建新配置
         [HttpPost("{databaseType}")]
-        public async Task<IActionResult> CreateConfig(string databaseType, [FromBody] DatabaseConfig config)
+        public async Task<IActionResult> CreateConfig(string databaseType, [FromBody] CreateDatabaseConfigRequest request)
         {
-            if (string.IsNullOrWhiteSpace(config.Name))
-            {
-                return Fail("配置名称不能为空");
-            }
-
+            var config = request.ToEntity();
             var newConfig = await _databaseSchemeService.AddConfigAsync(databaseType, config);
-            return Ok(newConfig, "创建配置成功");
+            return Ok(newConfig.ToResponse(), "创建配置成功");
         }
 
         // 更新配置
         [HttpPut("{databaseType}/{id}")]
-        public async Task<IActionResult> UpdateConfig(string databaseType, string id, [FromBody] DatabaseConfig config)
+        public async Task<IActionResult> UpdateConfig(string databaseType, string id, [FromBody] UpdateDatabaseConfigRequest request)
         {
+            var config = request.ToEntity(id);
             var updatedConfig = await _databaseSchemeService.UpdateConfigAsync(databaseType, id, config);
             if (updatedConfig == null)
             {
                 return Fail("配置不存在", 404);
             }
-            return Ok(updatedConfig, "更新配置成功");
+            return Ok(updatedConfig.ToResponse(), "更新配置成功");
         }
 
         // 删除配置
@@ -95,15 +93,10 @@ namespace EventStreamManager.WebApi.Controllers
 
         // 测试连接
         [HttpPost("test-connection")]
-        public async Task<IActionResult> TestConnection([FromBody] ConnectionTestRequest request)
+        public async Task<IActionResult> TestConnection([FromBody] TestConnectionRequest request)
         {
-            if (string.IsNullOrWhiteSpace(request.ConnectionString))
-            {
-                return Fail("连接字符串不能为空");
-            }
-
-            var result = await _connectionService.TestConnectionAsync(request);
-            return Ok(result, "连接测试完成");
+            var result = await _connectionService.TestConnectionAsync(request.ToInfrastructure());
+            return Ok(result.ToResponse(), "连接测试完成");
         }
 
         // 获取所有数据库类型
@@ -111,7 +104,7 @@ namespace EventStreamManager.WebApi.Controllers
         public async Task<IActionResult> GetDatabaseTypes()
         {
             var types = await _databaseSchemeService.GetAllDatabaseTypesAsync();
-            return Ok(types, "获取数据库类型成功");
+            return Ok(types.ToResponses(), "获取数据库类型成功");
         }
         
         // 获取带有激活配置的数据库类型列表
@@ -119,20 +112,16 @@ namespace EventStreamManager.WebApi.Controllers
         public async Task<IActionResult> GetDatabaseTypesWithActiveConfig()
         {
             var result = await _databaseSchemeService.GetAllDatabaseTypesWithActiveConfigAsync();
-            return Ok(result, "获取带有激活配置的数据库类型成功");
+            return Ok(result.ToResponses(), "获取带有激活配置的数据库类型成功");
         }
 
         // 添加新数据库类型
         [HttpPost("types")]
-        public async Task<IActionResult> AddDatabaseType([FromBody] DatabaseType databaseType)
+        public async Task<IActionResult> AddDatabaseType([FromBody] CreateDatabaseTypeRequest request)
         {
-            if (string.IsNullOrWhiteSpace(databaseType.Value) || string.IsNullOrWhiteSpace(databaseType.Label))
-            {
-                return Fail("类型标识和显示名称不能为空");
-            }
-
+            var databaseType = request.ToEntity();
             var newType = await _databaseSchemeService.AddDatabaseTypeAsync(databaseType);
-            return Ok(newType, "添加数据库类型成功");
+            return Ok(newType.ToResponse(), "添加数据库类型成功");
         }
 
         // 删除数据库类型
@@ -182,7 +171,7 @@ namespace EventStreamManager.WebApi.Controllers
         public async Task<IActionResult> GetActiveConfig(string databaseType)
         {
             var activeConfig = await _databaseSchemeService.GetActiveConfigAsync(databaseType);
-            return Ok(activeConfig, "获取激活配置成功");
+            return Ok(activeConfig?.ToResponse(), "获取激活配置成功");
         }
 
         // 设置为当前使用的配置
@@ -213,10 +202,10 @@ namespace EventStreamManager.WebApi.Controllers
             
             if (response.Success)
             {
-                return Ok(response, "表结构初始化成功");
+                return Ok(response.ToResponse(), "表结构初始化成功");
             }
 
-            return Error(response.Message, 500, response);
+            return Error(response.Message, 500, response.ToResponse());
         }
     }
 }

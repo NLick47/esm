@@ -1,5 +1,6 @@
-using EventStreamManager.Infrastructure.Models.JSProcessor;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
+using EventStreamManager.WebApi.Mappings;
+using EventStreamManager.WebApi.Models.Requests;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventStreamManager.WebApi.Controllers;
@@ -20,7 +21,7 @@ public class PipelineController : BaseController
     public async Task<IActionResult> GetAll()
     {
         var list = await _pipelineService.GetAllAsync();
-        return Ok(list, "获取管道列表成功");
+        return Ok(list.ToResponses(), "获取管道列表成功");
     }
 
     [HttpGet("{id}")]
@@ -31,19 +32,21 @@ public class PipelineController : BaseController
         {
             return Fail($"未找到ID为 {id} 的管道", 404);
         }
-        return Ok(item, "获取管道成功");
+        return Ok(item.ToResponse(), "获取管道成功");
     }
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] ProcessorPipeline pipeline)
+    public async Task<IActionResult> Create([FromBody] CreatePipelineRequest request)
     {
+        var pipeline = request.ToEntity();
         var created = await _pipelineService.CreateAsync(pipeline);
-        return Ok(created, "创建管道成功");
+        return Ok(created.ToResponse(), "创建管道成功");
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(string id, [FromBody] ProcessorPipeline pipeline)
+    public async Task<IActionResult> Update(string id, [FromBody] UpdatePipelineRequest request)
     {
+        var pipeline = request.ToEntity(id);
         var updated = await _pipelineService.UpdateAsync(id, pipeline);
         if (!updated)
         {

@@ -1,5 +1,6 @@
-using EventStreamManager.Infrastructure.Models.Interface;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
+using EventStreamManager.WebApi.Mappings;
+using EventStreamManager.WebApi.Models.Requests;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventStreamManager.WebApi.Controllers
@@ -23,7 +24,7 @@ namespace EventStreamManager.WebApi.Controllers
         public async Task<IActionResult> GetConfigs()
         {
             var configs = await _configService.GetAllConfigsAsync();
-            return Ok(configs, "获取接口配置列表成功");
+            return Ok(configs.ToResponses(), "获取接口配置列表成功");
         }
 
         [HttpGet("{id}")]
@@ -36,32 +37,33 @@ namespace EventStreamManager.WebApi.Controllers
                 return Fail($"未找到ID为 {id} 的接口配置", 404);
             }
 
-            return Ok(config, "获取接口配置成功");
+            return Ok(config.ToResponse(), "获取接口配置成功");
         }
 
         [HttpPost]
-        public async Task<IActionResult> CreateConfig(InterfaceConfig config)
+        public async Task<IActionResult> CreateConfig([FromBody] CreateInterfaceConfigRequest request)
         {
-            var isValid = await _configService.ValidateProcessorIdsAsync(config.ProcessorIds);
+            var isValid = await _configService.ValidateProcessorIdsAsync(request.ProcessorIds);
             if (!isValid)
             {
                 return Fail("部分选择的处理器不存在");
             }
 
-            var validation = await _configService.ValidateReferenceConflictsAsync(config.ProcessorIds);
+            var validation = await _configService.ValidateReferenceConflictsAsync(request.ProcessorIds);
             if (!validation.IsValid)
             {
                 return Fail(validation.ErrorMessage);
             }
 
+            var config = request.ToEntity();
             var createdConfig = await _configService.CreateConfigAsync(config);
-            return Ok(createdConfig, "创建接口配置成功");
+            return Ok(createdConfig.ToResponse(), "创建接口配置成功");
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateConfig(string id, InterfaceConfig config)
+        public async Task<IActionResult> UpdateConfig(string id, [FromBody] UpdateInterfaceConfigRequest request)
         {
-            var isValid = await _configService.ValidateProcessorIdsAsync(config.ProcessorIds);
+            var isValid = await _configService.ValidateProcessorIdsAsync(request.ProcessorIds);
             if (!isValid)
             {
                 return Fail("部分选择的处理器不存在");
@@ -73,12 +75,13 @@ namespace EventStreamManager.WebApi.Controllers
                 return Fail($"未找到ID为 {id} 的接口配置", 404);
             }
 
-            var validation = await _configService.ValidateReferenceConflictsAsync(config.ProcessorIds, id);
+            var validation = await _configService.ValidateReferenceConflictsAsync(request.ProcessorIds, id);
             if (!validation.IsValid)
             {
                 return Fail(validation.ErrorMessage);
             }
 
+            var config = request.ToEntity(id);
             var updatedConfig = await _configService.UpdateConfigAsync(id, config);
 
             if (updatedConfig == null)
@@ -86,7 +89,7 @@ namespace EventStreamManager.WebApi.Controllers
                 return Fail($"更新接口配置失败", 500);
             }
 
-            return Ok(updatedConfig, "更新接口配置成功");
+            return Ok(updatedConfig.ToResponse(), "更新接口配置成功");
         }
 
         [HttpDelete("{id}")]
@@ -119,7 +122,7 @@ namespace EventStreamManager.WebApi.Controllers
                 return Fail($"未找到ID为 {id} 的接口配置", 404);
             }
 
-            return Ok(config, "切换接口配置状态成功");
+            return Ok(config.ToResponse(), "切换接口配置状态成功");
         }
 
         [HttpPost("{id}/duplicate")]
@@ -144,14 +147,14 @@ namespace EventStreamManager.WebApi.Controllers
                 return Fail($"复制接口配置失败", 500);
             }
 
-            return Ok(newConfig, "复制接口配置成功");
+            return Ok(newConfig.ToResponse(), "复制接口配置成功");
         }
 
         [HttpGet("processors/available")]
         public async Task<IActionResult> GetAvailableProcessors()
         {
             var statuses = await _configService.GetProcessorReferenceStatusesAsync();
-            return Ok(statuses, "获取处理器列表成功");
+            return Ok(statuses.ToResponses(), "获取处理器列表成功");
         }
 
         [HttpGet("processors/unreferenced")]
@@ -159,7 +162,7 @@ namespace EventStreamManager.WebApi.Controllers
         {
             var statuses = await _configService.GetProcessorReferenceStatusesAsync();
             var unreferenced = statuses.Where(s => !s.IsReferenced).ToList();
-            return Ok(unreferenced, "获取未引用处理器列表成功");
+            return Ok(unreferenced.ToResponses(), "获取未引用处理器列表成功");
         }
 
         [HttpGet("{id}/processors")]
@@ -176,7 +179,7 @@ namespace EventStreamManager.WebApi.Controllers
                 .Where(p => config.ProcessorIds.Contains(p.Id))
                 .ToList();
 
-            return Ok(configProcessors, "获取配置关联处理器成功");
+            return Ok(configProcessors.ToResponses(), "获取配置关联处理器成功");
         }
     }
 }

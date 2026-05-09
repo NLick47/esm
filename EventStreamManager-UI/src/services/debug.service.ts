@@ -44,5 +44,5 @@ export function executeExamineDebug(params: {
  * 调试接口配置（新接口）
  */
 export function debugInterfaceConfig(params: InterfaceDebugRequest): Promise<InterfaceDebugResponse> {
-  return post<InterfaceDebugResponse>('/api/InterfaceConfig/debug', params);
+  return post<InterfaceDebugResponse>('/api/Debug/interface', params);
 }

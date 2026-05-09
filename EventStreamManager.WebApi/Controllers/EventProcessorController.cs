@@ -52,16 +52,22 @@ public class EventProcessorController : BaseController
             IsRunning = _processorManager.IsRunning,
             StartTime = snapshot.StartTime,
             RunningDuration = snapshot.GetRunningDuration(),
-            ProcessorCount = _processorManager.ProcessorCount,
+            TotalProcessorCount = _processorManager.ProcessorCount,
             ActiveProcessorCount = _processorManager.ActiveProcessorCount,
             Processors = _processorManager.GetAllStatus()
                 .Select(p => new ProcessorStatusResponse
                 {
                     DatabaseType = p.DatabaseType,
                     IsRunning = p.IsRunning,
+                    IsEnabled = p.IsEnabled,
                     LastScanTime = p.LastScanTime,
-                    ProcessedEventCount = p.TotalProcessedCount,
-                    LastError = p.LastError
+                    LastProcessedEventId = p.LastProcessedEventId,
+                    TotalProcessedCount = p.TotalProcessedCount,
+                    SuccessCount = p.SuccessCount,
+                    FailedCount = p.FailedCount,
+                    CurrentBatchCount = p.CurrentBatchCount,
+                    LastError = p.LastError,
+                    LastErrorTime = p.LastErrorTime
                 })
                 .ToList()
         };
@@ -86,7 +92,7 @@ public class EventProcessorController : BaseController
             IsRunning = _processorManager.IsRunning,
             StartTime = snapshot.StartTime,
             RunningDuration = snapshot.GetRunningDuration(),
-            ProcessorCount = _processorManager.ProcessorCount,
+            TotalProcessorCount = _processorManager.ProcessorCount,
             ActiveProcessorCount = _processorManager.ActiveProcessorCount
         };
 
@@ -110,7 +116,7 @@ public class EventProcessorController : BaseController
             IsRunning = _processorManager.IsRunning,
             StartTime = snapshot.StartTime,
             RunningDuration = snapshot.GetRunningDuration(),
-            ProcessorCount = _processorManager.ProcessorCount,
+            TotalProcessorCount = _processorManager.ProcessorCount,
             ActiveProcessorCount = _processorManager.ActiveProcessorCount
         };
 
@@ -153,7 +159,7 @@ public class EventProcessorController : BaseController
             IsRunning = _processorManager.IsRunning,
             StartTime = snapshot.StartTime,
             RunningDuration = snapshot.GetRunningDuration(),
-            ProcessorCount = _processorManager.ProcessorCount,
+            TotalProcessorCount = _processorManager.ProcessorCount,
             ActiveProcessorCount = _processorManager.ActiveProcessorCount
         };
 
@@ -175,9 +181,15 @@ public class EventProcessorController : BaseController
             {
                 DatabaseType = p.DatabaseType,
                 IsRunning = p.IsRunning,
+                IsEnabled = p.IsEnabled,
                 LastScanTime = p.LastScanTime,
-                ProcessedEventCount = p.TotalProcessedCount,
-                LastError = p.LastError
+                LastProcessedEventId = p.LastProcessedEventId,
+                TotalProcessedCount = p.TotalProcessedCount,
+                SuccessCount = p.SuccessCount,
+                FailedCount = p.FailedCount,
+                CurrentBatchCount = p.CurrentBatchCount,
+                LastError = p.LastError,
+                LastErrorTime = p.LastErrorTime
             });
 
         return Ok(response, "获取处理器状态成功");
@@ -200,9 +212,15 @@ public class EventProcessorController : BaseController
         {
             DatabaseType = status.DatabaseType,
             IsRunning = status.IsRunning,
+            IsEnabled = status.IsEnabled,
             LastScanTime = status.LastScanTime,
-            ProcessedEventCount = status.TotalProcessedCount,
-            LastError = status.LastError
+            LastProcessedEventId = status.LastProcessedEventId,
+            TotalProcessedCount = status.TotalProcessedCount,
+            SuccessCount = status.SuccessCount,
+            FailedCount = status.FailedCount,
+            CurrentBatchCount = status.CurrentBatchCount,
+            LastError = status.LastError,
+            LastErrorTime = status.LastErrorTime
         };
 
         return Ok(response, "获取处理器状态成功");
