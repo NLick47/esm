@@ -384,21 +384,6 @@ public static class ManualMapper
 
     #endregion
 
-    #region InitializeTablesResult (Entity → Response)
-
-    public static InitializeTablesResponse ToResponse(this InitializeTablesResult result)
-    {
-        return new InitializeTablesResponse
-        {
-            Success = result.Success,
-            Message = result.Message,
-            CreatedTables = result.CreatedTables,
-            TableResults = result.TableResults
-        };
-    }
-
-    #endregion
-
     #region EventConfig (Entity → Response)
 
     public static EventConfigResponse ToResponse(this EventConfig config)
@@ -495,6 +480,8 @@ public static class ManualMapper
             ConsoleOutput = detail.ConsoleOutput,
             ErrorLineNumber = detail.ErrorLineNumber,
             ErrorColumn = detail.ErrorColumn,
+            ErrorJavaScriptStackTrace = detail.ErrorJavaScriptStackTrace,
+            ErrorSourceContext = detail.ErrorSourceContext,
             ScriptSnapshot = detail.ScriptSnapshot,
             InputDataSnapshot = detail.InputDataSnapshot
         };

@@ -1,7 +1,9 @@
+using EventStreamManager.Infrastructure.Entities;
 using EventStreamManager.Infrastructure.Models.DataBase;
 using EventStreamManager.Infrastructure.Services.Data.Interfaces;
 using Microsoft.Extensions.Logging;
 using SqlSugar;
+using System.Collections.Concurrent;
 using System.Text;
 
 namespace EventStreamManager.Infrastructure.Services.Data;
@@ -9,13 +11,16 @@ namespace EventStreamManager.Infrastructure.Services.Data;
 public class SqlSugarContext : ISqlSugarContext
 {
     private readonly IDatabaseSchemeService _databaseSchemeService;
+    private readonly ITableInitializationTracker _initTracker;
     private readonly ILogger<SqlSugarContext> _logger;
 
     public SqlSugarContext(
         IDatabaseSchemeService databaseSchemeService,
+        ITableInitializationTracker initTracker,
         ILogger<SqlSugarContext> logger)
     {
         _databaseSchemeService = databaseSchemeService;
+        _initTracker = initTracker;
         _logger = logger;
     }
 
@@ -37,7 +42,25 @@ public class SqlSugarContext : ISqlSugarContext
             _logger.LogDebug("创建数据库连接 - 类型: {DatabaseType}, 配置: {ConfigName}, 驱动: {Driver}", 
                 databaseType, activeConfig.Name, activeConfig.Driver);
             
-            return CreateSqlSugarClient(activeConfig.Driver,activeConfig.ConnectionString,activeConfig.Timeout);
+            var client = CreateSqlSugarClient(activeConfig.Driver, activeConfig.ConnectionString, activeConfig.Timeout);
+
+            // 首次使用该数据库类型时，自动初始化表结构
+            if (_initTracker.TryMarkInitializing(databaseType))
+            {
+                try
+                {
+                    _logger.LogInformation("自动初始化表结构 - 数据库类型: {DatabaseType}", databaseType);
+                    client.CodeFirst.InitTables(typeof(EventHandle), typeof(EventHandleLog), typeof(EventHandleLogDetail));
+                    _logger.LogInformation("自动初始化表结构完成 - 数据库类型: {DatabaseType}", databaseType);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "自动初始化表结构失败 - 数据库类型: {DatabaseType}", databaseType);
+                    _initTracker.MarkFailed(databaseType);
+                }
+            }
+
+            return client;
         }
         catch (Exception ex)
         {
@@ -87,11 +110,10 @@ public class SqlSugarContext : ISqlSugarContext
         string query, 
         object? parameters = null)
     {
-        ISqlSugarClient? client = null;
+        using var client = await GetClientAsync(databaseType);
+        
         try
         {
-            client = await GetClientAsync(databaseType);
-            
             if (_logger.IsEnabled(LogLevel.Debug))
             {
                 PrintSqlWithParameters("ExecuteQueryAsync", query, parameters);
@@ -119,13 +141,6 @@ public class SqlSugarContext : ISqlSugarContext
                 databaseType, query);
             throw;
         }
-        finally
-        {
-            if (client != null)
-            {
-                client.Dispose();
-            }
-        }
     }
 
     public async Task<List<T>> ExecuteQueryAsync<T>(
@@ -133,11 +148,10 @@ public class SqlSugarContext : ISqlSugarContext
         string query, 
         object? parameters = null) where T : class, new()
     {
-        ISqlSugarClient? client = null;
+        using var client = await GetClientAsync(databaseType);
+        
         try
         {
-            client = await GetClientAsync(databaseType);
-            
             // 在 DEBUG 模式下打印 SQL
             if (_logger.IsEnabled(LogLevel.Debug))
             {
@@ -155,13 +169,6 @@ public class SqlSugarContext : ISqlSugarContext
                 databaseType, typeof(T).Name, query);
             throw;
         }
-        finally
-        {
-            if (client != null)
-            {
-                client.Dispose();
-            }
-        }
     }
 
     public async Task<int> ExecuteCommandAsync(
@@ -169,11 +176,10 @@ public class SqlSugarContext : ISqlSugarContext
         string sql, 
         object? parameters = null)
     {
-        ISqlSugarClient? client = null;
+        using var client = await GetClientAsync(databaseType);
+        
         try
         {
-            client = await GetClientAsync(databaseType);
-            
             if (_logger.IsEnabled(LogLevel.Debug))
             {
                 PrintSqlWithParameters("ExecuteCommandAsync", sql, parameters);
@@ -190,13 +196,6 @@ public class SqlSugarContext : ISqlSugarContext
                 databaseType, sql);
             throw;
         }
-        finally
-        {
-            if (client != null)
-            {
-                client.Dispose();
-            }
-        }
     }
 
     public async Task<T> ExecuteScalarAsync<T>(
@@ -204,11 +203,10 @@ public class SqlSugarContext : ISqlSugarContext
         string sql, 
         object? parameters = null)
     {
-        ISqlSugarClient? client = null;
+        using var client = await GetClientAsync(databaseType);
+        
         try
         {
-            client = await GetClientAsync(databaseType);
-            
             if (_logger.IsEnabled(LogLevel.Debug))
             {
                 PrintSqlWithParameters($"ExecuteScalarAsync<{typeof(T).Name}>", sql, parameters);
@@ -224,13 +222,6 @@ public class SqlSugarContext : ISqlSugarContext
             _logger.LogError(ex, "执行标量查询失败 - 数据库类型: {DatabaseType}, SQL: {Sql}", 
                 databaseType, sql);
             throw;
-        }
-        finally
-        {
-            if (client != null)
-            {
-                client.Dispose();
-            }
         }
     }
 

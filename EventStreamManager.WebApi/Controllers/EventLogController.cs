@@ -38,6 +38,22 @@ public class EventLogController : BaseController
         return PageData(items.ToResponses(), total, request.Page, request.PageSize, "获取处理记录列表成功");
     }
 
+    [HttpGet("stats")]
+    public async Task<IActionResult> GetStats([FromQuery] GetEventHandlesRequest request)
+    {
+        var stats = await _eventLogService.GetEventHandleStatsAsync(
+            request.DatabaseType,
+            request.EventId,
+            request.StrEventReferenceId,
+            request.ProcessorId,
+            request.Status,
+            request.EventCode,
+            request.StartDate,
+            request.EndDate);
+
+        return Ok(stats, "获取统计信息成功");
+    }
+
     /// <summary>
     /// 导出事件处理记录到Excel
     /// </summary>

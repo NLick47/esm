@@ -33,6 +33,16 @@ public class ValidationResult
     public string? Source { get; set; }
 
     /// <summary>
+    /// JavaScript 堆栈（JS 引擎层面）
+    /// </summary>
+    public string? JavaScriptStackTrace { get; set; }
+
+    /// <summary>
+    /// 出错源码上下文（包含前后行）
+    /// </summary>
+    public string? SourceContext { get; set; }
+
+    /// <summary>
     /// 是否包含process函数
     /// </summary>
     public bool HasProcessFunction { get; set; }

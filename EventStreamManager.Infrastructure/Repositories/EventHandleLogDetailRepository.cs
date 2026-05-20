@@ -4,18 +4,15 @@ using EventStreamManager.Infrastructure.Services.Data.Interfaces;
 
 namespace EventStreamManager.Infrastructure.Repositories;
 
-public class EventHandleLogDetailRepository : IEventHandleLogDetailRepository
+public class EventHandleLogDetailRepository : BaseRepository, IEventHandleLogDetailRepository
 {
-    private readonly ISqlSugarContext _db;
-
-    public EventHandleLogDetailRepository(ISqlSugarContext db)
+    public EventHandleLogDetailRepository(ISqlSugarContext db) : base(db)
     {
-        _db = db;
     }
 
     public async Task<EventHandleLogDetail> CreateAsync(string databaseType, EventHandleLogDetail detail)
     {
-        using var client = await _db.GetClientAsync(databaseType);
+        using var client = await GetClientAsync(databaseType);
         await client.Insertable(detail).ExecuteCommandAsync();
         return detail;
     }

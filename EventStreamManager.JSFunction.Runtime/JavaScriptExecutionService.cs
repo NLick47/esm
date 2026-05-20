@@ -66,6 +66,8 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
                     result.LineNumber = ex.Location.Start.Line;
                     result.Column = ex.Location.Start.Column;
                     result.Source = ex.Source;
+                    result.JavaScriptStackTrace = ex.JavaScriptStackTrace;
+                    result.SourceContext = GetScriptSourceContext(script, ex.Location.Start.Line);
                 }
             }
             else
@@ -82,6 +84,8 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
             result.LineNumber = ex.Location.Start.Line;
             result.Column = ex.Location.Start.Column;
             result.Source = ex.Source;
+            result.JavaScriptStackTrace = ex.JavaScriptStackTrace;
+            result.SourceContext = GetScriptSourceContext(script, ex.Location.Start.Line);
         }
         catch (Exception ex)
         {
@@ -180,7 +184,24 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
                         var error = obj.Get("error");
                         if (!error.IsUndefined() && !error.IsNull())
                         {
-                            result.ProcessError = ConvertJsValueToObject(error)?.ToString();
+                            if (error.IsString())
+                            {
+                                result.ProcessError = error.AsString();
+                            }
+                            else if (error.IsObject() && error.AsObject().HasOwnProperty("message"))
+                            {
+                                var msg = error.AsObject().Get("message").ToString();
+                                var stack = error.AsObject().HasOwnProperty("stack")
+                                    ? error.AsObject().Get("stack").ToString()
+                                    : null;
+                                result.ProcessError = string.IsNullOrEmpty(stack)
+                                    ? msg
+                                    : $"{msg}\n{stack}";
+                            }
+                            else
+                            {
+                                result.ProcessError = ConvertJsValueToObject(error)?.ToString();
+                            }
                         }
                     }
 
@@ -195,23 +216,39 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
 
             if (output != null)
             {
-                result.Output = output.GetOutputs().Select(o => new OutputMessage
+                var all = output.GetOutputs().ToList();
+                
+                result.Output = all
+                    .Where(o => o.Type is OutputType.Log or OutputType.Warn or OutputType.Error)
+                    .Select(o => new OutputMessage
+                    {
+                        Type = o.Type.ToString(),
+                        Message = o.Message,
+                        Timestamp = o.Timestamp
+                    }).ToList();
+                
+                var debugItems = all
+                    .Where(o => o.Type is OutputType.Debug or OutputType.Info)
+                    .ToList();
+
+                if (debugItems.Count > 0)
                 {
-                    Type = o.Type.ToString(),
-                    Message = o.Message,
-                    Timestamp = o.Timestamp
-                }).ToList();
+                    result.DebugOutput = string.Join(Environment.NewLine,
+                        debugItems.Select(o => $"[{o.Type}] {o.Message}"));
+                }
             }
 
-            // 设置脚本执行状态：如果脚本返回了 error，则视为脚本执行失败
+            // 如果脚本返回了 error，则视为脚本执行失败
             result.Success = !processResult.IsObject() || string.IsNullOrEmpty(result.ProcessError);
         }
         catch (JavaScriptException ex)
         {
-            _logger.LogWarning(ex, "JavaScript执行错误，输入数据: {@InputData}", inputData);
+            _logger.LogWarning(ex, "JavaScript执行错误，输入数据摘要: {InputDataSummary}", GetInputDataSummary(inputData));
             result.Success = false;
             result.ErrorMessage = ex.Message;
             result.ErrorStack = ex.StackTrace;
+            result.ErrorJavaScriptStackTrace = ex.JavaScriptStackTrace;
+            result.ErrorSourceContext = GetScriptSourceContext(script, ex.Location.Start.Line);
             result.ErrorLineNumber = ex.Location.Start.Line;
             result.ErrorColumn = ex.Location.Start.Column;
         }
@@ -223,9 +260,10 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "执行脚本时发生未预期错误，输入数据: {@InputData}", inputData);
+            _logger.LogError(ex, "执行脚本时发生未预期错误，输入数据摘要: {InputDataSummary}", GetInputDataSummary(inputData));
             result.Success = false;
             result.ErrorMessage = $"执行错误: {ex.Message}";
+            result.ErrorStack = ex.StackTrace;
         }
         finally
         {
@@ -283,24 +321,26 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
         engine.SetValue("console_error", new Action<object?[]?>(args =>
             output.Error(FormatArguments(args))));
 
-        engine.SetValue("console_debug", new Action<object?[]?>(args =>
-            output.Write(FormatArguments(args), OutputType.Debug)));
 
-        engine.SetValue("console_clear", output.Clear);
 
-        // 适配器脚本，使 console 函数支持 ...args 语法
+        // 适配器脚本，创建 console 对象并支持 ...args 语法
         string adapterScript = @"
             var originalConsoleInfo = console_info;
             var originalConsoleLog = console_log;
             var originalConsoleWarn = console_warn;
             var originalConsoleError = console_error;
-            var originalConsoleDebug = console_debug;
 
             console_info = function(...args) { originalConsoleInfo(args); };
             console_log = function(...args) { originalConsoleLog(args); };
             console_warn = function(...args) { originalConsoleWarn(args); };
             console_error = function(...args) { originalConsoleError(args); };
-            console_debug = function(...args) { originalConsoleDebug(args); };
+
+            var console = {
+                log: console_log,
+                info: console_info,
+                warn: console_warn,
+                error: console_error
+            };
         ";
 
         engine.Execute(adapterScript);
@@ -391,6 +431,60 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
         }
 
         return value.ToString();
+    }
+
+    /// <summary>
+    /// 获取脚本出错位置的源码上下文（前后3行）
+    /// </summary>
+    private static string? GetScriptSourceContext(string script, int errorLine)
+    {
+        if (string.IsNullOrEmpty(script) || errorLine <= 0) return null;
+
+        try
+        {
+            var lines = script.Split(['\r', '\n'], StringSplitOptions.None);
+            var start = Math.Max(0, errorLine - 4); // 0-based index, show 3 lines before
+            var end = Math.Min(lines.Length, errorLine + 2); // show 2 lines after
+
+            var contextLines = new List<string>();
+            for (var i = start; i < end; i++)
+            {
+                var prefix = i == errorLine - 1 ? ">>> " : "    ";
+                contextLines.Add($"{prefix}{i + 1,4}: {lines[i]}");
+            }
+
+            return string.Join(Environment.NewLine, contextLines);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 获取输入数据的摘要（限制日志大小）
+    /// </summary>
+    private static object? GetInputDataSummary(object? inputData)
+    {
+        if (inputData == null) return null;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(inputData, new JsonSerializerOptions
+            {
+                WriteIndented = false,
+                Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+            });
+
+            const int maxLength = 2000;
+            if (json.Length <= maxLength) return json;
+
+            return json[..maxLength] + $" ... (truncated, total {json.Length} chars)";
+        }
+        catch
+        {
+            return $"[{inputData.GetType().Name}] (serialization failed)";
+        }
     }
 
     public void Dispose()

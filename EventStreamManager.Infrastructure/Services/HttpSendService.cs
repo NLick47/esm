@@ -57,7 +57,7 @@ public class HttpSendService : IHttpSendService
                 request.Headers.TryAddWithoutValidation(header.Key, header.Value);
             }
 
-            HttpResponseMessage response = await client.SendAsync(request);
+            using var response = await client.SendAsync(request);
 
             stopwatch.Stop();
             result.StatusCode = (int)response.StatusCode;

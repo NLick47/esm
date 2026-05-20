@@ -40,6 +40,10 @@ public class ExecutionResult
     public SendResult? SendResult { get; set; }
 
     public string? ErrorStack { get; set; }
+    
+    public string? ErrorJavaScriptStackTrace { get; set; }
+    
+    public string? ErrorSourceContext { get; set; }
 
     public int? ErrorLineNumber { get; set; }
 

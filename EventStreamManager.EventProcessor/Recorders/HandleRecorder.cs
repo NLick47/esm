@@ -109,6 +109,8 @@ public class HandleRecorder : IHandleRecorder
                 {
                     LogId = created.Id,
                     ErrorStack = result.ErrorStack,
+                    ErrorJavaScriptStackTrace = result.ErrorJavaScriptStackTrace,
+                    ErrorSourceContext = result.ErrorSourceContext,
                     ConsoleOutput = result.ConsoleOutput,
                     ErrorLineNumber = result.ErrorLineNumber,
                     ErrorColumn = result.ErrorColumn,

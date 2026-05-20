@@ -373,6 +373,12 @@ namespace EventStreamManager.Infrastructure.Services
                 AddLog(logs, output.Type, output.Message);
             }
 
+            // 调试输出仅在调试面板显示
+            if (!string.IsNullOrEmpty(executionResult.DebugOutput))
+            {
+                AddLog(logs, "debug", executionResult.DebugOutput);
+            }
+
             if (!executionResult.Success)
             {
                 AddLog(logs, "error", $"JavaScript执行失败: {executionResult.ErrorMessage}");

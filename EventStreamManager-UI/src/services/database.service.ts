@@ -102,13 +102,3 @@ export function setActiveConfig(type: string, id: string): Promise<void> {
   return post(`${BASE_PATH}/${type}/${id}/activate`);
 }
 
-/**
- * 初始化表结构
- */
-export function initializeTables(type: string, id: string): Promise<{
-  success: boolean;
-  message: string;
-  createdTables?: string[];
-}> {
-  return post(`${BASE_PATH}/${type}/${id}/initialize-tables`, {});
-}

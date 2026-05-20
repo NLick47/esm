@@ -43,12 +43,22 @@ export interface GetEventHandlesRequest {
   pageSize?: number;
 }
 
+export interface EventHandleStats {
+  total: number;
+  success: number;
+  failed: number;
+  deadLetter: number;
+  processing: number;
+}
+
 export interface EventHandleLogDetail {
   logId: number;
   errorStack?: string;
   consoleOutput?: string;
   errorLineNumber?: number;
   errorColumn?: number;
+  errorJavaScriptStackTrace?: string;
+  errorSourceContext?: string;
   scriptSnapshot?: string;
   inputDataSnapshot?: string;
 }

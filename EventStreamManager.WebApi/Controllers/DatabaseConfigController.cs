@@ -10,23 +10,17 @@ namespace EventStreamManager.WebApi.Controllers
     public class DatabaseConfigController : BaseController
     {
         private readonly IDatabaseSchemeService _databaseSchemeService;
-        private readonly ITableInitializationService _tableInitializationService;
         private readonly IDatabaseConnectionService _connectionService;
         private readonly IDataService _dataService;
-        private readonly ILogger<DatabaseConfigController> _logger;
 
         public DatabaseConfigController(
             IDatabaseSchemeService databaseSchemeService,
             IDatabaseConnectionService connectionService,
-            ITableInitializationService tableInitializationService,
-            IDataService dataService,
-            ILogger<DatabaseConfigController> logger)
+            IDataService dataService)
         {
             _databaseSchemeService = databaseSchemeService;
             _connectionService = connectionService;
-            _tableInitializationService = tableInitializationService;
             _dataService = dataService;
-            _logger = logger;
         }
 
         // 获取所有数据库配置
@@ -185,27 +179,6 @@ namespace EventStreamManager.WebApi.Controllers
             }
             return OkMessage("已设置为当前使用的配置");
         }
-        
-        [HttpPost("{databaseType}/{id}/initialize-tables")]
-        public async Task<IActionResult> InitializeTables(string databaseType, string id)
-        {
-            _logger.LogInformation("开始初始化表结构 - 数据库类型: {DatabaseType}, 配置ID: {Id}", databaseType, id);
 
-            var config = await _databaseSchemeService.GetConfigByIdAsync(databaseType, id);
-            if (config == null)
-            {
-                _logger.LogWarning("配置不存在 - Type: {DatabaseType}, Id: {Id}", databaseType, id);
-                return Fail("配置不存在", 404);
-            }
-            
-            var response = await _tableInitializationService.InitializeTablesAsync(config);
-            
-            if (response.Success)
-            {
-                return Ok(response.ToResponse(), "表结构初始化成功");
-            }
-
-            return Error(response.Message, 500, response.ToResponse());
-        }
     }
 }

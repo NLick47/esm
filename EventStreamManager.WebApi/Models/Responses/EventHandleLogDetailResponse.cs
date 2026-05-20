@@ -7,6 +7,8 @@ public class EventHandleLogDetailResponse
     public string? ConsoleOutput { get; set; }
     public int? ErrorLineNumber { get; set; }
     public int? ErrorColumn { get; set; }
+    public string? ErrorJavaScriptStackTrace { get; set; }
+    public string? ErrorSourceContext { get; set; }
     public string? ScriptSnapshot { get; set; }
     public string? InputDataSnapshot { get; set; }
 }

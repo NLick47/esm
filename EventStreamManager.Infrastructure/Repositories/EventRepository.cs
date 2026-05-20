@@ -5,13 +5,10 @@ using SqlSugar;
 
 namespace EventStreamManager.Infrastructure.Repositories;
 
-public class EventRepository : IEventRepository
+public class EventRepository : BaseRepository, IEventRepository
 {
-    private readonly ISqlSugarContext _db;
-
-    public EventRepository(ISqlSugarContext db)
+    public EventRepository(ISqlSugarContext db) : base(db)
     {
-        _db = db;
     }
 
     public async Task<List<Event>> ScanUnprocessedAsync(
@@ -23,7 +20,7 @@ public class EventRepository : IEventRepository
         List<string>? eventCodes,
         List<string> processorIds)
     {
-        using var client = await _db.GetClientAsync(databaseType);
+        using var client = await GetClientAsync(databaseType);
 
         var query = client.Queryable<Event>()
             .AS(tableName)

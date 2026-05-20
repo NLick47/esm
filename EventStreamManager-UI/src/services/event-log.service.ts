@@ -3,6 +3,7 @@ import { getApiUrl } from '@/config/api.config';
 import type { 
   EventHandle, 
   EventHandleDetail,
+  EventHandleStats,
   PagedResult, 
   GetEventHandlesRequest, 
   ExportEventHandlesRequest 
@@ -11,6 +12,7 @@ import type {
 export type { 
   EventHandle, 
   EventHandleDetail,
+  EventHandleStats,
   PagedResult, 
   GetEventHandlesRequest, 
   ExportEventHandlesRequest 
@@ -20,6 +22,10 @@ const BASE_PATH = '/api/EventLog';
 
 export function getEventHandles(params: GetEventHandlesRequest): Promise<PagedResult<EventHandle>> {
   return get(`${BASE_PATH}/handles`, { params });
+}
+
+export function getEventHandleStats(params: Omit<GetEventHandlesRequest, 'page' | 'pageSize'>): Promise<EventHandleStats> {
+  return get(`${BASE_PATH}/stats`, { params });
 }
 
 export function exportEventHandles(params: ExportEventHandlesRequest): string {
@@ -61,7 +67,7 @@ export function downloadExportFile(params: ExportEventHandlesRequest): void {
   document.body.removeChild(link);
 }
 
-export function getHandleDetail(databaseType: string, handleId: number): Promise<{ success: boolean; data: EventHandleDetail; message: string }> {
+export function getHandleDetail(databaseType: string, handleId: number): Promise<EventHandleDetail> {
   return get(`${BASE_PATH}/handles/${handleId}`, { params: { databaseType } });
 }
 

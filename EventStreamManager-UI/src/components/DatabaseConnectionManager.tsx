@@ -14,7 +14,7 @@ export default function DatabaseConnectionManager() {
   const [currentConfigIndex, setCurrentConfigIndex] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const [isMutating, setIsMutating] = useState(false);
-  const [isInitializing, setIsInitializing] = useState(false);
+
   const [isAddingType, setIsAddingType] = useState(false);
   const [newTypeName, setNewTypeName] = useState('');
   const [newTypeLabel, setNewTypeLabel] = useState('');
@@ -311,38 +311,6 @@ export default function DatabaseConnectionManager() {
       console.error('连接测试失败:', error);
       setConnectionStatus('disconnected');
       toast.error('连接测试失败，请检查网络或API服务');
-    }
-  };
-
-  // 初始化表结构
-  const initializeTables = async () => {
-    if (!currentConfig.id) {
-      toast.error('请先保存配置');
-      return;
-    }
-
-    if (!currentConfig.connectionString) {
-      toast.error('请输入连接字符串');
-      return;
-    }
-
-    setIsInitializing(true);
-    try {
-      const result = await databaseService.initializeTables(activeDatabase, currentConfig.id);
-
-      if (result.success) {
-        const tablesInfo = result.createdTables && result.createdTables.length > 0
-          ? `\n已创建表: ${result.createdTables.join(', ')}`
-          : '';
-        toast.success(`表结构初始化成功！${tablesInfo}`, { duration: 5000 });
-      } else {
-        toast.error(`初始化失败: ${result.message}`);
-      }
-    } catch (error) {
-      console.error('初始化表结构失败:', error);
-      toast.error('初始化表结构失败');
-    } finally {
-      setIsInitializing(false);
     }
   };
 
@@ -740,26 +708,6 @@ export default function DatabaseConnectionManager() {
                 <i className="fa-solid fa-plug"></i>
                 测试连接
               </button>
-
-              {currentConfig.id && (
-                <button
-                  onClick={initializeTables}
-                  disabled={!currentConfig.connectionString || isInitializing || isLoading}
-                  className={buttonVariants.danger + ' px-6 py-3 flex items-center gap-2'}
-                >
-                  {isInitializing ? (
-                    <>
-                      <i className="fa-solid fa-spinner fa-spin"></i>
-                      初始化中...
-                    </>
-                  ) : (
-                    <>
-                      <i className="fa-solid fa-database"></i>
-                      初始化表结构
-                    </>
-                  )}
-                </button>
-              )}
             </div>
           </div>
         </>

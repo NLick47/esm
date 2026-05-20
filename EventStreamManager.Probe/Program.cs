@@ -42,7 +42,7 @@ try
         bool isHealthy;
         try
         {
-            var response = await httpClient.GetAsync(probeConfig.TargetUrl);
+            using var response = await httpClient.GetAsync(probeConfig.TargetUrl);
             isHealthy = response.IsSuccessStatusCode;
 
             if (isHealthy)

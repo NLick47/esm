@@ -40,67 +40,80 @@ public class ScriptExecutor : IScriptExecutor
         };
 
         EnhancedQueryData? jsData = null;
-        try
+
+        using (_logger.BeginScope(new Dictionary<string, object>
         {
-            if (context.ProcessorConfig == null || !context.ProcessorConfig.Enabled)
+            ["ProcessorId"] = context.ProcessorId,
+            ["ProcessorName"] = context.ProcessorName,
+            ["DatabaseType"] = context.DatabaseType,
+            ["EventId"] = context.Event.Id,
+            ["EventCode"] = context.Event.EventCode
+        }))
+        {
+            try
             {
-                result.Success = false;
-                result.NeedToSend = false;
-                result.Reason = "处理器未配置或已禁用";
-                return result;
-            }
-
-            if (string.IsNullOrEmpty(context.ProcessorConfig.SqlTemplate))
-            {
-                result.Success = false;
-                result.NeedToSend = false;
-                result.Reason = "未设置查询语句";
-                return result;
-            }
-
-            jsData = await _eventDataBuilderService.BuildEnhancedDataAsync(
-                context.DatabaseType,
-                context.Event,
-                new JsProcessor()
+                if (context.ProcessorConfig == null || !context.ProcessorConfig.Enabled)
                 {
-                    Id = context.ProcessorId,
-                    Name = context.ProcessorName,
-                    SqlTemplate = context.ProcessorConfig.SqlTemplate,
-                });
-            var execResult = await _jsService.ExecuteProcessAsync(context.ProcessorConfig.Code, jsData);
+                    result.Success = false;
+                    result.NeedToSend = false;
+                    result.Reason = "处理器未配置或已禁用";
+                    return result;
+                }
 
-            stopwatch.Stop();
-            result.ExecutionTimeMs = stopwatch.ElapsedMilliseconds;
+                if (string.IsNullOrEmpty(context.ProcessorConfig.SqlTemplate))
+                {
+                    result.Success = false;
+                    result.NeedToSend = false;
+                    result.Reason = "未设置查询语句";
+                    return result;
+                }
 
-            result.InputData = jsData;
+                jsData = await _eventDataBuilderService.BuildEnhancedDataAsync(
+                    context.DatabaseType,
+                    context.Event,
+                    new JsProcessor()
+                    {
+                        Id = context.ProcessorId,
+                        Name = context.ProcessorName,
+                        SqlTemplate = context.ProcessorConfig.SqlTemplate,
+                    });
+                var execResult = await _jsService.ExecuteProcessAsync(context.ProcessorConfig.Code, jsData);
 
-            if (!execResult.Success)
+                stopwatch.Stop();
+                result.ExecutionTimeMs = stopwatch.ElapsedMilliseconds;
+
+                result.InputData = jsData;
+
+                if (!execResult.Success)
+                {
+                    result.Success = false;
+                    result.ErrorMessage = execResult.ErrorMessage ?? execResult.ProcessError;
+                    result.ConsoleOutput = execResult.ConsoleOutput;
+                    result.ErrorStack = execResult.ErrorStack;
+                    result.ErrorJavaScriptStackTrace = execResult.ErrorJavaScriptStackTrace;
+                    result.ErrorSourceContext = execResult.ErrorSourceContext;
+                    result.ErrorLineNumber = execResult.ErrorLineNumber;
+                    result.ErrorColumn = execResult.ErrorColumn;
+                }
+                else
+                {
+                    result.Success = true;
+                    result.NeedToSend = execResult.NeedToSend;
+                    result.RequestInfo = execResult.RequestInfo;
+                    result.Reason = execResult.Reason;
+                    result.ConsoleOutput = execResult.ConsoleOutput;
+                }
+            }
+            catch (Exception ex)
             {
+                stopwatch.Stop();
+                result.ExecutionTimeMs = stopwatch.ElapsedMilliseconds;
                 result.Success = false;
-                result.ErrorMessage = execResult.ErrorMessage;
-                result.ConsoleOutput = execResult.ConsoleOutput;
-                result.ErrorStack = execResult.ErrorStack;
-                result.ErrorLineNumber = execResult.ErrorLineNumber;
-                result.ErrorColumn = execResult.ErrorColumn;
+                result.ErrorMessage = ex.Message;
+                result.ErrorStack = ex.StackTrace;
+                result.InputData = jsData;
+                _logger.LogError(ex, "脚本执行器未预期异常");
             }
-            else
-            {
-                result.Success = true;
-                result.NeedToSend = execResult.NeedToSend;
-                result.RequestInfo = execResult.RequestInfo;
-                result.Reason = execResult.Reason;
-                result.ConsoleOutput = execResult.ConsoleOutput;
-            }
-        }
-        catch (Exception ex)
-        {
-            stopwatch.Stop();
-            result.ExecutionTimeMs = stopwatch.ElapsedMilliseconds;
-            result.Success = false;
-            result.ErrorMessage = ex.Message;
-            result.InputData = jsData;
-            _logger.LogError(ex, "[{DatabaseType}] 执行失败: {ProcessorName}",
-                context.DatabaseType, context.ProcessorName);
         }
 
         return result;

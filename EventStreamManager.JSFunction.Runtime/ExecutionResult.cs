@@ -20,11 +20,15 @@ public class ExecutionResult
     
     
     /// <summary>
-    /// 控制台输出列表
+    /// 控制台输出列表不含 debug
     /// </summary>
     public List<OutputMessage> Output { get; set; } = new();
-    
-    
+
+    /// <summary>
+    /// 调试输出文本 仅含 debug，不保存到数据库
+    /// </summary>
+    public string? DebugOutput { get; set; }
+
     /// <summary>
     /// 控制台输出文本
     /// </summary>
@@ -50,17 +54,25 @@ public class ExecutionResult
     
     
     /// <summary>
-    /// 错误堆栈
+    /// 错误堆栈（.NET 层面）
     /// </summary>
     public string? ErrorStack { get; set; }
-    
-    
+
+    /// <summary>
+    /// JavaScript 堆栈（JS 引擎层面）
+    /// </summary>
+    public string? ErrorJavaScriptStackTrace { get; set; }
+
+    /// <summary>
+    /// 出错源码上下文（包含前后行）
+    /// </summary>
+    public string? ErrorSourceContext { get; set; }
+
     /// <summary>
     /// 错误行号
     /// </summary>
     public int? ErrorLineNumber { get; set; }
-    
-    
+
     /// <summary>
     /// 错误列号
     /// </summary>

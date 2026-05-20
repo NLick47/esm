@@ -16,6 +16,7 @@ public static class ServiceCollectionExtensions
         services.AddJsFunctionRuntime();
 
         // 核心服务
+        services.AddSingleton<ITableInitializationTracker, TableInitializationTracker>();
         services.AddScoped<ISqlSugarContext, SqlSugarContext>();
 
         // 数据服务
@@ -28,7 +29,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IProcessorVersionService, ProcessorVersionService>();
         services.AddSingleton<ISqlTemplateService, SqlTemplateService>();
         services.AddSingleton<ISystemVariableService, SystemVariableService>();
-        services.AddScoped<ITableInitializationService, TableInitializationService>();
         services.AddScoped<IEventLogService, EventLogService>();
 
         // 调试服务

@@ -64,6 +64,67 @@ public class EventLogService : IEventLogService
         }
     }
 
+    /// <summary>
+    /// 获取事件处理记录统计
+    /// </summary>
+    public async Task<EventHandleStats> GetEventHandleStatsAsync(
+        string databaseType,
+        int? eventId = null,
+        string? strEventReferenceId = null,
+        string? processorId = null,
+        string? status = null,
+        string? eventCode = null,
+        DateTime? startDate = null,
+        DateTime? endDate = null)
+    {
+        try
+        {
+            using var client = await _db.GetClientAsync(databaseType);
+
+            var buildBase = () => client.Queryable<EventHandle>()
+                .LeftJoin<Event>((h, e) => h.EventId == e.Id)
+                .LeftJoin<EventHandleLog>((h, e, l) => h.LastHandleLogId == l.Id)
+                .WhereIF(eventId.HasValue, (h, e, l) => h.EventId == eventId)
+                .WhereIF(!string.IsNullOrEmpty(strEventReferenceId), (h, e, l) => e.StrEventReferenceId == strEventReferenceId)
+                .WhereIF(!string.IsNullOrEmpty(processorId), (h, e, l) => h.ProcessorId == processorId)
+                .WhereIF(!string.IsNullOrEmpty(status), (h, e, l) => h.LastHandleStatus == status)
+                .WhereIF(!string.IsNullOrEmpty(eventCode), (h, e, l) => e.EventCode == eventCode)
+                .WhereIF(startDate.HasValue, (h, e, l) => e.CreateDatetime >= startDate)
+                .WhereIF(endDate.HasValue, (h, e, l) => e.CreateDatetime <= endDate);
+
+            var total = await buildBase().CountAsync();
+            var success = await buildBase()
+                .Where((h, e, l) => l.ScriptSuccess == true && (l.SendSuccess == null || l.SendSuccess == true))
+                .CountAsync();
+            var failed = await buildBase()
+                .Where((h, e, l) => l.ScriptSuccess == false)
+                .CountAsync();
+            var deadLetter = await buildBase()
+                .Where((h, e, l) => h.IsDeadLetter)
+                .CountAsync();
+            var processing = await buildBase()
+                .Where((h, e, l) => !h.IsFinished && !h.IsDeadLetter)
+                .CountAsync();
+
+            return new EventHandleStats
+            {
+                Total = total,
+                Success = success,
+                Failed = failed,
+                DeadLetter = deadLetter,
+                Processing = processing
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取处理记录统计失败，参数: {@Params}", new
+            {
+                databaseType, eventId, strEventReferenceId, processorId,
+                status, eventCode, startDate, endDate
+            });
+            throw;
+        }
+    }
 
     /// <summary>
     /// 导出事件处理记录到Excel
@@ -181,7 +242,7 @@ public class EventLogService : IEventLogService
         MiniExcel.SaveAs(stream, exportData, sheetName: "事件处理记录");
         return stream.ToArray();
     }
-    
+
     private ISugarQueryable<EventHandleResult> BuildQuery(
         ISqlSugarClient client,
         int? eventId,
@@ -193,7 +254,7 @@ public class EventLogService : IEventLogService
         DateTime? endDate)
     {
         var query = client.Queryable<EventHandle>()
-            .LeftJoin<EventHandleLog>((h, l) => h.Id == l.EventHandleId)
+            .LeftJoin<EventHandleLog>((h, l) => h.LastHandleLogId == l.Id)
             .LeftJoin<Event>((h, l, e) => h.EventId == e.Id)
             .WhereIF(eventId.HasValue, (h, l, e) => h.EventId == eventId)
             .WhereIF(!string.IsNullOrEmpty(strEventReferenceId),
@@ -225,14 +286,37 @@ public class EventLogService : IEventLogService
                 CreateDatetime = e.CreateDatetime,
                 EventCode = e.EventCode,
                 EventName = e.EventName,
-                RequestData = l.RequestData,
-                ResponseData = l.ResponseData,
+                // 列表不返回大字段，详情接口提供完整数据
+                RequestData = null,
+                ResponseData = null,
             });
 
         return query;
     }
 
- 
+    private ISugarQueryable<EventHandle> BuildCountQuery(
+        ISqlSugarClient client,
+        int? eventId,
+        string? strEventReferenceId,
+        string? processorId,
+        string? status,
+        string? eventCode,
+        DateTime? startDate,
+        DateTime? endDate)
+    {
+        return client.Queryable<EventHandle>()
+            .LeftJoin<Event>((h, e) => h.EventId == e.Id)
+            .WhereIF(eventId.HasValue, (h, e) => h.EventId == eventId)
+            .WhereIF(!string.IsNullOrEmpty(strEventReferenceId),
+                (h, e) => e.StrEventReferenceId == strEventReferenceId)
+            .WhereIF(!string.IsNullOrEmpty(processorId), (h, e) => h.ProcessorId == processorId)
+            .WhereIF(!string.IsNullOrEmpty(status), (h, e) => h.LastHandleStatus == status)
+            .WhereIF(!string.IsNullOrEmpty(eventCode), (h, e) => e.EventCode == eventCode)
+            .WhereIF(startDate.HasValue, (h, e) => e.CreateDatetime >= startDate)
+            .WhereIF(endDate.HasValue, (h, e) => e.CreateDatetime <= endDate)
+            .Select(h => h);
+    }
+
     #region 详情查询
 
     public async Task<(EventHandleResult? Handle, EventHandleLogDetail? Detail)> GetHandleDetailAsync(
@@ -300,28 +384,4 @@ public class EventLogService : IEventLogService
     }
 
     #endregion
-
-    private ISugarQueryable<EventHandle> BuildCountQuery(
-        ISqlSugarClient client,
-        int? eventId,
-        string? strEventReferenceId,
-        string? processorId,
-        string? status,
-        string? eventCode,
-        DateTime? startDate,
-        DateTime? endDate)
-    {
-        return client.Queryable<EventHandle>()
-            .LeftJoin<EventHandleLog>((h, l) => h.Id == l.EventHandleId)
-            .LeftJoin<Event>((h, l, e) => h.EventId == e.Id)
-            .WhereIF(eventId.HasValue, (h, l, e) => h.EventId == eventId)
-            .WhereIF(!string.IsNullOrEmpty(strEventReferenceId),
-                (h, l, e) => e.StrEventReferenceId == strEventReferenceId)
-            .WhereIF(!string.IsNullOrEmpty(processorId), (h, l, e) => h.ProcessorId == processorId)
-            .WhereIF(!string.IsNullOrEmpty(status), (h, l, e) => h.LastHandleStatus == status)
-            .WhereIF(!string.IsNullOrEmpty(eventCode), (h, l, e) => e.EventCode == eventCode)
-            .WhereIF(startDate.HasValue, (h, l, e) => e.CreateDatetime >= startDate)
-            .WhereIF(endDate.HasValue, (h, l, e) => e.CreateDatetime <= endDate)
-            .Select(h => h);
-    }
 }

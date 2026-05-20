@@ -21,6 +21,19 @@ public interface IEventLogService
         int pageSize = 20);
 
     /// <summary>
+    /// 获取事件处理记录统计
+    /// </summary>
+    Task<EventHandleStats> GetEventHandleStatsAsync(
+        string databaseType,
+        int? eventId = null,
+        string? strEventReferenceId = null,
+        string? processorId = null,
+        string? status = null,
+        string? eventCode = null,
+        DateTime? startDate = null,
+        DateTime? endDate = null);
+
+    /// <summary>
     /// 导出事件处理记录到Excel
     /// </summary>
     Task<byte[]> ExportEventHandlesToExcelAsync(
