@@ -319,7 +319,7 @@ namespace EventStreamManager.Infrastructure.Services.Data
         public async Task<bool> UpdateStartConditionAsync(string databaseType, StartCondition condition)
         {
             var configs = await GetConfigsAsync();
-            
+
             if (configs.Databases.TryGetValue(databaseType, out var config))
             {
                 config.StartCondition = condition;
@@ -327,9 +327,37 @@ namespace EventStreamManager.Infrastructure.Services.Data
                 _logger.LogInformation("数据库 {DatabaseType} 的启动条件已更新", databaseType);
                 return true;
             }
-            
+
             _logger.LogWarning("尝试更新不存在的数据库类型 {DatabaseType} 的启动条件", databaseType);
             return false;
+        }
+
+       
+        public async Task<EventConfig> InitializeConfigForDatabaseTypeAsync(string databaseType)
+        {
+            _databaseTypes.Clear();
+
+            var validTypes = await LoadDatabaseTypesAsync();
+            if (!validTypes.ContainsKey(databaseType))
+            {
+                throw new ArgumentException($"无效的数据库类型: {databaseType}");
+            }
+
+            var configs = await GetConfigsAsync();
+
+            if (configs.Databases.TryGetValue(databaseType, out var existingConfig))
+            {
+                _logger.LogInformation("数据库类型 {DatabaseType} 的配置已存在", databaseType);
+                return existingConfig;
+            }
+
+            var defaultConfig = GetDefaultConfig();
+            configs.Databases[databaseType] = defaultConfig;
+
+            await SaveConfigsAsync(configs);
+            _logger.LogInformation("已为数据库类型 {DatabaseType} 初始化默认事件监听配置", databaseType);
+
+            return defaultConfig;
         }
     }
 }

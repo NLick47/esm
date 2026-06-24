@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Encodings.Web;
@@ -133,10 +134,11 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
         }
 
         Engine? engine = null;
+        ScriptOutput? output = null;
 
         try
         {
-            var output = options.CaptureConsoleOutput ? new ScriptOutput() : null;
+            output = options.CaptureConsoleOutput ? new ScriptOutput() : null;
 
             // 每次执行都创建全新的引擎
             engine = CreateEngine(options, output);
@@ -214,30 +216,6 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
                 }
             }
 
-            if (output != null)
-            {
-                var all = output.GetOutputs().ToList();
-                
-                result.Output = all
-                    .Where(o => o.Type is OutputType.Log or OutputType.Warn or OutputType.Error)
-                    .Select(o => new OutputMessage
-                    {
-                        Type = o.Type.ToString(),
-                        Message = o.Message,
-                        Timestamp = o.Timestamp
-                    }).ToList();
-                
-                var debugItems = all
-                    .Where(o => o.Type is OutputType.Debug or OutputType.Info)
-                    .ToList();
-
-                if (debugItems.Count > 0)
-                {
-                    result.DebugOutput = string.Join(Environment.NewLine,
-                        debugItems.Select(o => $"[{o.Type}] {o.Message}"));
-                }
-            }
-
             // 如果脚本返回了 error，则视为脚本执行失败
             result.Success = !processResult.IsObject() || string.IsNullOrEmpty(result.ProcessError);
         }
@@ -267,6 +245,30 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
         }
         finally
         {
+            if (output != null)
+            {
+                var all = output.GetOutputs().ToList();
+
+                result.Output = all
+                    .Where(o => o.Type is OutputType.Log or OutputType.Warn or OutputType.Error)
+                    .Select(o => new OutputMessage
+                    {
+                        Type = o.Type.ToString(),
+                        Message = o.Message,
+                        Timestamp = o.Timestamp
+                    }).ToList();
+
+                var debugItems = all
+                    .Where(o => o.Type is OutputType.Debug or OutputType.Info)
+                    .ToList();
+
+                if (debugItems.Count > 0)
+                {
+                    result.DebugOutput = string.Join(Environment.NewLine,
+                        debugItems.Select(o => $"[{o.Type}] {o.Message}"));
+                }
+            }
+
             _semaphore.Release();
             stopwatch.Stop();
             result.ExecutionTimeMs = stopwatch.ElapsedMilliseconds;
@@ -392,7 +394,80 @@ public class JavaScriptExecutionService : IJavaScriptExecutionService, IDisposab
 
     private JsValue ConvertToJsValue(Engine engine, object? value)
     {
-        return value == null ? JsValue.Null : JsValue.FromObject(engine, value);
+        if (value == null) return JsValue.Null;
+
+        // 特殊处理 Dictionary，转换为 JavaScript 对象以便支持点号访问
+        if (value is IDictionary<string, object?> dictNullable)
+        {
+            var jsObj = engine.Evaluate("({})").AsObject();
+            foreach (var kvp in dictNullable)
+            {
+                jsObj.Set(kvp.Key, ConvertToJsValue(engine, kvp.Value));
+            }
+            return jsObj;
+        }
+
+        // 处理非可空 Dictionary
+        if (value is IDictionary<string, object> dict)
+        {
+            var jsObj = engine.Evaluate("({})").AsObject();
+            foreach (var kvp in dict)
+            {
+                jsObj.Set(kvp.Key, ConvertToJsValue(engine, kvp.Value));
+            }
+            return jsObj;
+        }
+
+        // 特殊处理 List<Dictionary>，转换为 JavaScript 数组
+        if (value is IList<Dictionary<string, object?>> listNullable)
+        {
+            var jsArray = engine.Evaluate("([])").AsArray();
+            foreach (var item in listNullable)
+            {
+                jsArray.Push(ConvertToJsValue(engine, item));
+            }
+            return jsArray;
+        }
+
+        // 处理非可空 List<Dictionary>
+        if (value is IList<Dictionary<string, object>> list)
+        {
+            var jsArray = engine.Evaluate("([])").AsArray();
+            foreach (var item in list)
+            {
+                jsArray.Push(ConvertToJsValue(engine, item));
+            }
+            return jsArray;
+        }
+
+        // 处理普通 List<T>，转换为 JavaScript 数组
+        if (value is System.Collections.IList genericList)
+        {
+            var jsArray = engine.Evaluate("([])").AsArray();
+            foreach (var item in genericList)
+            {
+                jsArray.Push(ConvertToJsValue(engine, item));
+            }
+            return jsArray;
+        }
+
+        // 处理自定义对象（如 EnhancedQueryData），递归转换所有属性
+        var type = value.GetType();
+        if (type.IsClass && type != typeof(string) && !type.IsArray)
+        {
+            var jsObj = engine.Evaluate("({})").AsObject();
+            foreach (var prop in type.GetProperties())
+            {
+                if (prop.CanRead)
+                {
+                    var propValue = prop.GetValue(value);
+                    jsObj.Set(prop.Name, ConvertToJsValue(engine, propValue));
+                }
+            }
+            return jsObj;
+        }
+
+        return JsValue.FromObject(engine, value);
     }
 
     private object? ConvertJsValueToObject(JsValue value)

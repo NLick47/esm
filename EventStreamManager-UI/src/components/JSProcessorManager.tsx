@@ -624,6 +624,8 @@ export default function JSProcessorManager() {
         }]);
         setSelectedProcessor(newProcessor.id);
         setIsNewProcessor(false);
+        // 更新编辑器状态中的 id，确保后续保存是更新而非创建
+        setEditingProcessor(prev => ({ ...prev, id: newProcessor.id }));
         toast.success('处理器已创建');
       } else {
         await updateProcessorService(editingProcessor.id, processorToSave);
@@ -641,7 +643,7 @@ export default function JSProcessorManager() {
         ));
         toast.success('处理器已更新');
       }
-      setActiveTab('list');
+      // 保存后保持在编辑器页面，不自动退出
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '保存失败');
     }
@@ -723,6 +725,15 @@ export default function JSProcessorManager() {
     try {
       await updateCustomTemplateService(id, updated);
       setCustomTemplates(prev => prev.map(t => t.id === id ? updated : t));
+
+      // 如果更新的是当前处理器正在使用的模板，自动同步 sqlTemplate
+      if (selectedCustomTemplateId === id && updates.sqlTemplate !== undefined) {
+        setEditingProcessor(prev => ({
+          ...prev,
+          sqlTemplate: updates.sqlTemplate,
+        }));
+      }
+
       toast.success('模板已更新');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '操作失败');

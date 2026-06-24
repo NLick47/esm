@@ -8,13 +8,15 @@ public class DatabaseSchemeService : IDatabaseSchemeService
 {
     private readonly IDataService _dataService;
     private readonly ILogger<DatabaseSchemeService> _logger;
+    private readonly IEventListenerConfigService _eventListenerConfigService;
     private readonly string _configFileName = "database-configs.json";
-    
 
-    public DatabaseSchemeService(IDataService dataService, ILogger<DatabaseSchemeService> logger)
+
+    public DatabaseSchemeService(IDataService dataService, ILogger<DatabaseSchemeService> logger, IEventListenerConfigService eventListenerConfigService)
     {
         _dataService = dataService;
         _logger = logger;
+        _eventListenerConfigService = eventListenerConfigService;
     }
 
 
@@ -285,6 +287,17 @@ public class DatabaseSchemeService : IDatabaseSchemeService
             await _dataService.WriteAsync(_configFileName, new List<DatabaseConfigs> { configs });
 
             _logger.LogInformation("添加数据库类型成功 - Value: {Value}", databaseType.Value);
+
+         
+            try
+            {
+                await _eventListenerConfigService.InitializeConfigForDatabaseTypeAsync(databaseType.Value);
+                _logger.LogInformation("已为新数据库类型 {Value} 初始化事件监听配置", databaseType.Value);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "为新数据库类型 {Value} 初始化事件监听配置失败", databaseType.Value);
+            }
 
             return databaseType;
         }

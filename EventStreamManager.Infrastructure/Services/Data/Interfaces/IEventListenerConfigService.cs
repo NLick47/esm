@@ -35,4 +35,7 @@ public interface IEventListenerConfigService
     
     // 清除缓存
     void ClearCache();
+
+    // 为新的数据库类型初始化默认配置
+    Task<EventConfig> InitializeConfigForDatabaseTypeAsync(string databaseType);
 }
