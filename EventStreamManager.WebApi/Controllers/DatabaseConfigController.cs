@@ -12,15 +12,18 @@ namespace EventStreamManager.WebApi.Controllers
         private readonly IDatabaseSchemeService _databaseSchemeService;
         private readonly IDatabaseConnectionService _connectionService;
         private readonly IDataService _dataService;
+        private readonly IEventListenerConfigService _eventListenerConfigService;
 
         public DatabaseConfigController(
             IDatabaseSchemeService databaseSchemeService,
             IDatabaseConnectionService connectionService,
-            IDataService dataService)
+            IDataService dataService,
+            IEventListenerConfigService eventListenerConfigService)
         {
             _databaseSchemeService = databaseSchemeService;
             _connectionService = connectionService;
             _dataService = dataService;
+            _eventListenerConfigService = eventListenerConfigService;
         }
 
         // 获取所有数据库配置
@@ -115,6 +118,17 @@ namespace EventStreamManager.WebApi.Controllers
         {
             var databaseType = request.ToEntity();
             var newType = await _databaseSchemeService.AddDatabaseTypeAsync(databaseType);
+
+            // 在 Controller 层编排：添加类型后初始化事件监听配置
+            try
+            {
+                await _eventListenerConfigService.InitializeConfigForDatabaseTypeAsync(databaseType.Value);
+            }
+            catch
+            {
+                // 初始化失败不影响类型添加
+            }
+
             return Ok(newType.ToResponse(), "添加数据库类型成功");
         }
 

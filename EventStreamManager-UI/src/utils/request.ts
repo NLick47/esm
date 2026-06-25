@@ -69,6 +69,12 @@ export async function request<T = any>(
     }
   };
 
+  // 自动携带 token
+  const token = localStorage.getItem('esm_token');
+  if (token) {
+    (config.headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
+  }
+
   if (body && method !== 'GET') {
     config.body = JSON.stringify(body);
   }
