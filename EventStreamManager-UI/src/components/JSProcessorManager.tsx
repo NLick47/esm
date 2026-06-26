@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback,useMemo } from 'react';
+import { useState, useEffect, useCallback,useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 import CodeMirror from '@uiw/react-codemirror';
 import { TabNav } from '@/components/ui/TabNav';
@@ -433,6 +433,9 @@ export default function JSProcessorManager() {
 
   // 编辑器字体大小状态
   const [editorFontSize, setEditorFontSize] = useState<number>(15);
+  
+  // 追踪自定义模板名称编辑前的原始值，用于 onBlur 时判断是否真正变更
+  const templateNameAtFocusRef = useRef<Map<string, string>>(new Map());
   
   // 全屏编辑状态
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -1246,13 +1249,32 @@ export default function JSProcessorManager() {
                               <input
                                 type="text"
                                 value={template.name}
+                                onFocus={() => {
+                                  templateNameAtFocusRef.current.set(template.id, template.name);
+                                }}
                                 onChange={(e) => {
+                                  const newName = e.target.value;
                                   setCustomTemplates(prev =>
-                                    prev.map(t => t.id === template.id ? { ...t, name: e.target.value } : t)
+                                    prev.map(t => t.id === template.id ? { ...t, name: newName } : t)
                                   );
                                 }}
-                                onBlur={(e) => {
-                                  updateCustomTemplate(template.id, { name: e.target.value });
+                                onBlur={async (e) => {
+                                  const newName = e.target.value;
+                                  const oldName = templateNameAtFocusRef.current.get(template.id);
+                                  if (oldName === undefined || oldName === newName) {
+                                    templateNameAtFocusRef.current.delete(template.id);
+                                    return;
+                                  }
+                                  try {
+                                    await updateCustomTemplateService(template.id, { name: newName });
+                                    templateNameAtFocusRef.current.delete(template.id);
+                                  } catch (error) {
+                                    templateNameAtFocusRef.current.delete(template.id);
+                                    setCustomTemplates(prev =>
+                                      prev.map(t => t.id === template.id ? { ...t, name: oldName } : t)
+                                    );
+                                    toast.error(error instanceof Error ? error.message : '更新模板名称失败');
+                                  }
                                 }}
                                 className={`w-full text-sm bg-transparent border-b ${
                                   selectedCustomTemplateId === template.id

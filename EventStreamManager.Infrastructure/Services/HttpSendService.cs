@@ -61,9 +61,27 @@ public class HttpSendService : IHttpSendService
 
             stopwatch.Stop();
             result.StatusCode = (int)response.StatusCode;
-            result.ResponseContent = await response.Content.ReadAsStringAsync();
             result.Success = response.IsSuccessStatusCode;
             result.ExecutionTimeMs = stopwatch.ElapsedMilliseconds;
+
+            try
+            {
+                result.ResponseContent = await response.Content.ReadAsStringAsync();
+            }
+            catch (Exception readEx)
+            {
+                _logger.LogWarning(readEx, "[{DatabaseType}] 读取响应内容失败: Url={Url}, Status={Status}",
+                    databaseType, config.Url, result.StatusCode);
+                result.ResponseContent = null;
+            }
+
+            if (!result.Success)
+            {
+                var statusDesc = $"HTTP {(int)response.StatusCode}";
+                result.ErrorMessage = result.ResponseContent != null
+                    ? $"{statusDesc}: {(result.ResponseContent.Length > 500 ? result.ResponseContent[..500] + "..." : result.ResponseContent)}"
+                    : $"{statusDesc}: (无响应内容)";
+            }
 
             _logger.LogInformation("[{DatabaseType}] HTTP发送: Url={Url}, Status={Status}, Time={Time}ms",
                 databaseType, config.Url, result.StatusCode, result.ExecutionTimeMs);
@@ -83,6 +101,11 @@ public class HttpSendService : IHttpSendService
     public async Task<SendResult> SendWithRetryAsync(string databaseType, InterfaceConfig config, string data, 
         int retries = 3, int intervalMs = 5000)
     {
+        if (retries <= 0)
+        {
+            return new SendResult { Success = false, ErrorMessage = "重试次数为0，未执行发送" };
+        }
+
         SendResult? lastResult = null;
 
         for (int i = 0; i < retries; i++)
@@ -92,13 +115,14 @@ public class HttpSendService : IHttpSendService
 
             if (i < retries - 1)
             {
-                _logger.LogWarning("[{DatabaseType}] 发送失败，{Interval}ms后重试 ({Attempt}/{Max})",
-                    databaseType, intervalMs, i + 1, retries);
+                string errorMsg = lastResult.ErrorMessage ?? $"HTTP {lastResult.StatusCode}";
+                _logger.LogWarning("[{DatabaseType}] 发送失败({Attempt}/{Max}): {Error}",
+                    databaseType, i + 1, retries, errorMsg);
                 await Task.Delay(intervalMs);
             }
         }
 
-        return lastResult ?? new SendResult { Success = false, ErrorMessage = "重试次数已用尽" };
+        return lastResult;
     }
 
     public async Task<HttpSendDebugInfo> SendWithDebugAsync(string databaseType, InterfaceConfig config, string data)

@@ -94,10 +94,10 @@ public class EventLogService : IEventLogService
 
             var total = await buildBase().CountAsync();
             var success = await buildBase()
-                .Where((h, e, l) => l.ScriptSuccess == true && (l.SendSuccess == null || l.SendSuccess == true))
+                .Where((h, e, l) => h.LastHandleStatus == HandleStatus.Success)
                 .CountAsync();
             var failed = await buildBase()
-                .Where((h, e, l) => l.ScriptSuccess == false)
+                .Where((h, e, l) => h.LastHandleStatus == HandleStatus.Fail)
                 .CountAsync();
             var deadLetter = await buildBase()
                 .Where((h, e, l) => h.IsDeadLetter)
@@ -144,7 +144,7 @@ public class EventLogService : IEventLogService
         {
             using var client = await _db.GetClientAsync(databaseType);
             var query = BuildQuery(client, eventId, strEventReferenceId, processorId,
-                status, eventCode, startDate, endDate);
+                status, eventCode, startDate, endDate, includeLargeFields: true);
 
             var exportList = await query
                 .Take(maxRows)
@@ -251,7 +251,8 @@ public class EventLogService : IEventLogService
         string? status,
         string? eventCode,
         DateTime? startDate,
-        DateTime? endDate)
+        DateTime? endDate,
+        bool includeLargeFields = false)
     {
         var query = client.Queryable<EventHandle>()
             .LeftJoin<EventHandleLog>((h, l) => h.LastHandleLogId == l.Id)
@@ -286,9 +287,8 @@ public class EventLogService : IEventLogService
                 CreateDatetime = e.CreateDatetime,
                 EventCode = e.EventCode,
                 EventName = e.EventName,
-                // 列表不返回大字段，详情接口提供完整数据
-                RequestData = null,
-                ResponseData = null,
+                RequestData = includeLargeFields ? l.RequestData : null,
+                ResponseData = includeLargeFields ? l.ResponseData : null,
             });
 
         return query;
