@@ -140,21 +140,62 @@ public class DatabaseTypeProcessor : IDisposable
                 var processorService = scope.ServiceProvider.GetRequiredService<IProcessorService>();
                 var interfaceService = scope.ServiceProvider.GetRequiredService<IInterfaceConfigService>();
 
-                var eventCodes = await GetEventCodesAsync(processorService);
-                var processorIds = await GetProcessorIdsAsync(processorService);
-                
-                if (processorIds.Count == 0)
+                var allProcessors = await processorService.GetAllAsync();
+                var enabledProcessors = allProcessors
+                    .Where(p => p.Enabled && (p.DatabaseTypes.Contains(_databaseType) || p.DatabaseTypes.Count == 0))
+                    .ToList();
+
+                if (enabledProcessors.Count == 0)
                 {
                     _logger.LogInformation("[{DatabaseType}] 没有启用的处理器，跳过本次扫描", _databaseType);
                     await Task.Delay(TimeSpan.FromSeconds(config.ScanFrequency), cancellationToken);
                     continue;
                 }
-                
-                _status.LastScanTime = DateTime.Now;
-                var events = await scanner.ScanAsync(_databaseType, config, eventCodes, processorIds);
-                _status.CurrentBatchCount = events.Count;
 
-                foreach (var eventData in events)
+                var wildcardProcessors = enabledProcessors.Where(p => p.EventCodes.Count == 0).ToList();
+                var codeSpecificProcessors = enabledProcessors.Where(p => p.EventCodes.Count > 0).ToList();
+
+                List<Event> allEvents = new();
+                var scannedEventIds = new HashSet<int>();
+
+                if (codeSpecificProcessors.Count > 0)
+                {
+                    var uniqueCodes = codeSpecificProcessors
+                        .SelectMany(p => p.EventCodes)
+                        .Distinct()
+                        .ToList();
+
+                    foreach (var code in uniqueCodes)
+                    {
+                        var relevantProcessorIds = wildcardProcessors
+                            .Concat(codeSpecificProcessors.Where(p => p.EventCodes.Contains(code)))
+                            .Select(p => p.Id)
+                            .Distinct()
+                            .ToList();
+
+                        var codeEvents = await scanner.ScanAsync(
+                            _databaseType, config, new List<string> { code }, relevantProcessorIds);
+
+                        foreach (var evt in codeEvents)
+                        {
+                            if (scannedEventIds.Add(evt.Id))
+                            {
+                                allEvents.Add(evt);
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    var processorIds = wildcardProcessors.Select(p => p.Id).Distinct().ToList();
+                    allEvents = await scanner.ScanAsync(_databaseType, config, null, processorIds);
+                }
+
+                allEvents = allEvents.OrderBy(e => e.Id).ToList();
+                _status.LastScanTime = DateTime.Now;
+                _status.CurrentBatchCount = allEvents.Count;
+
+                foreach (var eventData in allEvents)
                 {
                     if (cancellationToken.IsCancellationRequested) break;
                     await ProcessEventAsync(eventData, processorService, interfaceService, 
@@ -189,34 +230,6 @@ public class DatabaseTypeProcessor : IDisposable
         }
     }
     
-    /// <summary>
-    /// 获取当前数据库类型所有处理器的事件码集合
-    /// </summary>
-    private async Task<List<string>?> GetEventCodesAsync(IProcessorService processorService)
-    {
-        var all = await processorService.GetAllAsync();
-
-        return all
-            .Where(p => p.Enabled && (p.DatabaseTypes.Contains(_databaseType) || p.DatabaseTypes.Count == 0))
-            .SelectMany(p => p.EventCodes)
-            .Distinct()
-            .ToList();
-    }
-
-    /// <summary>
-    /// 获取当前数据库类型所有启用的处理器ID集合
-    /// </summary>
-    private async Task<List<string>> GetProcessorIdsAsync(IProcessorService processorService)
-    {
-        var all = await processorService.GetAllAsync();
-
-        return all
-            .Where(p => p.Enabled && (p.DatabaseTypes.Contains(_databaseType) || p.DatabaseTypes.Count == 0))
-            .Select(p => p.Id)
-            .Distinct()
-            .ToList();
-    }
-
     /// <summary>
     /// 处理单个事件 - 每个处理器单独创建处理记录
     /// </summary>

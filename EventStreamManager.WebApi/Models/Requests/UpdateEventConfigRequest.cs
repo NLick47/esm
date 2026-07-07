@@ -17,7 +17,7 @@ public class UpdateEventConfigRequest
 
     [Required(ErrorMessage = "事件表名不能为空")]
     [StringLength(100, ErrorMessage = "表名长度不能超过100个字符")]
-    public string TableName { get; set; } = "tblevent";
+    public string TableName { get; set; } = "tblExamineEventTrigger";
 
     [Required(ErrorMessage = "主键字段不能为空")]
     [StringLength(100, ErrorMessage = "主键字段长度不能超过100个字符")]

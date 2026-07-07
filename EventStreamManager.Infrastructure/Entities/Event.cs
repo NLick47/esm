@@ -5,7 +5,7 @@ namespace EventStreamManager.Infrastructure.Entities;
 /// <summary>
 /// 事件表
 /// </summary>
-[SugarTable("tblEvent")]
+[SugarTable("tblExamineEventTrigger")]
 public class Event
 {
     /// <summary>

@@ -258,7 +258,7 @@ namespace EventStreamManager.Infrastructure.Services.Data
                 BatchSize = 100,
                 MaxRetryCount = 1,
                 Enabled = true,
-                TableName = "tblevent",
+                TableName = "tblExamineEventTrigger",
                 PrimaryKey = "Id",
                 TimestampField = "CreateDatetime",
                 TotalEventsProcessed = 0,
