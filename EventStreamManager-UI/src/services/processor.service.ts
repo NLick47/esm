@@ -115,3 +115,10 @@ export function deleteCustomTemplate(id: string): Promise<boolean> {
 
 
 export { executeDebug, executeExamineDebug };
+
+/**
+ * 批量更新处理器排序
+ */
+export function updateSortOrder(sortOrders: Record<string, number>): Promise<void> {
+  return put(`${BASE_PATH}/processors/sort-order`, sortOrders);
+}

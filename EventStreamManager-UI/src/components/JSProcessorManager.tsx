@@ -18,7 +18,7 @@ import prettierPluginEstree from 'prettier/plugins/estree';
 import { createPortal } from 'react-dom';
 import {
   getProcessors,
-  getProcessor, 
+  getProcessor,
   getEventCodes,
   getSystemTemplates,
   getCustomTemplates,
@@ -33,6 +33,7 @@ import {
   deleteCustomTemplate as deleteCustomTemplateService,
   executeDebug,
   executeExamineDebug,
+  updateSortOrder,
 } from '@/services/processor.service';
 import VersionHistoryModal from '@/components/VersionHistoryModal';
 
@@ -441,6 +442,11 @@ export default function JSProcessorManager() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showVersionModal, setShowVersionModal] = useState(false);
 
+  // 拖拽排序状态
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [isReordering, setIsReordering] = useState(false);
+
   const [editingProcessor, setEditingProcessor] = useState<JSProcessorDetailResponse>({
     id: '',
     name: '',
@@ -452,6 +458,7 @@ export default function JSProcessorManager() {
     code: defaultTemplate || '',
     enabled: false,
     description: '',
+    sortOrder: 0,
   });
 
   // ==================== 回调函数 ====================
@@ -587,6 +594,7 @@ export default function JSProcessorManager() {
       code: defaultTemplate || '',
       enabled: false,
       description: '',
+      sortOrder: processors.length, // 新处理器排到最后
     });
     setSelectedProcessor(null);
     setIsNewProcessor(true);
@@ -610,6 +618,7 @@ export default function JSProcessorManager() {
       code: editingProcessor.code,
       enabled: editingProcessor.enabled,
       description: editingProcessor.description,
+      sortOrder: editingProcessor.sortOrder,
     };
 
     try {
@@ -624,6 +633,7 @@ export default function JSProcessorManager() {
           sqlTemplateId: newProcessor.sqlTemplateId,
           enabled: newProcessor.enabled,
           description: newProcessor.description,
+          sortOrder: newProcessor.sortOrder,
         }]);
         setSelectedProcessor(newProcessor.id);
         setIsNewProcessor(false);
@@ -642,6 +652,7 @@ export default function JSProcessorManager() {
             sqlTemplateId: editingProcessor.sqlTemplateId,
             enabled: editingProcessor.enabled,
             description: editingProcessor.description,
+            sortOrder: editingProcessor.sortOrder,
           } : p
         ));
         toast.success('处理器已更新');
@@ -666,6 +677,73 @@ export default function JSProcessorManager() {
       eventCodes.push(code);
     }
     handleProcessorChange('eventCodes', eventCodes);
+  };
+
+  // ==================== 拖拽排序函数 ====================
+
+  const handleDragStart = (index: number) => {
+    setDragIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    setDragOverIndex(index);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    if (dragIndex === null || dragIndex === dropIndex) {
+      setDragIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    const newProcessors = [...processors];
+    const [movedItem] = newProcessors.splice(dragIndex, 1);
+    newProcessors.splice(dropIndex, 0, movedItem);
+
+    // 重新计算 sortOrder：按新位置顺序赋值 0, 1, 2, ...
+    const updated = newProcessors.map((p, idx) => ({
+      ...p,
+      sortOrder: idx,
+    }));
+
+    setProcessors(updated);
+    setDragIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDragIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const saveSortOrder = async () => {
+    setIsReordering(true);
+    try {
+      const sortOrders: Record<string, number> = {};
+      // 按当前数组顺序提交 sortOrder
+      processors.forEach((p, idx) => {
+        sortOrders[p.id] = idx;
+      });
+      await updateSortOrder(sortOrders);
+      // 更新本地状态
+      setProcessors(prev => prev.map((p, idx) => ({ ...p, sortOrder: idx })));
+      toast.success('排序已保存');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '保存排序失败');
+      // 重新加载原始数据
+      try {
+        const procData = await getProcessors();
+        setProcessors(procData);
+      } catch { /* ignore */ }
+    } finally {
+      setIsReordering(false);
+    }
   };
 
   // ==================== 模板操作函数 ====================
@@ -949,18 +1027,47 @@ export default function JSProcessorManager() {
       {/* 处理器列表标签页 */}
       {activeTab === 'list' && (
         <div>
-          <div className="mb-4 flex justify-end">
-            <button
-              onClick={createNewProcessor}
-              className={buttonVariants.primary + ' px-4 py-2 text-sm flex items-center gap-1'}
-            >
-              <i className="fa-solid fa-plus"></i> 创建新处理器
-            </button>
+          <div className="mb-4 flex items-center justify-between">
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              共 {processors.length} 个处理器
+            </div>
+            <div className="flex items-center gap-2">
+              {processors.length > 1 && (
+                <button
+                  onClick={saveSortOrder}
+                  disabled={isReordering}
+                  className={buttonVariants.primary + ' px-4 py-2 text-sm flex items-center gap-1 disabled:opacity-50'}
+                >
+                  {isReordering ? (
+                    <><i className="fa-solid fa-spinner fa-spin"></i> 保存中...</>
+                  ) : (
+                    <><i className="fa-solid fa-floppy-disk"></i> 保存排序</>
+                  )}
+                </button>
+              )}
+              <button
+                onClick={createNewProcessor}
+                className={buttonVariants.primary + ' px-4 py-2 text-sm flex items-center gap-1'}
+              >
+                <i className="fa-solid fa-plus"></i> 创建新处理器
+              </button>
+            </div>
           </div>
 
           <DataTable
             data={processors}
             columns={[
+              {
+                key: 'sortOrder',
+                header: '顺序',
+                width: '60px',
+                render: (p: JSProcessorListResponse, index: number) => (
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-gray-400 dark:text-gray-500 w-5 text-center">{index + 1}</span>
+                    <i className="fa-solid fa-grip-vertical text-gray-400 cursor-grab active:cursor-grabbing"></i>
+                  </div>
+                )
+              },
               {
                 key: 'name',
                 header: '名称',
@@ -1027,7 +1134,22 @@ export default function JSProcessorManager() {
             )}
             emptyText="暂无处理器，请创建新的处理器"
             emptyIcon="fa-code"
+            onRowDragStart={handleDragStart}
+            onRowDragOver={handleDragOver}
+            onRowDragLeave={handleDragLeave}
+            onRowDrop={handleDrop}
+            onRowDragEnd={handleDragEnd}
+            dragOverIndex={dragOverIndex}
+            dragIndex={dragIndex}
           />
+
+          {/* 拖拽排序提示 */}
+          {processors.length > 1 && (
+            <div className="mt-2 text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1">
+              <i className="fa-solid fa-arrow-up-wide-short"></i>
+              <span>拖拽行左侧 <i className="fa-solid fa-grip-vertical mx-0.5"></i> 图标调整处理器执行顺序，点击"保存排序"生效</span>
+            </div>
+          )}
         </div>
       )}
 

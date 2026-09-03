@@ -133,4 +133,18 @@ public class ProcessorsController : BaseController
         }
         return Ok(item.ToListResponse(), "切换处理器状态成功");
     }
+
+    /// <summary>
+    /// 批量更新处理器排序
+    /// </summary>
+    [HttpPut("sort-order")]
+    public async Task<IActionResult> UpdateSortOrder([FromBody] Dictionary<string, int> sortOrders)
+    {
+        if (sortOrders == null || sortOrders.Count == 0)
+        {
+            return Fail("排序数据不能为空");
+        }
+        await _processorService.UpdateSortOrderAsync(sortOrders);
+        return OkMessage("更新排序成功");
+    }
 }

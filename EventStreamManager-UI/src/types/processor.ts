@@ -16,6 +16,7 @@ export interface JSProcessor {
   code: string;
   enabled: boolean;
   description: string;
+  sortOrder: number;
 }
 
 
@@ -28,6 +29,7 @@ export interface JSProcessorListResponse {
   sqlTemplateId: string;
   enabled: boolean;
   description: string;
+  sortOrder: number;
 }
 
 

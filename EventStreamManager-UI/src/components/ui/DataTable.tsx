@@ -18,6 +18,14 @@ interface DataTableProps<T> {
   rowActions?: (row: T, index: number) => React.ReactNode;
   onRowClick?: (row: T, index: number) => void;
   className?: string;
+  /** 拖拽相关事件 */
+  onRowDragStart?: (index: number) => void;
+  onRowDragOver?: (e: React.DragEvent, index: number) => void;
+  onRowDragLeave?: () => void;
+  onRowDrop?: (e: React.DragEvent, index: number) => void;
+  onRowDragEnd?: () => void;
+  dragOverIndex?: number | null;
+  dragIndex?: number | null;
 }
 
 export function DataTable<T>({
@@ -30,6 +38,13 @@ export function DataTable<T>({
   rowActions,
   onRowClick,
   className,
+  onRowDragStart,
+  onRowDragOver,
+  onRowDragLeave,
+  onRowDrop,
+  onRowDragEnd,
+  dragOverIndex,
+  dragIndex,
 }: DataTableProps<T>) {
   return (
     <div className={cn('rounded-xl bg-white shadow-md dark:bg-gray-800 dark:shadow-lg overflow-hidden', className)}>
@@ -75,9 +90,17 @@ export function DataTable<T>({
               data.map((row, index) => (
                 <tr
                   key={keyExtractor(row, index)}
+                  draggable={!!onRowDragStart}
+                  onDragStart={() => onRowDragStart?.(index)}
+                  onDragOver={(e) => onRowDragOver?.(e, index)}
+                  onDragLeave={onRowDragLeave}
+                  onDrop={(e) => onRowDrop?.(e, index)}
+                  onDragEnd={onRowDragEnd}
                   className={cn(
                     'transition-colors',
-                    onRowClick ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                    onRowClick ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50',
+                    dragOverIndex === index && 'bg-blue-50 dark:bg-blue-900/20 ring-2 ring-blue-400 dark:ring-blue-600',
+                    dragIndex === index && 'opacity-50'
                   )}
                   onClick={() => onRowClick?.(row, index)}
                 >

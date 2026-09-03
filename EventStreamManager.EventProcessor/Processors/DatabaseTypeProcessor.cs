@@ -426,7 +426,7 @@ public class DatabaseTypeProcessor : IDisposable
             }
         }
 
-        return processors;
+        return processors.OrderBy(p => p.SortOrder).ThenBy(p => p.Name).ToList();
     }
 
     private async Task<ExecutionResult> ExecuteProcessorAsync(

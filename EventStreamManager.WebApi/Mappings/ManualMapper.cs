@@ -26,7 +26,8 @@ public static class ManualMapper
             SqlTemplateId = request.SqlTemplateId,
             Code = request.Code,
             Enabled = request.Enabled,
-            Description = request.Description
+            Description = request.Description,
+            SortOrder = request.SortOrder
         };
     }
 
@@ -41,7 +42,8 @@ public static class ManualMapper
             SqlTemplateId = request.SqlTemplateId,
             Code = request.Code,
             Enabled = request.Enabled,
-            Description = request.Description
+            Description = request.Description,
+            SortOrder = request.SortOrder
         };
     }
 
@@ -56,7 +58,8 @@ public static class ManualMapper
             SqlTemplateType = processor.SqlTemplateType,
             SqlTemplateId = processor.SqlTemplateId,
             Enabled = processor.Enabled,
-            Description = processor.Description
+            Description = processor.Description,
+            SortOrder = processor.SortOrder
         };
     }
 
@@ -72,6 +75,7 @@ public static class ManualMapper
             SqlTemplateId = processor.SqlTemplateId,
             Enabled = processor.Enabled,
             Description = processor.Description,
+            SortOrder = processor.SortOrder,
             SqlTemplate = processor.SqlTemplate,
             Code = processor.Code
         };

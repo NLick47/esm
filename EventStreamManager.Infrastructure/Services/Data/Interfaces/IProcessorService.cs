@@ -11,4 +11,5 @@ public interface IProcessorService
     Task<bool> DeleteAsync(string id);
     Task<JsProcessor?> ToggleAsync(string id);
     Task<string> GetDefaultTemplateAsync();
+    Task<bool> UpdateSortOrderAsync(Dictionary<string, int> sortOrders);
 }

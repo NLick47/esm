@@ -31,4 +31,9 @@ public class UpdateProcessorRequest
 
     [StringLength(500, ErrorMessage = "描述长度不能超过500")]
     public string Description { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 排序序号，数值越小越先执行
+    /// </summary>
+    public int SortOrder { get; set; }
 }

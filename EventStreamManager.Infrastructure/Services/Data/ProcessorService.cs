@@ -19,7 +19,8 @@ public class ProcessorService : IProcessorService
 
     public async Task<List<JsProcessor>> GetAllAsync()
     {
-        return await _dataService.ReadAsync<JsProcessor>(FileName);
+        var list = await _dataService.ReadAsync<JsProcessor>(FileName);
+        return list.OrderBy(p => p.SortOrder).ThenBy(p => p.Name).ToList();
     }
 
     public async Task<JsProcessor?> GetByIdAsync(string id)
@@ -154,5 +155,19 @@ function process(data) {
   console_log('收到数据:', data);
   return result.setFailure('未处理数据');
 }";
+    }
+
+    public async Task<bool> UpdateSortOrderAsync(Dictionary<string, int> sortOrders)
+    {
+        var list = await _dataService.ReadAsync<JsProcessor>(FileName);
+        foreach (var item in list)
+        {
+            if (sortOrders.TryGetValue(item.Id, out var newOrder))
+            {
+                item.SortOrder = newOrder;
+            }
+        }
+        await _dataService.WriteAsync(FileName, list);
+        return true;
     }
 }

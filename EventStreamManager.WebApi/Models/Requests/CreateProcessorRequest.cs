@@ -31,4 +31,7 @@ public class CreateProcessorRequest
 
     [StringLength(500, ErrorMessage = "描述长度不能超过500")]
     public string Description { get; set; } = string.Empty;
+
+   
+    public int SortOrder { get; set; }
 }
